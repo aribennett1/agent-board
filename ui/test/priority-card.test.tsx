@@ -5,7 +5,7 @@ import type { Board, Decision } from "../src/data/types";
 import { FALLBACK_PATH } from "../src/delivery";
 import { DecisionCard } from "../src/DecisionCard";
 import { PRIORITY_PATH } from "../src/priority";
-import { BOARD_PATH, pushBoard, resetLiveFeed } from "../src/useLiveBoard";
+import { BOARD_PATH, resetLiveFeed } from "../src/useLiveBoard";
 
 const HOOK = "/__ab/webhook"; // every send goes through the server route
 
@@ -118,25 +118,6 @@ const initial: Board = {
 
 vi.mock("../src/data/board", () => ({ board: initial }));
 
-class FakeEventSource extends EventTarget {
-  static instances: FakeEventSource[] = [];
-  readyState = 0;
-  constructor(public url: string) {
-    super();
-    FakeEventSource.instances.push(this);
-  }
-  close() {
-    this.readyState = 2;
-  }
-  open() {
-    this.readyState = 1;
-    this.dispatchEvent(new Event("open"));
-  }
-  board(b: Board) {
-    this.dispatchEvent(new MessageEvent("board", { data: JSON.stringify(b) }));
-  }
-}
-
 // The priority route's reply: a status, a thrown network error, or a promise the test resolves later.
 let priorityReply: () => Promise<Response>;
 let calls: { url: string; init?: RequestInit }[];
@@ -146,8 +127,6 @@ beforeEach(() => {
   vi.resetModules();
   window.localStorage.clear();
   vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "1");
-  FakeEventSource.instances = [];
-  vi.stubGlobal("EventSource", FakeEventSource);
   resetLiveFeed();
   calls = [];
   priorityReply = async () => new Response(JSON.stringify({ ok: true }), { status: 200 });
@@ -196,8 +175,9 @@ const withDecision = (id: string, extra: Partial<Decision>): Board => ({
 async function renderApp() {
   const { default: App } = await import("../src/App");
   render(<App />);
-  const es = { board: (b: Board) => pushBoard(b), open: () => {} };
-  act(() => es.open());
+  // vi.resetModules() gave App its own copy of the live feed, so push through that copy.
+  const live = await import("../src/useLiveBoard");
+  const es = { board: (b: Board) => live.pushBoard(b) };
   return es;
 }
 

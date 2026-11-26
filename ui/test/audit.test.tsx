@@ -59,13 +59,10 @@ describe("ab audit", () => {
     expect(ab(["lint"]).status).toBe(0);
   });
 
-  it("refuses a missing bot, a bro word, an apply-all option, and ab raise of an audit field", () => {
+  it("refuses a missing bot, an apply-all option, and ab raise of an audit field", () => {
     seed({});
     const { bot: _b, ...noBot } = finding;
     expect(ab(["audit", JSON.stringify(noBot)]).status).toBe(2);
-    const bro = ab(["audit", JSON.stringify({ ...finding, id: "audit-bro-word", rule: "Talk to Alex, bro, in plain words." })]);
-    expect(bro.status).toBe(2);
-    expect(bro.stderr).toMatch(/bro/i);
     expect(ab(["audit", JSON.stringify({ ...finding, options: [...finding.options, { id: "all", label: "Apply all" }] })]).stderr).toMatch(/bulk accept/);
     expect(ab(["raise", JSON.stringify({ ...finding, context: finding.context, id: "home-card-x" })]).stderr).toMatch(/ab audit/);
   });

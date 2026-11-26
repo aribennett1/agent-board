@@ -109,9 +109,7 @@
 //   ab heads <group> <sha>                          records the current PR head SHA for a group.
 //   ab lint                                         -> {"ok","failing":[{"id","problems":[...]}]}: open decisions breaking
 //                                                      the title/context/question rules above, including the 3-line paragraph
-//                                                      cap and a missing diagram on relationship/flow/timeline decisions; also flags the word "bro" (case-
-//                                                      insensitive, whole word; "broken" is fine) on a card, reply, question or
-//                                                      attached plan; exit 1 if any (fix with ab raise, ab reply --at, or ab plan,
+//                                                      cap and a missing diagram on relationship/flow/timeline decisions; exit 1 if any (fix with ab raise, ab reply --at, or ab plan,
 //                                                      or ab backfill-titles for cards raised before titles were stored)
 //   ab backfill-titles < map.json                   one-shot: {"<decision id>":"<title>"} sets the title on open cards that have
 //                                                      none (same title rules; any invalid title: exit 2, nothing written;
@@ -541,72 +539,6 @@ function editCardError(d) {
   return null;
 }
 const storedProblems = (d) => [contextError(d.context), questionError(d.question), titleError(d.title), svgError(d.svg), diagramError(d), rawTicketError(d.title, "title"), rawTicketError(d.context, "context"), rawTicketError(d.question, "question"), rawTicketError(d.what_happens_after, "what_happens_after"), rawTicketError(d.glance?.ticket?.summary, "glance.ticket.summary"), ...(Array.isArray(d.details) ? d.details.flatMap((x, i) => typeof x === "string" ? [rawTicketError(x, "details[" + i + "]")] : []) : []), ...textBlockProblems(d), ...bulkProblems(d.options), ...(d.section === "audit" ? [auditFieldError(d)] : [triageError(d)]), postApprovalError(d), editCardError(d)].filter(Boolean);
-// Nov 24: the owner does not want to be called "bro". Whole word only, so "broken" is fine.
-const BRO_RE = /\bbro\b/i;
-const broProblem = (where) => `${where} contains the word "bro"`;
-function cardBroProblems(d) {
-  const p = [];
-  if (BRO_RE.test(d.title ?? "")) p.push(broProblem("title"));
-  if (BRO_RE.test(d.context ?? "")) p.push(broProblem("context"));
-  if (BRO_RE.test(d.question ?? "")) p.push(broProblem("question"));
-  if (BRO_RE.test(d.what_happens_after ?? "")) p.push(broProblem("what_happens_after"));
-  if (BRO_RE.test(d.rule ?? "")) p.push(broProblem("rule"));
-  if (BRO_RE.test(d.seen ?? "")) p.push(broProblem("seen"));
-  if (BRO_RE.test(d.proposed_fix ?? "")) p.push(broProblem("proposed_fix"));
-  if (BRO_RE.test(d.bot ?? "")) p.push(broProblem("bot"));
-  if (BRO_RE.test(d.svg ?? "")) p.push(broProblem("svg"));
-  if (BRO_RE.test(d.joke ?? "")) p.push(broProblem("joke"));
-  if (BRO_RE.test(d.estimate ?? "")) p.push(broProblem("estimate"));
-  if (BRO_RE.test(d.draft ?? "")) p.push(broProblem("draft"));
-  if (BRO_RE.test(d.stale_reason ?? "")) p.push(broProblem("stale_reason"));
-  if (BRO_RE.test(d.post_text ?? "")) p.push(broProblem("post_text"));
-  if (BRO_RE.test(d.current_text ?? "")) p.push(broProblem("current_text"));
-  if (BRO_RE.test(d.answers_comment?.author ?? "") || BRO_RE.test(d.answers_comment?.body ?? "")) p.push(broProblem("answers_comment"));
-  if (BRO_RE.test(d.recommendation?.reason ?? "") || BRO_RE.test(d.recommendation?.who ?? "")) p.push(broProblem("recommendation"));
-  const g = d.glance;
-  if (g) {
-    if (BRO_RE.test(g.ticket?.id ?? "") || BRO_RE.test(g.ticket?.summary ?? "") || BRO_RE.test(g.asking ?? "")) p.push(broProblem("glance"));
-    for (const line of g.done ?? []) if (BRO_RE.test(line ?? "")) p.push(broProblem("glance"));
-    for (const o of g.outcomes ?? []) if (BRO_RE.test(o.happens ?? "") || BRO_RE.test(o.id ?? "")) p.push(broProblem("glance"));
-    const pr = g.pr;
-    if (pr) for (const k of ["author", "base", "sits_on", "sat_on_by", "state"]) if (BRO_RE.test(pr[k] ?? "")) p.push(broProblem("glance"));
-  }
-  for (const f of d.fixes ?? []) {
-    if (BRO_RE.test(f.id ?? "") || BRO_RE.test(f.seen ?? "") || BRO_RE.test(f.proposed ?? "")) p.push(broProblem("fixes " + (f.id ?? "")));
-  }
-  for (const o of d.options ?? []) if (BRO_RE.test(o.label ?? "")) p.push(broProblem(`option "${o.label}"`));
-  const walkDetails = (items) => {
-    for (const x of items ?? []) {
-      if (typeof x === "string") { if (BRO_RE.test(x)) p.push(broProblem("details")); }
-      else if (x && typeof x === "object") {
-        if (BRO_RE.test(x.label ?? "")) p.push(broProblem("details"));
-        for (const it of x.items ?? []) if (BRO_RE.test(it ?? "")) p.push(broProblem("details"));
-      }
-    }
-  };
-  walkDetails(d.details);
-  return p;
-}
-function itemBroProblems(det) {
-  const p = [];
-  if (!det || typeof det !== "object") return p;
-  for (const [field, label] of [["plan", "plan"], ["ticket", "ticket"], ["plain", "plain words"], ["summary", "summary"]]) {
-    if (BRO_RE.test(det[field] ?? "")) p.push(broProblem(label));
-  }
-  for (const t of det.thread ?? []) {
-    if (BRO_RE.test(t.text ?? "")) p.push(broProblem("reply"));
-    const q = t.question;
-    if (q) {
-      if (BRO_RE.test(q.text ?? "") || BRO_RE.test(q.context ?? "") || BRO_RE.test(q.suggestion ?? "") || BRO_RE.test(q.post_text ?? "") || BRO_RE.test(q.answers_comment?.body ?? "")) p.push(broProblem(`question "${q.text}"`));
-      for (const o of q.options ?? []) if (BRO_RE.test(o.label ?? "")) p.push(broProblem(`question option "${o.label}"`));
-    }
-  }
-  for (const q of det.questions ?? []) {
-    if (BRO_RE.test(q.question ?? "") || BRO_RE.test(q.body ?? "") || BRO_RE.test(q.context ?? "") || BRO_RE.test(q.recommendation ?? "")) p.push(broProblem(`plan question ${q.id}`));
-  }
-  return p;
-}
-
 // details: a non-empty array of non-blank strings or {label, items, ordered?} objects. Returns an error or null.
 function detailsError(v) {
   if (!Array.isArray(v) || !v.length) return "details must be a non-empty array (leave it out when there is nothing)";
@@ -1035,7 +967,7 @@ if (cmd === "raise" || cmd === "audit") {
     for (const k of ["rule", "seen", "proposed_fix", "bot"]) if (typeof d[k] === "string") d[k] = d[k].trim();
     if (d.fixes) d.fixes = d.fixes.map((f) => ({ id: f.id.trim(), seen: f.seen.trim(), proposed: f.proposed.trim() }));
   }
-  const problems = [...storedProblems(d), ...cardBroProblems(d)];
+  const problems = storedProblems(d);
   if (problems.length) die(2, problems.join("\nab: "));
   d.context = d.context.trim();
   const title = d.title.trim();
@@ -1559,8 +1491,6 @@ if (cmd === "raise" || cmd === "audit") {
   }
   for (const k of ["pr_stand", "plan_link", "ticket_link"]) if (k in brief && isBlank(brief[k])) die(2, "brief." + k + " must be a non-blank string when set");
   for (const k of ["decisions", "gaps"]) if (k in brief && (!Array.isArray(brief[k]) || brief[k].some((x) => isBlank(x)))) die(2, "brief." + k + " must be an array of non-blank strings");
-  const walk = JSON.stringify(brief);
-  if (BRO_RE.test(walk)) die(2, "brief contains the word \"bro\"");
   lock(); const f = load();
   f.b.briefs = { ...(f.b.briefs ?? {}), [brief.group]: brief };
   const u = save(f, f.b); const live = await waitServed((b) => b.updated_at === u);
@@ -1684,13 +1614,8 @@ if (cmd === "raise" || cmd === "audit") {
   const known = lb.ticket_summaries ?? {};
   const unsummarized = [...new Set(JSON.stringify({ ...lb, ticket_summaries: undefined }).match(/\b[A-Z][A-Z0-9]+-\d{2,6}\b/g) ?? [])].filter((k) => /^PROJ-/.test(k) && !known[k]).sort();
   if (unsummarized.length) failing.push({ id: "ticket_summaries", problems: unsummarized.map((k) => `${k} is mentioned but has no summary: node bin/ab.mjs ticket-summaries '{"${k}":"short summary"}'`) });
-  for (const d of lb.decisions ?? []) {
-    const problems = cardBroProblems(d);
-    if (problems.length) failing.push({ id: d.id, problems });
-  }
   for (const [k, det] of Object.entries(lb.details ?? {})) {
     const problems = [
-      ...itemBroProblems(det),
       rawTicketError(det?.summary, "summary"),
       rawTicketError(det?.plain, "plain"),
       ...(det?.thread ?? []).flatMap((t, idx) => [

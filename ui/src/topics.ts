@@ -79,7 +79,7 @@ export function mentionsLabel(text: string, label: string) {
   return false;
 }
 const whoOf = (e: ThreadEntry): Who => (/^\s*\**\s*Engineer\b/i.test(e.text) ? "Engineer" : /^\s*\**\s*QA\b/i.test(e.text) ? "QA" : "Assistant");
-const ticketOf = (key: string) => /^decision:rows-(\d+)-/i.exec(key)?.[1];
+const ticketOf = (key: string) => /^decision:proj-(\d+)-/i.exec(key)?.[1];
 const BULK = /\b(?:accept|take|apply)\s+all\b|\ball\s+\d*\s*(?:of\s+)?(?:engineer'?s\s+)?(?:picks|recommendations|suggestions)\b/i;
 const unpick = (l: string) => l.replace(/\s*\(pick\)\s*/gi, " ").trim();
 const firstSentence = (t: string) => {
