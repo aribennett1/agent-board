@@ -49,7 +49,7 @@ export function itemStatus(x: StatusInput): ItemStatus {
   if (x.kind === "waiting") return { needs: false, reason: x.who ? `Waiting on ${x.who}` : "Waiting on others" };
   if (x.kind === "mypr" && x.ci === "pending") return { needs: false, reason: "CI running" };
   if (x.kind === "mypr" && x.state === "draft") return { needs: false, reason: "Draft" };
-  if (x.kind === "ticket" && d.plan) return { needs: false, reason: "Waiting on Engineer" };
+  if (x.kind === "ticket" && d.plan) return { needs: false, reason: "Waiting on Assistant" };
   const hasDetails = !!(d.ticket || d.plain || d.summary || d.plan || d.discussion?.length || d.thread?.length);
   return { needs: false, reason: hasDetails ? "In progress" : "No details yet" };
 }

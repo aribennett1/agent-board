@@ -1,7 +1,7 @@
 import type { Ask, Decision, PostCommentDraft } from "./data/types";
 import type { ReviewPayload } from "./delivery";
 
-// QA review cards answer one finding at a time: Post, Don't post, or a free-text note.
+// ops review cards answer one finding at a time: Post, Don't post, or a free-text note.
 // Card-level multi-select and a "Post none" option are not used.
 
 export type FindingAction = "post" | "skip" | "note";
@@ -23,7 +23,7 @@ export function isPerFindingReview(d: Pick<Decision, "id" | "title" | "question"
   const text = [d.id, d.title, d.question, d.context].filter(Boolean).join(" ");
   if (!/\breview\b/i.test(text)) return false;
   const commentOpts = (d.options ?? []).filter((o) => o.post_text || o.path);
-  return commentOpts.length > 0 || /\b(?:which comments|qa post|post(?:s|ing)? (?:these |the )?comments)\b/i.test(text);
+  return commentOpts.length > 0 || /\b(?:which comments|ops post|post(?:s|ing)? (?:these |the )?comments)\b/i.test(text);
 }
 
 export function reviewFindings(d: Pick<Decision, "post_comments" | "options">): ReviewFinding[] {
@@ -108,7 +108,7 @@ export function answersFromAsks(asks: Ask[] | undefined, cardId: string, finding
 
 // Settled (grayed out, no buttons): posted/skipped on GitHub, or the owner tapped Post / Don't post.
 // A free-text note does not close the finding — Post / Don't post stay, so he can still approve
-// a rewrite (for example #1737 #4). Fully settled cards drop off the board.
+// a rewrite (for example #214 #4). Fully settled cards drop off the board.
 export function isFindingSettled(finding: Pick<ReviewFinding, "status">, answer?: string): boolean {
   if (finding.status === "posted" || finding.status === "skipped") return true;
   const a = (answer ?? "").trim();

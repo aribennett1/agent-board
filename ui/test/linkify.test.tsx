@@ -37,7 +37,7 @@ describe("linkify", () => {
 
 describe("bareUrl", () => {
   it("accepts a whole-text URL and rejects anything else", () => {
-    expect(bareUrl("https://github.com/acme/example/pull/1800")).toBe("https://github.com/acme/example/pull/1800");
+    expect(bareUrl("https://github.com/acme/example/pull/212")).toBe("https://github.com/acme/example/pull/212");
     expect(bareUrl(" https://x.io/a ")).toBe("https://x.io/a");
     expect(bareUrl("PROJ-4382")).toBeNull();
     expect(bareUrl("https://x.io/a.")).toBeNull();

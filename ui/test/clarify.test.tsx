@@ -136,7 +136,7 @@ describe("Explain this better", () => {
       expect(order.slice(0, 4)).toEqual(["High", "Medium", "Low", "Explain this better"]);
       expect(order.slice(1)).toContain("No");
       // The answer controls, then "Not relevant anymore" alone in the card footer.
-      expect(order.slice(-3)).toEqual(["Your own answer", "Send to Grok Bot", "Not relevant anymore"]);
+      expect(order.slice(-3)).toEqual(["Your own answer", "Send to assistant", "Not relevant anymore"]);
     }
   });
 

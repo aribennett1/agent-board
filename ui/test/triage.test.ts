@@ -39,20 +39,20 @@ describe("sameSha and cardStale", () => {
 
   it("marks a card superseded, or stale when its SHA is not the latest stamp or head", () => {
     const push = at("2026-11-25T19:00:00.000Z", {
-      id: "pr2015-push",
-      title: "Push the trimmed 2015",
-      question: "Push the trimmed #2015?",
-      group: "pr:rows-backend/2015",
+      id: "pr206-push",
+      title: "Push the trimmed 206",
+      question: "Push the trimmed #206?",
+      group: "pr:app/206",
       sha: "fc39d5f2b83ae3c313b4c5146e3027e8a60b5020",
       tier: "quick",
     });
-    expect(cardStale({ ...push, superseded_by: "pr2015-waiting-stamp" })).toEqual({
+    expect(cardStale({ ...push, superseded_by: "pr206-waiting-stamp" })).toEqual({
       stale: true,
-      reason: "Superseded by pr2015-waiting-stamp",
+      reason: "Superseded by pr206-waiting-stamp",
     });
-    expect(cardStale(push, { stamps: { "pr:rows-backend/2015": "aaa1111bbbb" } }).stale).toBe(true);
-    expect(cardStale(push, { heads: { "pr:rows-backend/2015": "834f5f3c8215" } }).stale).toBe(true);
-    expect(cardStale(push, { stamps: { "pr:rows-backend/2015": "fc39d5f2b83ae3c313b4c5146e3027e8a60b5020" } }).stale).toBe(false);
+    expect(cardStale(push, { stamps: { "pr:app/206": "aaa1111bbbb" } }).stale).toBe(true);
+    expect(cardStale(push, { heads: { "pr:app/206": "834f5f3c8215" } }).stale).toBe(true);
+    expect(cardStale(push, { stamps: { "pr:app/206": "fc39d5f2b83ae3c313b4c5146e3027e8a60b5020" } }).stale).toBe(false);
   });
 });
 
@@ -78,22 +78,22 @@ describe("waitingLabel", () => {
 
 describe("sortTriage, groupByTicket, nextFiveMinutes", () => {
   const cards: Decision[] = [
-    at("2026-11-25T19:24:00.000Z", { id: "pr2016-push", title: "Push 2016", group: "pr:rows-backend/2016", tier: "quick", unblocks: 3, sha: "89fcc9545" }),
-    at("2026-11-25T19:24:10.000Z", { id: "pr2016-thumbs", title: "Thumbs on 2016", group: "pr:rows-backend/2016", tier: "quick", unblocks: 1 }),
-    at("2026-11-25T19:19:00.000Z", { id: "pr2015-push", title: "Push 2015", group: "pr:rows-backend/2015", tier: "quick", unblocks: 2 }),
-    at("2026-11-25T18:00:00.000Z", { id: "plan-a", title: "Plan question", group: "pr:rows-backend/2014", tier: "decision", unblocks: 5 }),
+    at("2026-11-25T19:24:00.000Z", { id: "pr207-push", title: "Push 207", group: "pr:app/207", tier: "quick", unblocks: 3, sha: "89fcc9545" }),
+    at("2026-11-25T19:24:10.000Z", { id: "pr207-thumbs", title: "Thumbs on 207", group: "pr:app/207", tier: "quick", unblocks: 1 }),
+    at("2026-11-25T19:19:00.000Z", { id: "pr206-push", title: "Push 206", group: "pr:app/206", tier: "quick", unblocks: 2 }),
+    at("2026-11-25T18:00:00.000Z", { id: "plan-a", title: "Plan question", group: "pr:app/205", tier: "decision", unblocks: 5 }),
     at("2026-11-25T17:00:00.000Z", { id: "land-2027", title: "Land 2027", group: "stack:2027-2036", tier: "blocking", unblocks: 8 }),
-    at("2026-11-25T16:00:00.000Z", { id: "fyi-1917", title: "QA approved 1917", group: "pr:rows-backend/1917", tier: "fyi", unblocks: 0 }),
-    at("2026-11-25T15:00:00.000Z", { id: "old-push", title: "Push old", group: "pr:rows-backend/2036", tier: "quick", unblocks: 4, sha: "be32466ea", superseded_by: "land-2027" }),
+    at("2026-11-25T16:00:00.000Z", { id: "fyi-1917", title: "ops approved 1917", group: "pr:app/1917", tier: "fyi", unblocks: 0 }),
+    at("2026-11-25T15:00:00.000Z", { id: "old-push", title: "Push old", group: "pr:app/2036", tier: "quick", unblocks: 4, sha: "be32466ea", superseded_by: "land-2027" }),
   ];
 
   it("sorts by tier, then how much work it unblocks, then age", () => {
     expect(sortTriage(cards).map((d) => d.id)).toEqual([
       "land-2027",
       "old-push",
-      "pr2016-push",
-      "pr2015-push",
-      "pr2016-thumbs",
+      "pr207-push",
+      "pr206-push",
+      "pr207-thumbs",
       "plan-a",
       "fyi-1917",
     ]);
@@ -103,20 +103,20 @@ describe("sortTriage, groupByTicket, nextFiveMinutes", () => {
     const groups = groupByTicket(cards);
     expect(groups.map((g) => g.key)).toEqual([
       "stack:2027-2036",
-      "pr:rows-backend/2016",
-      "pr:rows-backend/2015",
-      "pr:rows-backend/2014",
-      "pr:rows-backend/1917",
-      "pr:rows-backend/2036",
+      "pr:app/207",
+      "pr:app/206",
+      "pr:app/205",
+      "pr:app/1917",
+      "pr:app/2036",
     ]);
-    const g2016 = groups.find((g) => g.key === "pr:rows-backend/2016")!;
-    expect(g2016.actionable.map((d) => d.id)).toEqual(["pr2016-push", "pr2016-thumbs"]);
-    expect(groups.find((g) => g.key === "pr:rows-backend/2036")!.actionable).toEqual([]);
-    expect(groups.find((g) => g.key === "pr:rows-backend/2036")!.stale.map((d) => d.id)).toEqual(["old-push"]);
+    const g2016 = groups.find((g) => g.key === "pr:app/207")!;
+    expect(g2016.actionable.map((d) => d.id)).toEqual(["pr207-push", "pr207-thumbs"]);
+    expect(groups.find((g) => g.key === "pr:app/2036")!.actionable).toEqual([]);
+    expect(groups.find((g) => g.key === "pr:app/2036")!.stale.map((d) => d.id)).toEqual(["old-push"]);
   });
 
   it("picks the few quick taps that unblock the most work", () => {
-    expect(nextFiveMinutes(cards).map((d) => d.id)).toEqual(["pr2016-push", "pr2015-push", "pr2016-thumbs"]);
+    expect(nextFiveMinutes(cards).map((d) => d.id)).toEqual(["pr207-push", "pr206-push", "pr207-thumbs"]);
     expect(nextFiveMinutes(cards).every((d) => d.tier === "quick")).toBe(true);
     expect(nextFiveMinutes(cards).some((d) => d.id === "old-push")).toBe(false);
   });

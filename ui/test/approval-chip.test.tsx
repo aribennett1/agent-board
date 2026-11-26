@@ -15,7 +15,7 @@ const pr = (n: number, title: string, who: string) => ({
   title,
   author: "zedatrix",
   who,
-  link: `https://github.com/ROWSHR/rows-backend/pull/${n}`,
+  link: `https://github.com/example/app/pull/${n}`,
 });
 
 beforeEach(() => {
@@ -49,7 +49,7 @@ describe("review approval chips", () => {
       updated_at: "2026-11-24T12:00:00.000Z",
       decisions: [],
       glance: { waiting: [], tickets: [], others: [pr(1880, "W-4 amounts missing after hire", "Your review requested")] },
-      details: { "pr:rows-backend/1880": { approval: "ready" } },
+      details: { "pr:app/1880": { approval: "ready" } },
     });
     expect(screen.getByText("Nothing needs you here")).toBeTruthy();
     expect(screen.queryByText("Ready to approve")).toBeNull();
@@ -65,8 +65,8 @@ describe("review approval chips", () => {
       updated_at: "2026-11-24T12:00:00.000Z",
       decisions: [],
       glance: { waiting: [], tickets: [], others: [pr(1880, "W-4 amounts missing after hire", "Your review requested")] },
-      details: { "pr:rows-backend/1880": { approval: "ready" } },
-      reviews: [{ repo: "rows-backend", pr: 1880, verdict: "lgtm", done: true, comments: [] }],
+      details: { "pr:app/1880": { approval: "ready" } },
+      reviews: [{ repo: "app", pr: 1880, verdict: "lgtm", done: true, comments: [] }],
     });
     const row = screen.getByText("W-4 amounts missing after hire").closest("li")!;
     expect(within(row).getByText("Ready to approve")).toBeTruthy();

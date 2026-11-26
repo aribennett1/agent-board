@@ -59,9 +59,9 @@ export type NotRelevantPayload = {
 export type ReviewAction = "post" | "skip" | "note";
 export type ReviewPayload = {
   event: "review.answer";
-  // review:<repo>#<pr>:<comment_id>, or <card_id>:<finding> for a QA review card finding.
+  // review:<repo>#<pr>:<comment_id>, or <card_id>:<finding> for an ops review card finding.
   decision_id: string;
-  // QA review card id, when this answer is one finding on that card.
+  // ops review card id, when this answer is one finding on that card.
   card_id?: string;
   // Finding number on that card (absent for comment_id "all" or a Reviews-tab comment).
   finding?: number;

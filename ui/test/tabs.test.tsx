@@ -21,7 +21,7 @@ vi.mock("../src/data/board", () => ({
       waiting: [{ title: "Signed NDA", who: "Legal" }],
       tickets: [],
       others: [
-        { title: "Fix rounding", author: "alex", who: "Your review requested", link: "https://github.com/acme/api/pull/12" },
+        { title: "Fix rounding", author: "sam", who: "Your review requested", link: "https://github.com/acme/api/pull/12" },
         { title: "Docs pass", author: "sam", who: "Waiting on the author", link: "https://github.com/acme/api/pull/13" },
       ],
     },
@@ -49,7 +49,7 @@ const item = (view: string) => nav().querySelector<HTMLButtonElement>(`[data-vie
 const current = () => [...nav().querySelectorAll('[aria-current="page"]')].map((b) => b.getAttribute("data-view"));
 
 
-// Rows not needing Eric sit in a collapsed "In progress, not ready yet" group: open every one.
+// Acme not needing the human sit in a collapsed "In progress, not ready yet" group: open every one.
 const openInProgress = () => {
   for (const b of screen.queryAllByRole("button", { name: /In progress, not ready yet/ })) if (b.getAttribute("aria-expanded") === "false") fireEvent.click(b);
 };
@@ -69,7 +69,7 @@ describe("Left nav", () => {
       "reviews",
       "waiting",
       "others",
-      "eggbot",
+      "assistant",
     ]);
     expect(item("project")).toBeNull();
     expect(item("home").querySelector(".nav-count")?.textContent).toBe("1");
@@ -79,12 +79,12 @@ describe("Left nav", () => {
     expect(item("others").querySelector(".nav-count")).toBeNull();
     expect(item("tickets").querySelector(".nav-count")).toBeNull();
     expect(item("mine").querySelector(".nav-count")).toBeNull();
-    expect(item("eggbot").querySelector(".nav-count")).toBeNull();
+    expect(item("assistant").querySelector(".nav-count")).toBeNull();
     expect(item("waiting").querySelector(".nav-count")).toBeNull();
     expect(current()).toEqual(["home"]);
     expect(screen.getByRole("heading", { name: /Needs you\s*1/ })).toBeTruthy();
     expect(document.querySelector('[data-decision-id="single"]')).not.toBeNull();
-    // Home also lists the PRs waiting on a review. None of them need Eric, so the header has no count.
+    // Home also lists the PRs waiting on a review. None of them need the human, so the header has no count.
     expect(screen.getByRole("heading", { name: "Reviews waiting for your yes" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: /Reviews waiting for your yes\s+\d/ })).toBeNull();
     expect(screen.getByText("Nothing needs you here")).toBeTruthy();

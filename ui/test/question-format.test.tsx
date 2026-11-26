@@ -30,17 +30,17 @@ const seed = (b: Partial<Board>) =>
 describe("question context (t111u)", () => {
   it("ab reply --question needs a short --context, and stores it on the question", () => {
     seed({});
-    const q = ["reply", "ticket:ROWS-1", "Plan update", "--question", "Q4: overdraw guard?", "--option", "Check only", "--option", "Hard stop too"];
+    const q = ["reply", "ticket:PROJ-1", "Plan update", "--question", "Q4: overdraw guard?", "--option", "Check only", "--option", "Hard stop too"];
     expect(ab(q).stderr).toMatch(/needs --context/);
     expect(ab([...q, "--context", "x".repeat(701)]).stderr).toMatch(/700 or fewer/);
     expect(ab([...q, "--context", "Banks can dip a little below zero. Should we also add a hard floor?"]).status).toBe(0);
-    expect(read().details!["ticket:ROWS-1"].thread![0].question!.context).toBe("Banks can dip a little below zero. Should we also add a hard floor?");
+    expect(read().details!["ticket:PROJ-1"].thread![0].question!.context).toBe("Banks can dip a little below zero. Should we also add a hard floor?");
   });
 
   it("ab lint flags an open question with no context; answered or superseded ones are fine", () => {
     seed({
       details: {
-        "ticket:ROWS-2": {
+        "ticket:PROJ-2": {
           questions: [{ id: "Q1", question: "A?" }, { id: "Q2", question: "B?", answered: { text: "yes", source: "note" } }],
           thread: [{ at, from: "bot", text: "x", question: { id: "old", text: "C?", options: [{ id: "o1", label: "Y" }, { id: "o2", label: "N" }], superseded_by: "new" } }],
         },
@@ -48,7 +48,7 @@ describe("question context (t111u)", () => {
     });
     const r = ab(["lint"]);
     expect(r.status).toBe(1);
-    const failing = JSON.parse(r.stdout).failing.find((f: { id: string }) => f.id === "ticket:ROWS-2");
+    const failing = JSON.parse(r.stdout).failing.find((f: { id: string }) => f.id === "ticket:PROJ-2");
     expect(failing.problems).toEqual([expect.stringMatching(/plan question Q1 has no short context/)]);
   });
 
@@ -56,9 +56,9 @@ describe("question context (t111u)", () => {
     seed({});
     const svg = join(dir, "bank.svg");
     writeFileSync(svg, '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script><a href="https://evil.test"><rect width="10" height="10" onclick="x()"/></a><foreignObject><div>hi</div></foreignObject><text>Bank</text></svg>');
-    const r = ab(["reply", "ticket:ROWS-3", "Here is the picture", "--svg", svg, "--alt", "Bank going below the limit"]);
+    const r = ab(["reply", "ticket:PROJ-3", "Here is the picture", "--svg", svg, "--alt", "Bank going below the limit"]);
     expect(r.status).toBe(0);
-    const e = read().details!["ticket:ROWS-3"].thread![0];
+    const e = read().details!["ticket:PROJ-3"].thread![0];
     expect(e.image).toMatch(/^\/replies\/.*\.svg$/);
     const out = join(dir, "app/public", e.image!);
     expect(existsSync(out)).toBe(true);
@@ -66,7 +66,7 @@ describe("question context (t111u)", () => {
     expect(clean).toContain("<text>Bank</text>");
     expect(clean).not.toMatch(/script|onload|onclick|evil\.test|foreignObject/i);
     writeFileSync(join(dir, "not.svg"), "hello");
-    expect(ab(["reply", "ticket:ROWS-3", "x", "--svg", join(dir, "not.svg")]).status).toBe(2);
+    expect(ab(["reply", "ticket:PROJ-3", "x", "--svg", join(dir, "not.svg")]).status).toBe(2);
   });
 });
 

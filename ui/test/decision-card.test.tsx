@@ -47,7 +47,7 @@ describe("DecisionCard: single select", () => {
 describe("DecisionCard: multi select", () => {
   it("toggles options with aria-pressed and keeps Submit disabled until something is picked", () => {
     const onAnswer = renderCard(multi);
-    const submit = within(document.querySelector(".submit-row") as HTMLElement).getByRole("button", { name: "Send to Grok Bot" }) as HTMLButtonElement;
+    const submit = within(document.querySelector(".submit-row") as HTMLElement).getByRole("button", { name: "Send to assistant" }) as HTMLButtonElement;
     const blake = screen.getByRole("button", { name: "Blake" });
     const riley = screen.getByRole("button", { name: "Riley" });
     expect(submit.disabled).toBe(true);
@@ -82,13 +82,13 @@ describe("DecisionCard: free text", () => {
     cleanup();
     renderCard({ ...base, allowCustom: false });
     expect(screen.getByRole("textbox", { name: "Your own answer" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Send to Grok Bot" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Send to assistant" })).toBeTruthy();
   });
 
   it("rejects blank and whitespace-only text, and sends trimmed text", () => {
     const onAnswer = renderCard(multi);
     const input = screen.getByRole("textbox", { name: "Your own answer" });
-    const send = within(input.closest("form") as HTMLElement).getByRole("button", { name: "Send to Grok Bot" }) as HTMLButtonElement;
+    const send = within(input.closest("form") as HTMLElement).getByRole("button", { name: "Send to assistant" }) as HTMLButtonElement;
     expect(send.disabled).toBe(true);
     fireEvent.submit(input.closest("form")!);
     fireEvent.change(input, { target: { value: "   \t " } });
@@ -279,7 +279,7 @@ describe("DecisionCard: Explain this better", () => {
 });
 
 describe("DecisionCard: links", () => {
-  const pr = "https://github.com/acme/example/pull/1800";
+  const pr = "https://github.com/acme/example/pull/212";
   const card = (decision: Decision) => render(<DecisionCard decision={decision} index={1} onAnswer={vi.fn()} />).container;
   const expectNewTab = (a: Element | null | undefined, href: string) => {
     expect(a?.tagName).toBe("A");
@@ -374,15 +374,15 @@ describe("DecisionCard: links", () => {
   });
 });
 
-describe("DecisionCard: eggbot table and svg", () => {
+describe("DecisionCard: assistant table and svg", () => {
   it("renders a sanitized SVG diagram and markdown in the fixes table", () => {
     const dirty = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script><text>Pick a root</text></svg>';
     const { container } = render(
       <DecisionCard
         decision={{
           ...base,
-          section: "eggbot",
-          bot: "Engineer",
+          section: "assistant",
+          bot: "Assistant",
           rule: "Root causes",
           svg: dirty,
           fixes: [{ id: "R1", seen: "Nickname in ++headings++", proposed: "Rename to ==Plain summary==" }],
@@ -401,7 +401,7 @@ describe("DecisionCard: eggbot table and svg", () => {
     expect(svg.querySelector("script")).toBeNull();
     expect(svg.getAttribute("onload")).toBeNull();
     expect(svg.textContent).toContain("Pick a root");
-    const cell = container.querySelector(".eggbot-table tbody")!;
+    const cell = container.querySelector(".assistant-table tbody")!;
     expect(cell.querySelector("u")?.textContent).toBe("headings");
     expect(cell.querySelector("mark")?.textContent).toBe("Plain summary");
   });

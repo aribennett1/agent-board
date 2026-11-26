@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-// Grok Bot answers Eric on the item itself (ab reply). A reply shows in the item's thread, moves the item to
-// Needs you with an unread dot until opened, and any question in it takes a one-click answer or Eric's own words.
+// assistant answers the human on the item itself (ab reply). A reply shows in the item's thread, moves the item to
+// Needs you with an unread dot until opened, and any question in it takes a one-click answer or the human's own words.
 // Every option set on the board (decision cards, reply questions, plan questions, review comments) also has a
 // free text box with a mic for dictation.
 import { spawnSync } from "node:child_process";
@@ -25,7 +25,7 @@ vi.mock("../src/data/board", () => ({
         question: "Which one?",
         context: "Two ways to go.",
         what_happens_after: "I do the picked one.",
-        card_ref: "https://github.com/ROWSHR/rows-backend/pull/1",
+        card_ref: "https://github.com/example/app/pull/1",
         options: [{ id: "a", label: "A" }, { id: "b", label: "B" }],
         allowCustom: false,
         created_at: "2026-11-24T20:00:00.000Z",
@@ -33,26 +33,26 @@ vi.mock("../src/data/board", () => ({
     ],
     glance: {
       waiting: [],
-      tickets: [{ id: "ROWS-1", title: "Banks in seconds", status: "Todo" }],
+      tickets: [{ id: "PROJ-1", title: "Banks in seconds", status: "Todo" }],
       others: [
-        { title: "Standard hours fix", author: "alex", who: "Your review requested", link: "https://github.com/ROWSHR/rows-backend/pull/1955" },
-        { title: "Docs pass", author: "vlad", who: "Waiting on author", link: "https://github.com/ROWSHR/rows-backend/pull/7" },
+        { title: "Standard hours fix", author: "sam", who: "Your review requested", link: "https://github.com/example/app/pull/203" },
+        { title: "Docs pass", author: "kim", who: "Waiting on author", link: "https://github.com/example/app/pull/7" },
       ],
     },
-    reviews: [{ repo: "rows-backend", pr: 1955, verdict: "Comment", comments: [{ id: "c1", severity: "low", title: "Nit", path: "a.php", line: 3, body: "Rename it.", status: "pending" }] }],
+    reviews: [{ repo: "app", pr: 203, verdict: "Comment", comments: [{ id: "c1", severity: "low", title: "Nit", path: "a.php", line: 3, body: "Rename it.", status: "pending" }] }],
     details: {
-      "pr:rows-backend/1955": {
+      "pr:app/203": {
         thread: [
           {
             at: REPLY_AT,
             from: "bot",
-            text: "Ready to approve: [#1955](https://github.com/ROWSHR/rows-backend/pull/1955).",
+            text: "Ready to approve: [#203](https://github.com/example/app/pull/203).",
             image: "/replies/x.png",
-            question: { id: "q1", text: "What do you want to do?", options: [{ id: "o1", label: "Approve with LGTM now" }, { id: "o2", label: "Wait for Alex" }] },
+            question: { id: "q1", text: "What do you want to do?", options: [{ id: "o1", label: "Approve with LGTM now" }, { id: "o2", label: "Wait for Sam" }] },
           },
         ],
       },
-      "ticket:ROWS-1": { plain: "Banks drift.", questions: [{ id: "Q1", question: "Round up?", recommendation: "Yes" }] },
+      "ticket:PROJ-1": { plain: "Banks drift.", questions: [{ id: "Q1", question: "Round up?", recommendation: "Yes" }] },
     },
   } satisfies Board,
 }));
@@ -110,7 +110,7 @@ describe("reply thread", () => {
     fireEvent.click(within(row).getByRole("button", { name: "Expand" }));
     expect(within(row).queryByRole("img", { name: "New reply" })).toBeNull();
     const thread = row.querySelector<HTMLElement>(".item-thread")!;
-    expect(within(thread).getByRole("link", { name: "#1955" }).getAttribute("href")).toBe("https://github.com/ROWSHR/rows-backend/pull/1955");
+    expect(within(thread).getByRole("link", { name: "#203" }).getAttribute("href")).toBe("https://github.com/example/app/pull/203");
     expect(thread.querySelector("img.thread-image")?.getAttribute("src")).toBe("/replies/x.png");
 
     // Others' PRs: the PR with no details sits in the collapsed In progress group.
@@ -131,12 +131,12 @@ describe("reply thread", () => {
     const thread = row.querySelector<HTMLElement>(".item-thread")!;
     const box = within(thread).getByLabelText("Or answer in your own words") as HTMLTextAreaElement;
     expect(within(box.closest(".mic-wrap") as HTMLElement).getByRole("button", { name: "Voice typing" })).toBeTruthy();
-    fireEvent.change(box, { target: { value: "Approve, but ping Alex first" } });
-    fireEvent.click(within(thread).getByRole("button", { name: "Send to Grok Bot" }));
+    fireEvent.change(box, { target: { value: "Approve, but ping Sam first" } });
+    fireEvent.click(within(thread).getByRole("button", { name: "Send to assistant" }));
     await act(async () => {});
     const m = posted.filter((p) => p.event === "item.message").at(-1)!;
-    expect(m.text).toBe('Answer to "What do you want to do?": Approve, but ping Alex first');
-    expect(within(thread).getByText("Answered: Approve, but ping Alex first", { selector: ".review-flag" })).toBeTruthy();
+    expect(m.text).toBe('Answer to "What do you want to do?": Approve, but ping Sam first');
+    expect(within(thread).getByText("Answered: Approve, but ping Sam first", { selector: ".review-flag" })).toBeTruthy();
     expect(within(thread).queryByRole("button", { name: "Approve with LGTM now" })).toBeNull();
   });
 });
@@ -149,11 +149,11 @@ describe("free text with a mic on every option set", () => {
     const card = document.querySelector<HTMLElement>('[data-decision-id="closed"]')!;
     const custom = within(card).getByRole("textbox", { name: "Your own answer" });
     expect(within(card).getByRole("button", { name: "Voice typing" })).toBeTruthy();
-    fireEvent.change(custom, { target: { value: "Neither, ask Vlad" } });
-    fireEvent.click(within(card).getByRole("button", { name: "Send to Grok Bot" }));
+    fireEvent.change(custom, { target: { value: "Neither, ask Kim" } });
+    fireEvent.click(within(card).getByRole("button", { name: "Send to assistant" }));
     await act(async () => {});
     const d = posted.find((p) => p.event === "decision.answered")!;
-    expect(d).toMatchObject({ answer: "custom", custom_text: "Neither, ask Vlad" });
+    expect(d).toMatchObject({ answer: "custom", custom_text: "Neither, ask Kim" });
 
     window.location.hash = "#tickets";
     await act(async () => {
@@ -184,16 +184,16 @@ describe("status", () => {
   });
 
   it("an ack or FYI reply never puts an item in Needs you; only something to act on does", () => {
-    const ack = { at: REPLY_AT, from: "bot" as const, text: "Got it. Holding on #1955 until Alex answers the bot." };
+    const ack = { at: REPLY_AT, from: "bot" as const, text: "Got it. Holding on #203 until Sam answers the bot." };
     expect(itemStatus({ kind: "pr", detail: { thread: [ack] } })).toEqual({ needs: false, reason: "New reply (FYI)" });
     const q = { at: "2026-11-24T21:00:00.000Z", from: "bot" as const, text: "Ready.", question: { id: "q1", text: "Approve?", options: [{ id: "o1", label: "Yes" }, { id: "o2", label: "No" }] } };
     expect(itemStatus({ kind: "pr", detail: { thread: [q, ack] } })).toEqual({ needs: true, reason: "Question for you" });
     expect(itemStatus({ kind: "pr", detail: { thread: [q, ack] }, answered: new Set(["q1"]) }).needs).toBe(false);
     // A status never closes unanswered questions; once questions are answered, the status describes who has the ball.
-    const parked = { at: "2026-11-24T21:20:00.000Z", from: "bot" as const, text: "", status: "waiting:Alex" };
+    const parked = { at: "2026-11-24T21:20:00.000Z", from: "bot" as const, text: "", status: "waiting:Sam" };
     expect(itemStatus({ kind: "pr", detail: { thread: [q, ack, parked], approval: "ready" }, pendingDrafts: 3 })).toEqual({ needs: true, reason: "Question for you" });
-    expect(itemStatus({ kind: "pr", detail: { thread: [q, ack, parked], approval: "ready" }, answered: new Set(["q1"]), pendingDrafts: 3 })).toEqual({ needs: false, reason: "Waiting on Alex" });
-    expect(itemStatus({ kind: "mypr", detail: { thread: [{ ...parked, status: "passed:Engineer" }] } }).reason).toBe("Passed to Engineer");
+    expect(itemStatus({ kind: "pr", detail: { thread: [q, ack, parked], approval: "ready" }, answered: new Set(["q1"]), pendingDrafts: 3 })).toEqual({ needs: false, reason: "Waiting on Sam" });
+    expect(itemStatus({ kind: "mypr", detail: { thread: [{ ...parked, status: "passed:assistant" }] } }).reason).toBe("Passed to assistant");
   });
 
   it("does not call a review request Ready to approve just because checks are green", () => {
@@ -229,25 +229,25 @@ describe("ab reply", () => {
       `export const board = ${A}\n${JSON.stringify({
         updated_at: "2026-11-10T09:00:00.000Z",
         decisions: [],
-        glance: { waiting: [], tickets: [], others: [{ title: "x", author: "a", who: "w", link: "https://github.com/ROWSHR/rows-backend/pull/1955" }], mine: [{ repo: "rows-backend", number: 1982, title: "y", state: "open", link: "https://github.com/ROWSHR/rows-backend/pull/1982" }] },
+        glance: { waiting: [], tickets: [], others: [{ title: "x", author: "a", who: "w", link: "https://github.com/example/app/pull/203" }], mine: [{ repo: "app", number: 209, title: "y", state: "open", link: "https://github.com/example/app/pull/209" }] },
       })}\n${Z};\n`,
     );
     const png = join(dir, "shot.png");
     writeFileSync(png, "png");
-    expect(ab(["reply", "#1955"]).status).toBe(2);
+    expect(ab(["reply", "#203"]).status).toBe(2);
     expect(ab(["reply", "#4040", "hi"]).status).toBe(2);
-    expect(ab(["reply", "#1955", "hi", "--question", "Q?", "--option", "only one"]).status).toBe(2);
-    expect(ab(["reply", "#1955", "Ready: **yes**", "--question", "Do it?", "--option", "Yes", "--option", "No"]).status).toBe(2);
-    expect(ab(["reply", "#1955", "Ready: **yes**", "--question", "Do it?", "--context", "Alex fixed the save bug. We're asking if you want to approve it now.", "--option", "Yes", "--option", "No"]).status).toBe(0);
-    const r = ab(["reply", "rows-backend#1982", "PHPStan fails", "--image", png]);
+    expect(ab(["reply", "#203", "hi", "--question", "Q?", "--option", "only one"]).status).toBe(2);
+    expect(ab(["reply", "#203", "Ready: **yes**", "--question", "Do it?", "--option", "Yes", "--option", "No"]).status).toBe(2);
+    expect(ab(["reply", "#203", "Ready: **yes**", "--question", "Do it?", "--context", "Sam fixed the save bug. We're asking if you want to approve it now.", "--option", "Yes", "--option", "No"]).status).toBe(0);
+    const r = ab(["reply", "app#209", "PHPStan fails", "--image", png]);
     expect(r.status).toBe(0);
     const d = read().details!;
-    expect(d["pr:rows-backend/1955"].thread).toEqual([
+    expect(d["pr:app/203"].thread).toEqual([
       expect.objectContaining({ from: "bot", text: "Ready: **yes**", question: expect.objectContaining({ text: "Do it?", options: [{ id: "o1", label: "Yes" }, { id: "o2", label: "No" }] }) }),
     ]);
-    const t = d["mypr:rows-backend/1982"].thread![0];
+    const t = d["mypr:app/209"].thread![0];
     expect(Number.isNaN(Date.parse(t.at))).toBe(false);
-    expect(t.image).toMatch(/^\/replies\/mypr-rows-backend-1982-\d+\.png$/);
+    expect(t.image).toMatch(/^\/replies\/mypr-app-209-\d+\.png$/);
     expect(existsSync(join(dir, "app/public", t.image!))).toBe(true);
   });
 });

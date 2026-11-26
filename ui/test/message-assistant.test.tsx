@@ -5,7 +5,7 @@ import type { Board } from "../src/data/types";
 import { MESSAGES_KEY, STORAGE_KEY } from "../src/delivery";
 
 const HOOK = "http://hook.test/assistant";
-const PR = "https://github.com/acme/example-web/pull/1461";
+const PR = "https://github.com/acme/example-web/pull/210";
 
 const decision = (id: string) => ({
   id,
@@ -25,8 +25,8 @@ vi.mock("../src/data/board", () => ({
     decisions: [decision("one"), decision("two")],
     glance: {
       waiting: [
-        { title: "Error, not success, on failed checkout actions (#1461)", who: "Riley's rescoring", link: PR },
-        { title: "QA pass on the banner", who: "QA" },
+        { title: "Error, not success, on failed checkout actions (#210)", who: "Riley's rescoring", link: PR },
+        { title: "ops pass on the banner", who: "ops" },
       ],
       // The first ticket has no id and the same link as the first waiting item: same item_id, different section.
       tickets: [
@@ -84,7 +84,7 @@ async function send(el: HTMLElement, text: string) {
   const w = within(el);
   fireEvent.click(w.getByRole("button", { name: /^Message your assistant about/ }));
   fireEvent.change(w.getByRole("textbox", { name: /^Message to your assistant about/ }), { target: { value: text } });
-  await act(async () => fireEvent.click(w.getByRole("button", { name: "Send to Grok Bot" })));
+  await act(async () => fireEvent.click(w.getByRole("button", { name: "Send to assistant" })));
 }
 
 describe("Message your assistant", () => {
@@ -93,7 +93,7 @@ describe("Message your assistant", () => {
     const roots = [...document.querySelectorAll<HTMLElement>("[data-item-id]")];
     expect(roots.map((r) => [r.dataset.itemSection, r.dataset.itemId])).toEqual([
       ["waiting", PR],
-      ["waiting", "waiting:qa-pass-on-the-banner"],
+      ["waiting", "waiting:ops-pass-on-the-banner"],
       ["tickets", PR],
       ["tickets", "PROJ-5067"],
     ]);
@@ -120,7 +120,7 @@ describe("Message your assistant", () => {
     // Same item_id in Open tickets, but its composer stays closed.
     expect(within(root(PR, "tickets")).queryByRole("textbox")).toBeNull();
 
-    const sendBtn = within(waiting).getByRole("button", { name: "Send to Grok Bot" }) as HTMLButtonElement;
+    const sendBtn = within(waiting).getByRole("button", { name: "Send to assistant" }) as HTMLButtonElement;
     const field = within(waiting).getByRole("textbox");
     expect(sendBtn.disabled).toBe(true);
     fireEvent.change(field, { target: { value: "  \n\t " } });
@@ -148,7 +148,7 @@ describe("Message your assistant", () => {
       event: "item.message",
       item_id: PR,
       item_section: "waiting",
-      item_title: "Error, not success, on failed checkout actions (#1461)",
+      item_title: "Error, not success, on failed checkout actions (#210)",
       item_who: "Riley's rescoring",
       item_link: PR,
       text: "Ping Riley about the rescoring",
@@ -186,7 +186,7 @@ describe("Message your assistant", () => {
     await send(ticket, "Is this on for Friday?");
     expect(ticket.querySelector(".msg-status")!.textContent).toBe("Not sent yet, retrying");
     expect(within(ticket).getByRole("textbox")).toBeTruthy();
-    expect((within(ticket).getByRole("button", { name: "Send to Grok Bot" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(ticket).getByRole("button", { name: "Send to assistant" }) as HTMLButtonElement).disabled).toBe(true);
     await act(async () => void (await vi.advanceTimersByTimeAsync(2500)));
     expect(posted).toHaveLength(3);
     expect(ticket.querySelector(".msg-status")!.textContent).toBe("Not delivered, will retry");
@@ -219,8 +219,8 @@ describe("Message your assistant", () => {
   it("without a webhook URL: Not sent yet, retrying, the header marker, and nothing posted", async () => {
     vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", "");
     await renderApp();
-    const item = root("waiting:qa-pass-on-the-banner", "waiting");
-    await send(item, "Who is on QA?");
+    const item = root("waiting:ops-pass-on-the-banner", "waiting");
+    await send(item, "Who is on ops?");
     expect(posted).toHaveLength(0);
     expect(item.querySelector(".msg-status")!.textContent).toBe("Not sent yet, retrying");
     expect(screen.getByRole("status").textContent).toBe("Webhook not set up (app/.env.local)");

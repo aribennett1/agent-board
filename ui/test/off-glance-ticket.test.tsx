@@ -9,8 +9,8 @@ vi.mock("../src/data/board", () => {
     glance: { waiting: [], tickets: [], others: [], mine: [] },
     decisions: [],
     details: {
-      "ticket:ROWS-2512": {
-        ticket: "## ROWS-2512: Raw ticket dump\n\n- **Ticket:** [ROWS-2512](https://linear.app/rows/issue/ROWS-2512)",
+      "ticket:PROJ-2512": {
+        ticket: "## PROJ-2512: Raw ticket dump\n\n- **Ticket:** [PROJ-2512](https://tracker.example.com/proj/issue/PROJ-2512)",
         plain: "Managers view and approve time off requests here.",
         thread: [
           {
@@ -35,8 +35,8 @@ vi.mock("../src/data/board", () => {
       {
         id: "prior-clarify-1",
         at: "2026-11-25T15:05:00.000Z",
-        item_key: "ticket:ROWS-2512",
-        label: "ROWS-2512",
+        item_key: "ticket:PROJ-2512",
+        label: "PROJ-2512",
         kind: "answer",
         text: "What do you think about returning current balance?",
         reply_to: "q1c-reworded-test",
@@ -64,7 +64,7 @@ describe("Off-glance ticket plan/thread questions deliver answers", () => {
     vi.spyOn(window, "fetch").mockImplementation(fetchMock as typeof window.fetch);
 
     render(<App view="conversation" />);
-    const topic = document.querySelector('[data-topic="ticket:ROWS-2512"]') as HTMLElement;
+    const topic = document.querySelector('[data-topic="ticket:PROJ-2512"]') as HTMLElement;
     expect(topic).toBeTruthy();
     const detailsEl = topic.querySelector("details.topic-full-ticket") as HTMLDetailsElement;
     expect(detailsEl).toBeTruthy();
@@ -74,7 +74,7 @@ describe("Off-glance ticket plan/thread questions deliver answers", () => {
     const input = topic.querySelector("textarea.note-input") as HTMLTextAreaElement;
     const answerText = "Please get me a link for the figma";
     fireEvent.change(input, { target: { value: answerText } });
-    fireEvent.click(within(topic).getByRole("button", { name: "Send to Grok Bot" }));
+    fireEvent.click(within(topic).getByRole("button", { name: "Send to assistant" }));
 
     await waitFor(() => {
       const postCalls = fetchMock.mock.calls.filter((c) => c[1]?.method === "POST" && String(c[1]?.body ?? "").includes("item.message"));
@@ -83,7 +83,7 @@ describe("Off-glance ticket plan/thread questions deliver answers", () => {
     const webhookCall = fetchMock.mock.calls.find((c) => c[1]?.method === "POST" && String(c[1]?.body ?? "").includes("item.message"))!;
     const body = JSON.parse(String(webhookCall[1]?.body));
     expect(body.event).toBe("item.message");
-    expect(body.item_id).toBe("ROWS-2512");
+    expect(body.item_id).toBe("PROJ-2512");
     expect(body.item_section).toBe("tickets");
     expect(body.text).toContain(answerText);
     expect(screen.queryByText(/Could not send, try again/)).toBeNull();

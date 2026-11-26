@@ -23,10 +23,10 @@ const read = (): Board => {
 };
 const ab = (args: string[], input?: string) => spawnSync("node", [AB, ...args], { input, encoding: "utf8", env: { ...process.env, AB_FILE: file, AB_NO_SERVER: "1" } });
 
-const pr = { repo: "rows-backend", number: 1982, title: "Banks in seconds", link: "https://github.com/ROWSHR/rows-backend/pull/1982", state: "ready", ci: "passing", reviews: 1 };
+const pr = { repo: "app", number: 209, title: "Banks in seconds", link: "https://github.com/example/app/pull/209", state: "ready", ci: "passing", reviews: 1 };
 const draft = {
-  repo: "rows-backend",
-  pr: 1907,
+  repo: "app",
+  pr: 204,
   verdict: "Looks good",
   comments: [{ id: "c1", severity: "medium", title: "Tag race", path: "a.yaml", line: 10, body: "Body", status: "pending" }],
 };
@@ -45,52 +45,52 @@ describe("ab board extras", () => {
     expect(ab(["reviews"], JSON.stringify([{ ...draft, verdict: "Needs changes" }])).status).toBe(0);
     expect(read().reviews).toHaveLength(1);
     expect(read().reviews?.[0].verdict).toBe("Needs changes");
-    expect(ab(["review-status", "rows-backend#1907", "c1", "posted"]).status).toBe(0);
+    expect(ab(["review-status", "app#204", "c1", "posted"]).status).toBe(0);
     expect(read().reviews?.[0].comments[0].status).toBe("posted");
-    expect(ab(["review-status", "rows-backend#1907", "--done"]).status).toBe(0);
+    expect(ab(["review-status", "app#204", "--done"]).status).toBe(0);
     expect(read().reviews?.[0].done).toBe(true);
-    expect(ab(["review-status", "rows-backend#1", "c1", "posted"]).status).toBe(5);
+    expect(ab(["review-status", "app#1", "c1", "posted"]).status).toBe(5);
     expect(ab(["reviews"], JSON.stringify([{ ...draft, comments: [{ ...draft.comments[0], severity: "urgent" }] }])).status).toBe(2);
   });
 
   it("review-status marks a finding on a per-comment review card, with a posted link or a reason", () => {
     const card = {
-      id: "pr1907-qa-review",
-      title: "QA review of #1907",
-      card_ref: "https://github.com/ROWSHR/rows-backend/pull/1907",
-      context: "QA reviewed the payroll export pull request and left two comments to post.",
-      question: "Should QA post each of these comments on the payroll export pull request?",
-      what_happens_after: "Each answer goes to QA with the finding number and file.",
+      id: "pr204-ops-review",
+      title: "ops review of #204",
+      card_ref: "https://github.com/example/app/pull/204",
+      context: "ops reviewed the payroll export pull request and left two comments to post.",
+      question: "Should ops post each of these comments on the payroll export pull request?",
+      what_happens_after: "Each answer goes to ops with the finding number and file.",
       options: [],
       post_comments: [
         { n: 1, label: "#1 Foo.php:10", path: "app/Foo.php", line: 10, body: "First finding.", status: "pending" },
         { n: 2, label: "#2 Bar.php:20", path: "app/Bar.php", line: 20, body: "Second finding.", status: "pending" },
       ],
-      group: "pr:rows-backend/1907",
-      glance: { ticket: { id: "export-review", summary: "Payroll export review comments" }, pr: { number: 1907, link: "https://github.com/ROWSHR/rows-backend/pull/1907" }, asking: "Post or skip each comment.", outcomes: [] },
+      group: "pr:app/204",
+      glance: { ticket: { id: "export-review", summary: "Payroll export review comments" }, pr: { number: 204, link: "https://github.com/example/app/pull/204" }, asking: "Post or skip each comment.", outcomes: [] },
       created_at: "2026-11-25T16:00:00.000Z",
     };
     const b = read();
     b.decisions = [card as any];
     writeFileSync(file, `export const board = ${A}\n${JSON.stringify(b)}\n${Z};\n`);
-    expect(ab(["review-status", "rows-backend#1907", "1", "posted"]).status).toBe(2);
-    const posted = ab(["review-status", "rows-backend#1907", "#1", "posted", "--url", "https://github.com/ROWSHR/rows-backend/pull/1907#discussion_r1"]);
+    expect(ab(["review-status", "app#204", "1", "posted"]).status).toBe(2);
+    const posted = ab(["review-status", "app#204", "#1", "posted", "--url", "https://github.com/example/app/pull/204#discussion_r1"]);
     expect(posted.status).toBe(0);
     expect(read().decisions[0].post_comments?.[0]).toMatchObject({
       n: 1,
       status: "posted",
-      posted_url: "https://github.com/ROWSHR/rows-backend/pull/1907#discussion_r1",
+      posted_url: "https://github.com/example/app/pull/204#discussion_r1",
     });
     expect(read().decisions[0].post_comments?.[0].url).toBeUndefined();
-    const skipped = ab(["review-status", "rows-backend#1907", "f2", "skipped", "--note", "The line left the diff."]);
+    const skipped = ab(["review-status", "app#204", "f2", "skipped", "--note", "The line left the diff."]);
     expect(skipped.status).toBe(0);
     expect(read().decisions[0].post_comments?.[1]).toMatchObject({ status: "skipped", note: "The line left the diff." });
-    const pending = ab(["review-status", "rows-backend#1907", "2", "pending", "--note", "The file and line are still in the diff."]);
+    const pending = ab(["review-status", "app#204", "2", "pending", "--note", "The file and line are still in the diff."]);
     expect(pending.status).toBe(0);
     expect(read().decisions[0].post_comments?.[1]).toMatchObject({ status: "pending", note: "The file and line are still in the diff." });
     const answered = ab([
       "review-status",
-      "rows-backend#1907",
+      "app#204",
       "1",
       "--answer-to-question",
       "The strings are used 2x in the reset service.",
@@ -104,28 +104,28 @@ describe("ab board extras", () => {
       answer_to_question: "The strings are used 2x in the reset service.",
       body: "Shorter will-post text.",
     });
-    expect(ab(["review-status", "rows-backend#1", "1", "posted", "--url", "https://github.com/ROWSHR/rows-backend/pull/1#discussion_r1"]).status).toBe(5);
+    expect(ab(["review-status", "app#1", "1", "posted", "--url", "https://github.com/example/app/pull/1#discussion_r1"]).status).toBe(5);
   });
 
   it("plan attaches the file and its section 6 questions; detail merges and clears", () => {
-    const md = join(repo, "ROWS-1.md");
+    const md = join(repo, "PROJ-1.md");
     writeFileSync(md, "# Plan\n\n## 6. Open questions\n\n- **Q0 — Use the ledger?** Yes. **Recommendation:** use `available_hours`.\n1. **Column names.** *Recommendation: keep them.*\n\n## 7. Next\n");
     // Every question needs its short context paragraph (t111u): without it, ab plan refuses.
-    expect(ab(["plan", "ROWS-1", md]).status).toBe(2);
-    const ctx = join(repo, "ROWS-1.context.json");
+    expect(ab(["plan", "PROJ-1", md]).status).toBe(2);
+    const ctx = join(repo, "PROJ-1.context.json");
     writeFileSync(ctx, JSON.stringify({ Q0: "Banks track hours. We're asking which number to read.", Q2: "The new table needs column names. Keep the usual ones?" }));
-    expect(ab(["plan", "ROWS-1", md, "--context", ctx]).status).toBe(0);
-    const d = read().details?.["ticket:ROWS-1"];
+    expect(ab(["plan", "PROJ-1", md, "--context", ctx]).status).toBe(0);
+    const d = read().details?.["ticket:PROJ-1"];
     expect(d?.plan).toContain("# Plan");
     expect(d?.questions?.map((q) => [q.id, q.question, q.recommendation])).toEqual([
       ["Q0", "Use the ledger?", "use `available_hours`."],
       ["Q2", "Column names.", "keep them."],
     ]);
-    expect(ab(["detail", "ticket:ROWS-1", JSON.stringify({ summary: "Hi" })]).status).toBe(0);
-    expect(read().details?.["ticket:ROWS-1"]?.summary).toBe("Hi");
-    expect(read().details?.["ticket:ROWS-1"]?.plan).toContain("# Plan");
-    expect(ab(["detail", "ticket:ROWS-1", "--clear"]).status).toBe(0);
-    expect(read().details?.["ticket:ROWS-1"]).toBeUndefined();
+    expect(ab(["detail", "ticket:PROJ-1", JSON.stringify({ summary: "Hi" })]).status).toBe(0);
+    expect(read().details?.["ticket:PROJ-1"]?.summary).toBe("Hi");
+    expect(read().details?.["ticket:PROJ-1"]?.plan).toContain("# Plan");
+    expect(ab(["detail", "ticket:PROJ-1", "--clear"]).status).toBe(0);
+    expect(read().details?.["ticket:PROJ-1"]).toBeUndefined();
     expect(ab(["detail", "bad key"]).status).toBe(2);
   });
 });

@@ -1,5 +1,5 @@
 // No board button may be labelled just "Send" (or a vague equivalent like "Submit" or "Go").
-// Actions that go to the assistant are "Send to Grok Bot"; actions that post publicly are "Post to GitHub".
+// Actions that go to the assistant are "Send to assistant"; actions that post publicly are "Post to GitHub".
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";

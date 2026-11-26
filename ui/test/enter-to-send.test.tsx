@@ -27,8 +27,8 @@ vi.mock("../src/data/board", () => ({
     decisions: [decision("s1"), decision("s2"), decision("m1", { multiSelect: true }), decision("m2", { multiSelect: true })],
     glance: {
       waiting: [
-        { title: "Item A", who: "QA" },
-        { title: "Item B", who: "QA" },
+        { title: "Item A", who: "ops" },
+        { title: "Item B", who: "ops" },
       ],
       tickets: [],
     },
@@ -96,7 +96,7 @@ describe("Message your assistant composer: keyboard", () => {
     await renderApp();
     const a = open("Item A");
     fireEvent.change(a.field, { target: { value: "  same note  " } });
-    await act(async () => fireEvent.click(a.w.getByRole("button", { name: "Send to Grok Bot" })));
+    await act(async () => fireEvent.click(a.w.getByRole("button", { name: "Send to assistant" })));
     await flush();
     expect(posted).toHaveLength(1);
 
@@ -189,10 +189,10 @@ describe("Decision card own answer: keyboard", () => {
   const card = (id: string) => within(document.querySelector<HTMLElement>(`[data-decision-id="${id}"]`)!);
   const input = (id: string) => card(id).getByRole("textbox", { name: "Your own answer" }) as HTMLInputElement;
 
-  it("Enter sends once, with the same payload as Send to Grok Bot", async () => {
+  it("Enter sends once, with the same payload as Send to assistant", async () => {
     await renderApp();
     fireEvent.change(input("s1"), { target: { value: "  Ask Sage  " } });
-    await act(async () => fireEvent.click(card("s1").getByRole("button", { name: "Send to Grok Bot" })));
+    await act(async () => fireEvent.click(card("s1").getByRole("button", { name: "Send to assistant" })));
     fireEvent.change(input("s2"), { target: { value: "  Ask Sage  " } });
     const field = input("s2");
     expect(key(field)).toBe(false);
@@ -207,13 +207,13 @@ describe("Decision card own answer: keyboard", () => {
     expect(shape(viaEnter, "decision_id", "answered_at")).toEqual(shape(viaButton, "decision_id", "answered_at"));
   });
 
-  it("on a multi-select card, Enter sends the custom text exactly as Send to Grok Bot does, ignoring picked options", async () => {
+  it("on a multi-select card, Enter sends the custom text exactly as Send to assistant does, ignoring picked options", async () => {
     await renderApp();
     for (const id of ["m1", "m2"]) {
       fireEvent.click(card(id).getByRole("button", { name: "Yes" }));
       fireEvent.change(input(id), { target: { value: "Both later" } });
     }
-    await act(async () => fireEvent.click(within(input("m1").closest("form") as HTMLElement).getByRole("button", { name: "Send to Grok Bot" })));
+    await act(async () => fireEvent.click(within(input("m1").closest("form") as HTMLElement).getByRole("button", { name: "Send to assistant" })));
     key(input("m2"));
     await flush();
 

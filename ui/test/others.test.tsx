@@ -49,7 +49,7 @@ describe("sortOthers", () => {
   });
 
   it("leaves a list with no review requests as it is, and does not change its input", () => {
-    const list = [pr("A", "Blake's fixes"), pr("B", "Waiting on QA")];
+    const list = [pr("A", "Blake's fixes"), pr("B", "Waiting on ops")];
     const copy = [...list];
     expect(sortOthers(list)).toEqual(copy);
     expect(sortOthers([])).toEqual([]);
@@ -77,7 +77,7 @@ describe("isBoard and others", () => {
 describe("Others' PRs with you panel", () => {
   const others = [pr("Billing banner", "Blake's fixes", "Riley"), pr("Tax tiers", "Your review requested", "Blake"), pr("chat alerts", "review requested", "Kai")];
   const glance: Board["glance"] = {
-    waiting: [{ title: "My PR", who: "Vlad", link: "https://github.com/o/r/pull/9" }],
+    waiting: [{ title: "My PR", who: "Kim", link: "https://github.com/o/r/pull/9" }],
     tickets: [{ id: "PROJ-1", title: "A ticket", status: "To Do" }],
     others,
   };

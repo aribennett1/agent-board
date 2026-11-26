@@ -5,7 +5,7 @@ import type { Ask, ItemDetail, PlanQuestion } from "./data/types";
 import { Markdown } from "./markdown";
 
 // The shared expandable item: one chevron row per board item (tickets, PRs, waiting, others' PRs), the details it
-// opens (summary, extra content such as review drafts, Engineer's plan, discussion, quick actions and a reply box),
+// opens (summary, extra content such as review drafts, Assistant's plan, discussion, quick actions and a reply box),
 // and the full-width focus page that shows the same details for one item.
 
 export type SendText = (text: string) => Promise<boolean>;
@@ -194,7 +194,7 @@ function QuickActions({
   );
 }
 
-// One open question, answered on its own (t103u: never in bulk, nothing preselected): agree with Engineer's
+// One open question, answered on its own (t103u: never in bulk, nothing preselected): agree with Assistant's
 // suggestion for this one question, or type an own answer. Both go to the assistant.
 function QuestionRow({
   q,
@@ -212,7 +212,7 @@ function QuestionRow({
   const agree = async () => {
     setState("sending");
     const ok = await onSend(
-      `${prefix}${q.id}: agree with Engineer${q.recommendation ? ` (${q.recommendation})` : ""}`,
+      `${prefix}${q.id}: agree with Assistant${q.recommendation ? ` (${q.recommendation})` : ""}`,
     );
     setState(ok ? "accepted" : "failed");
   };
@@ -250,7 +250,7 @@ function QuestionRow({
       {q.context && <Markdown text={q.context} className="md q-context" />}
       {q.recommendation && (
         <p className="q-rec">
-          <span className="q-rec-label">Engineer suggests:</span> {q.recommendation}
+          <span className="q-rec-label">Assistant suggests:</span> {q.recommendation}
         </p>
       )}
       {q.body && (
@@ -273,7 +273,7 @@ function QuestionRow({
             disabled={state === "sending"}
             onClick={() => void agree()}
           >
-            {state === "sending" ? "Sending..." : "Agree with Engineer"}
+            {state === "sending" ? "Sending..." : "Agree with Assistant"}
           </button>
         )}
         {state === "failed" && (
@@ -311,7 +311,7 @@ export function ItemDetails({
   replyLabel?: string;
   // Starts each question answer, e.g. "PROJ-2512 ".
   questionPrefix?: string;
-  // The item's detail key (e.g. pr:example-repo/1955): turns on the reply thread and remembers sent notes in it.
+  // The item's detail key (e.g. pr:example-repo/203): turns on the reply thread and remembers sent notes in it.
   itemKey?: string;
   // the owner's stored sends on this item (board.asks), for the reply thread.
   asks?: Ask[];
@@ -403,7 +403,7 @@ export function ItemDetails({
             onClick={() => setPlanOpen((o) => !o)}
           >
             <span className="chev" aria-hidden="true" />
-            Engineer's plan{detail.plan_file ? ` (${detail.plan_file})` : ""}
+            Assistant's plan{detail.plan_file ? ` (${detail.plan_file})` : ""}
           </button>
           {planOpen && <Markdown text={detail.plan} className="md plan-md" />}
         </section>

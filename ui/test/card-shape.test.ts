@@ -19,7 +19,7 @@ const base = (): Decision => ({
   card_ref: null,
   context: "An applicant SSN can match an old non-employee row.\n\nThe hire check then skips the not-eligible warning.",
   question: "What should happen when an SSN matches two employees?",
-  what_happens_after: "Your answer goes to Planner word for word.",
+  what_happens_after: "Your answer goes to Assistant word for word.",
   options: [
     { id: "a", label: "A: Block the hire" },
     { id: "b", label: "B: Merge into the oldest" },

@@ -51,19 +51,19 @@ afterEach(() => {
 describe("Post/approve/thumb-up cards show comment and exact reply", () => {
   it("renders answers_comment quote, metadata, link, and exact post_text above options in DecisionCard", () => {
     const card: Decision = {
-      id: "pr2014-null-shift-reply",
-      card_ref: "PR #2014",
-      title: "Bugbot pushback on 2014: null shift IDs",
-      question: "Post this exact reply on Bugbot's thread on #2014?",
-      what_happens_after: "Grok Bot posts the reply.",
+      id: "pr205-null-shift-reply",
+      card_ref: "PR #205",
+      title: "Bugbot pushback on 205: null shift IDs",
+      question: "Post this exact reply on Bugbot's thread on #205?",
+      what_happens_after: "assistant posts the reply.",
       answers_comment: {
         author: "cursor[bot]",
-        repo: "ROWSHR/rows-backend",
-        pr: 2014,
+        repo: "example/app",
+        pr: 205,
         path: "app/Http/Requests/EmployeeApp/StoreTimeOffRequestRequest.php",
         line: 167,
         severity: "High",
-        url: "https://github.com/ROWSHR/rows-backend/pull/2014#discussion_r4696970871",
+        url: "https://github.com/example/app/pull/205#discussion_r4696970871",
         body: "### Null shift IDs fail distinct\n\nTwo unscheduled entries both omit or null the shift id.",
       },
       post_text: "`distinct` is not an implicit rule.\n\nWhat do you think?",
@@ -80,7 +80,7 @@ describe("Post/approve/thumb-up cards show comment and exact reply", () => {
     expect(screen.getByText(/Two unscheduled entries both omit or null the shift id\./)).toBeTruthy();
     expect(screen.getByText(/What do you think\?/)).toBeTruthy();
     const link = screen.getByRole("link", { name: /View on GitHub/i }) as HTMLAnchorElement;
-    expect(link.href).toBe("https://github.com/ROWSHR/rows-backend/pull/2014#discussion_r4696970871");
+    expect(link.href).toBe("https://github.com/example/app/pull/205#discussion_r4696970871");
 
     const block = container.querySelector(".post-approval-block")!;
     const options = container.querySelector(".options")!;
@@ -89,16 +89,16 @@ describe("Post/approve/thumb-up cards show comment and exact reply", () => {
 
   it("renders 'No text gets posted — only a 👍 reaction.' when post_text is null", () => {
     const card: Decision = {
-      id: "pr2016-thumbs-up",
-      card_ref: "PR #2016",
-      question: "Put a 👍 on Bugbot's #2016 comment?",
+      id: "pr207-thumbs-up",
+      card_ref: "PR #207",
+      question: "Put a 👍 on Bugbot's #207 comment?",
       what_happens_after: "Adds 👍.",
       answers_comment: {
         author: "cursor[bot]",
-        pr: 2016,
+        pr: 207,
         path: "app/Services/PayrollService.php",
         line: 42,
-        url: "https://github.com/ROWSHR/rows-backend/pull/2016#discussion_r123",
+        url: "https://github.com/example/app/pull/207#discussion_r123",
         body: "Looks wrong.",
       },
       post_text: null,
@@ -119,7 +119,7 @@ describe("Post/approve/thumb-up cards show comment and exact reply", () => {
       glance: { waiting: [], tickets: [], others: [], mine: [] },
       decisions: [],
       details: {
-        "decision:pr2014-null-shift-distinct": {
+        "decision:pr205-null-shift-distinct": {
           thread: [
             {
               at: "2026-11-25T15:50:00.000Z",
@@ -127,16 +127,16 @@ describe("Post/approve/thumb-up cards show comment and exact reply", () => {
               text: "Draft reply",
               question: {
                 id: "q-null-shift",
-                text: "Post this exact reply on Bugbot's thread on #2014?",
+                text: "Post this exact reply on Bugbot's thread on #205?",
                 context: "Check before posting.",
                 answers_comment: {
                   author: "cursor[bot]",
-                  repo: "ROWSHR/rows-backend",
-                  pr: 2014,
+                  repo: "example/app",
+                  pr: 205,
                   path: "app/Http/Requests/EmployeeApp/StoreTimeOffRequestRequest.php",
                   line: 167,
                   severity: "High",
-                  url: "https://github.com/ROWSHR/rows-backend/pull/2014#discussion_r4696970871",
+                  url: "https://github.com/example/app/pull/205#discussion_r4696970871",
                   body: "Two unscheduled entries both omit or null the shift id."
                 },
                 post_text: "Laravel skips distinct (Validator::isNotNullIfMarkedAsNullable).",
@@ -151,13 +151,13 @@ describe("Post/approve/thumb-up cards show comment and exact reply", () => {
     const topics = buildTopics(
       board,
       {
-        "decision:pr2014-null-shift-distinct": {
-          label: "Bugbot pushback on 2014: null shift IDs",
+        "decision:pr205-null-shift-distinct": {
+          label: "Bugbot pushback on 205: null shift IDs",
         },
       },
       () => false,
     );
-    const topic = topics.find((t) => t.key === "decision:pr2014-null-shift-distinct");
+    const topic = topics.find((t) => t.key === "decision:pr205-null-shift-distinct");
     expect(topic).toBeTruthy();
     expect(topic!.open.length).toBeGreaterThan(0);
 
@@ -181,7 +181,7 @@ describe("Already decided banner and exact SHA on push cards", () => {
   it("renders You already decided X banner when priorDecision is set", () => {
     const card: Decision = {
       id: "repeat-q",
-      card_ref: "PR #2014",
+      card_ref: "PR #205",
       question: "Check shift again?",
       what_happens_after: "Sends answer.",
       options: [
@@ -204,10 +204,10 @@ describe("Already decided banner and exact SHA on push cards", () => {
   it("renders exact commit SHA on push cards", () => {
     const sha = "cc8d1e0884241ee04eca28db2c414888cf082c9a";
     const card: Decision = {
-      id: "push-1838",
-      card_ref: "PR #1838",
-      title: "Push #1838?",
-      question: "Push #1838 now?",
+      id: "push-208",
+      card_ref: "PR #208",
+      title: "Push #208?",
+      question: "Push #208 now?",
       what_happens_after: "Pushes branch.",
       sha,
       options: [
@@ -228,11 +228,11 @@ describe("NoteBox keeps typed text on failure and retries", () => {
       .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(true);
 
-    render(<NoteBox draftKey="test-q1b" label="Your answer" button="Send to Grok Bot" onSend={onSend} />);
+    render(<NoteBox draftKey="test-q1b" label="Your answer" button="Send to assistant" onSend={onSend} />);
     const input = screen.getByLabelText("Your answer") as HTMLTextAreaElement;
     const text = "Ya, I'm wondering why would we not use the existing code?";
     fireEvent.change(input, { target: { value: text } });
-    fireEvent.click(screen.getByRole("button", { name: "Send to Grok Bot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send to assistant" }));
 
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Could not send, try again"));
     expect(input.value).toBe(text);
@@ -278,7 +278,7 @@ describe("ab.mjs structural rules", () => {
           answers_comment: {
             author: "cursor[bot]",
             pr: 9999,
-            url: "https://github.com/ROWSHR/rows-backend/pull/9999#discussion_r1",
+            url: "https://github.com/example/app/pull/9999#discussion_r1",
             body: "Bug here.",
           },
           options: [
@@ -304,7 +304,7 @@ describe("ab.mjs structural rules", () => {
             path: "app/Foo.php",
             line: 10,
             severity: "High",
-            url: "https://github.com/ROWSHR/rows-backend/pull/9999#discussion_r1",
+            url: "https://github.com/example/app/pull/9999#discussion_r1",
             body: "Bug here.",
           },
           post_text: "Fixed in next commit.",
@@ -327,7 +327,7 @@ describe("ab.mjs structural rules", () => {
           answers_comment: {
             author: "cursor[bot]",
             pr: 9999,
-            url: "https://github.com/ROWSHR/rows-backend/pull/9999#discussion_r2",
+            url: "https://github.com/example/app/pull/9999#discussion_r2",
             body: "Good catch.",
           },
           post_text: null,
@@ -370,7 +370,7 @@ describe("ab.mjs structural rules", () => {
         "raise",
         JSON.stringify({
           id: "test-push-no-sha",
-          group: "pr:rows-backend/9998",
+          group: "pr:app/9998",
           title: "Payroll fix (#9998): push branch",
           context: "Ready to push the payroll fix branch. Waiting for your go-ahead.",
           question: "Push #9998 now?",
@@ -391,7 +391,7 @@ describe("ab.mjs structural rules", () => {
           "raise",
           JSON.stringify({
             id: "test-push-1",
-            group: "pr:rows-backend/9998",
+            group: "pr:app/9998",
             title: "Payroll fix (#9998): push branch",
             context: "Ready to push the payroll fix branch. Waiting for your go-ahead.",
             question: "Push #9998 now?",
@@ -410,7 +410,7 @@ describe("ab.mjs structural rules", () => {
           "raise",
           JSON.stringify({
             id: "test-push-2",
-            group: "pr:rows-backend/9998",
+            group: "pr:app/9998",
             title: "Payroll fix (#9998): push branch",
             context: "New commit is ready on the payroll fix branch. Waiting for your go-ahead.",
             question: "Push #9998 now?",
@@ -440,11 +440,11 @@ describe("ab.mjs structural rules", () => {
 describe("Review card options post_text and raw ticket inline lint rules", () => {
   it("renders per-finding review comments with severity, file:line, summary, and Will post block", () => {
     const reviewCard: Decision = {
-      id: "pr1935-test",
-      card_ref: "https://github.com/ROWSHR/rows-backend/pull/1935",
-      title: "QA review of #1935",
-      question: "Should QA post each of these comments?",
-      what_happens_after: "Each answer goes to QA with the PR, finding number, and file:line.",
+      id: "pr201-test",
+      card_ref: "https://github.com/example/app/pull/201",
+      title: "ops review of #201",
+      question: "Should ops post each of these comments?",
+      what_happens_after: "Each answer goes to ops with the PR, finding number, and file:line.",
       options: [],
       post_comments: [
         {
@@ -469,18 +469,18 @@ describe("Review card options post_text and raw ticket inline lint rules", () =>
     expect(screen.queryByText("Post none")).toBeNull();
   });
 
-  it("rejects old multi-select review cards and inline raw Linear ticket markdown", () => {
+  it("rejects old multi-select review cards and inline raw ticket markdown", () => {
     const { dir, boardFile } = makeTempBoard();
     try {
       const missingOptPostText = runAb(boardFile, [
         "raise",
         JSON.stringify({
           id: "test-review-missing-post-text",
-          group: "pr:rows-backend/9997",
-          title: "QA review of #9997",
-          context: "QA reviewed PR #9997 and found two issues on the export.",
-          question: "Which comments should QA post?",
-          what_happens_after: "QA posts picked comments.",
+          group: "pr:app/9997",
+          title: "ops review of #9997",
+          context: "ops reviewed PR #9997 and found two issues on the export.",
+          question: "Which comments should ops post?",
+          what_happens_after: "ops posts picked comments.",
           multiSelect: true,
           options: [
             { id: "f1", label: "#1 Foo.php:10" },
@@ -496,7 +496,7 @@ describe("Review card options post_text and raw ticket inline lint rules", () =>
         JSON.stringify({
           id: "test-raw-ticket-inline",
           title: "Fix time off request",
-          context: "## ROWS-2512: Endpoints for viewing\n\n- **Ticket:** [ROWS-2512](https://linear.app/rows/issue/ROWS-2512)",
+          context: "## PROJ-2512: Endpoints for viewing\n\n- **Ticket:** [PROJ-2512](https://tracker.example.com/proj/issue/PROJ-2512)",
           question: "Proceed?",
           what_happens_after: "Continues.",
           options: [
@@ -506,7 +506,7 @@ describe("Review card options post_text and raw ticket inline lint rules", () =>
         }),
       ]);
       expect(rawInline.code).toBe(2);
-      expect(rawInline.err).toMatch(/raw Linear ticket markdown/i);
+      expect(rawInline.err).toMatch(/raw ticket markdown/i);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
