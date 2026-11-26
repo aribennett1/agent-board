@@ -1,11 +1,11 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { BoardNotification } from "./data/types";
 import { TIME_ZONE } from "./config";
 import { Markdown } from "./markdown";
 import { isBoardBot, botPillClass } from "./raisedBy";
 
 // The notifications feed in the bottom of the sidebar: status notes the bots posted with `ab notify`, as chat bubbles,
-// oldest at the top and newest at the bottom. It follows new notes unless the reader has scrolled up.
+// newest at the top and oldest at the bottom. The list starts at the top and never moves the scroll on its own.
 // An X on a bubble, or Dismiss all, clears it through /__ab/notifications/clear.
 // That call never hits the wake webhook; the bots are not notified. Cleared notes leave the feed.
 
@@ -33,32 +33,17 @@ async function postClear(body: { id: number } | { all: true }): Promise<boolean>
   }
 }
 
-const NEAR_BOTTOM = 24;
 const initial = (bot: string) => (bot.trim()[0] ?? "?").toUpperCase();
 const avatarClass = (bot: string) => (isBoardBot(bot) ? botPillClass(bot).replace("bot-pill ", "") : "bot-pill-grok");
 
 export function Notifications({ items, now = new Date() }: { items: BoardNotification[]; now?: Date }) {
   const [hidden, setHidden] = useState<Set<number>>(() => new Set());
   const pending = useRef(new Set<number>());
-  const listRef = useRef<HTMLOListElement>(null);
-  const follow = useRef(true);
 
-  // Oldest first, so the newest bubble is at the bottom like a chat.
+  // Newest first, so later times sit at the top.
   const visible = items
     .filter((n) => !n.cleared_at && !hidden.has(n.id))
-    .sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.id - b.id));
-  const newest = visible[visible.length - 1]?.id;
-
-  // New note arrived: stay glued to the bottom unless he scrolled up to read.
-  useLayoutEffect(() => {
-    const el = listRef.current;
-    if (el && follow.current) el.scrollTop = el.scrollHeight;
-  }, [newest, visible.length]);
-
-  const onScroll = () => {
-    const el = listRef.current;
-    if (el) follow.current = el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM;
-  };
+    .sort((a, b) => (a.created_at > b.created_at ? -1 : a.created_at < b.created_at ? 1 : b.id - a.id));
 
   const hide = (ids: number[]) =>
     setHidden((s) => {
@@ -99,7 +84,7 @@ export function Notifications({ items, now = new Date() }: { items: BoardNotific
       {visible.length === 0 ? (
         <p className="feed-empty">No notifications yet.</p>
       ) : (
-        <ol className="feed-list" ref={listRef} onScroll={onScroll}>
+        <ol className="feed-list">
           {visible.map((n) => (
             <li key={n.id} data-notice-id={n.id} className="notice">
               <span className={`notice-avatar ${avatarClass(n.bot)}`} aria-hidden="true">

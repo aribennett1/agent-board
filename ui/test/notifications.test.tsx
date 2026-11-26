@@ -25,26 +25,26 @@ afterEach(() => {
 });
 
 describe("Notifications feed", () => {
-  it("lists oldest first so the newest is at the bottom, with the bot, ET time, text, next update, and an X on each bubble; nothing is grayed out", () => {
+  it("lists newest first, with the bot, ET time, text, next update, and an X on each bubble; nothing is grayed out", () => {
     const items = [
       note(2, { bot: "QA", text: "Approved **PR #12** at `abc`.", created_at: "2026-11-26T17:10:00.000Z" }),
       note(1, { bot: "Planner", text: "Starting now.", next_update: "1:15 PM ET", created_at: "2026-11-26T14:00:00.000Z" }),
     ];
     render(<Notifications items={items} now={now} />);
     const rows = [...document.querySelectorAll<HTMLElement>("[data-notice-id]")];
-    expect(rows.map((r) => r.dataset.noticeId)).toEqual(["1", "2"]);
-    expect(within(rows[1]).getByText("QA", { selector: ".notice-bot" })).toBeTruthy();
-    expect(rows[1].querySelector(".notice-avatar")?.className).toContain("bot-pill-qa");
-    expect(within(rows[1]).getByText("12:10 PM ET")).toBeTruthy();
-    expect(rows[1].querySelector(".notice-text")?.textContent).toContain("PR #12");
-    expect(within(rows[0]).getByText("Next update by 1:15 PM ET")).toBeTruthy();
-    expect(rows[1].querySelector(".notice-read")).toBeNull();
-    expect(rows[1].classList.contains("notice-read")).toBe(false);
-    const x = within(rows[1]).getByRole("button", { name: "Clear notification" });
+    expect(rows.map((r) => r.dataset.noticeId)).toEqual(["2", "1"]);
+    expect(within(rows[0]).getByText("QA", { selector: ".notice-bot" })).toBeTruthy();
+    expect(rows[0].querySelector(".notice-avatar")?.className).toContain("bot-pill-qa");
+    expect(within(rows[0]).getByText("12:10 PM ET")).toBeTruthy();
+    expect(rows[0].querySelector(".notice-text")?.textContent).toContain("PR #12");
+    expect(within(rows[1]).getByText("Next update by 1:15 PM ET")).toBeTruthy();
+    expect(rows[0].querySelector(".notice-read")).toBeNull();
+    expect(rows[0].classList.contains("notice-read")).toBe(false);
+    const x = within(rows[0]).getByRole("button", { name: "Clear notification" });
     expect(x.textContent).toBe("×");
     const style = getComputedStyle(x);
     // The class places it in the top right of the note.
-    expect(rows[1].className).toBe("notice");
+    expect(rows[0].className).toBe("notice");
     expect(x.className).toBe("notice-clear");
     expect(noticeTime("2026-11-25T17:00:00.000Z", now)).toBe("Nov 25, 12:00 PM ET");
     expect(screen.getByRole("button", { name: "Dismiss all" })).toBeTruthy();
@@ -134,26 +134,16 @@ describe("Notifications stay off Conversation and the red dot", () => {
 });
 
 describe("feed scrolling", () => {
-  const scrollSetup = (el: HTMLElement, top: number, height: number, client: number) => {
-    Object.defineProperty(el, "scrollHeight", { configurable: true, get: () => height });
-    Object.defineProperty(el, "clientHeight", { configurable: true, get: () => client });
-    el.scrollTop = top;
-  };
-
-  it("jumps to the newest note when one arrives, unless he has scrolled up", () => {
+  it("starts at the top and does not move the scroll when a new note arrives", () => {
     const { rerender } = render(<Notifications items={[note(1), note(2)]} now={now} />);
     const list = document.querySelector<HTMLElement>(".feed-list")!;
-    scrollSetup(list, 0, 500, 200);
-    // At the bottom: follow.
-    list.scrollTop = 300;
-    fireEvent.scroll(list);
+    Object.defineProperty(list, "scrollHeight", { configurable: true, get: () => 500 });
+    Object.defineProperty(list, "clientHeight", { configurable: true, get: () => 200 });
+    expect(list.scrollTop).toBe(0);
+    list.scrollTop = 80;
     rerender(<Notifications items={[note(1), note(2), note(3)]} now={now} />);
-    expect(list.scrollTop).toBe(500);
-    // Scrolled up to read: stay put.
-    list.scrollTop = 10;
-    fireEvent.scroll(list);
-    rerender(<Notifications items={[note(1), note(2), note(3), note(4)]} now={now} />);
-    expect(list.scrollTop).toBe(10);
+    expect(list.scrollTop).toBe(80);
+    expect([...document.querySelectorAll<HTMLElement>("[data-notice-id]")].map((r) => r.dataset.noticeId)).toEqual(["3", "2", "1"]);
   });
 });
 
