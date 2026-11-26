@@ -1,25 +1,25 @@
 # Agent Board
 
-An action board for Eric Bennett, a backend engineer at Rows, and the small team of AI bots that work with him on the rows-backend codebase: Planner, QA, Engineer, dr eggbot, and Grok Bot.
+An action board for a dev and the small team of AI bots that work with them on the rows-backend codebase: Planner, QA, Engineer, dr eggbot, and Grok Bot.
 
 ## The problem
 
-The bots' questions to Eric used to be scattered across chats, often relayed through another bot, and easy to miss. Work stalled waiting on Eric's answer, and the answer sometimes got garbled in the relay. Eric became the scheduler: chasing bots, re-asking questions, and watching for loops.
+The bots' questions to the dev used to be scattered across chats, often relayed through another bot, and easy to miss. Work stalled waiting on the dev's answer, and the answer sometimes got garbled in the relay. The dev became the scheduler: chasing bots, re-asking questions, and watching for loops.
 
 ## How the board solves it
 
-Every bot raises a structured card in one place. The card says who raised it, what it's about, the options, and what happens after Eric answers. Eric answers on the card, and the answer goes straight to that bot through its own webhook. No bot sits in between.
+Every bot raises a structured card in one place. The card says who raised it, what it's about, the options, and what happens after the dev answers. The dev answers on the card, and the answer goes straight to that bot through its own webhook. No bot sits in between.
 
-The pipeline is Planner plans, QA approves the plan, then Engineer builds. Pushes to GitHub still need Eric's OK. Strict validation on `ab raise` makes cards hard to misuse. The PR and ticket tabs are filled by the server from free APIs, not by bots. Status updates go to the notifications feed.
+The pipeline is Planner plans, QA approves the plan, then Engineer builds. Pushes to GitHub still need the dev's OK. Strict validation on `ab raise` makes cards hard to misuse. The PR and ticket tabs are filled by the server from free APIs, not by bots. Status updates go to the notifications feed.
 
 ```mermaid
 flowchart LR
   Raise[Bot raises a card] --> Board[Action board]
-  Board --> Answer[Eric answers]
+  Board --> Answer[Dev answers]
   Answer --> Hook[Webhook to the raising bot]
 ```
 
-The board is private. It is not a hosted product, and it is not on GitHub Pages. It runs on Eric's box and is reachable only over his tailnet.
+The board is private. It is not a hosted product, and it is not on GitHub Pages. It runs on the dev's box and is reachable only over their tailnet.
 
 ## Stack
 
