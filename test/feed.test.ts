@@ -68,6 +68,11 @@ test('refreshFeed fetches GitHub with gh and Linear with the key, no bot involve
   assert.equal(asked.length, 1);
   assert.match(asked[0].query, /isMe/);
   assert.ok(gh.calls.every((c) => c[0] === 'api'), 'only read-only gh api calls');
+  const qs = gh.calls.filter((c) => c.includes('graphql')).map((c) => c.find((a) => a.startsWith('q=')) ?? '');
+  assert.equal(qs.length, 2);
+  assert.ok(qs.every((q) => q.includes('org:ROWSHR')), 'only PRs in the ROWSHR org');
+  assert.ok(qs.some((q) => q.includes('author:aribennett1') && !q.includes('-author')));
+  assert.ok(qs.some((q) => q.includes('involves:aribennett1') && q.includes('-author:aribennett1')));
   assert.equal(readFeed(e.db)!.tickets[0].id, 'ROWS-1');
   // the stored JSON holds no secret
   assert.ok(!JSON.stringify(readFeed(e.db)).includes('lin_key'));

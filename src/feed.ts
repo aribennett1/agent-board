@@ -126,8 +126,8 @@ async function fetchGithub(gh: Gh) {
   const me = (await gh(['api', 'user', '--jq', '.login'])).trim();
   if (!me) throw new Error('gh is not signed in');
   const [mine, others] = await Promise.all([
-    searchPrs(gh, `is:pr is:open archived:false author:${me}`, me),
-    searchPrs(gh, `is:pr is:open archived:false involves:${me} -author:${me}`, me),
+    searchPrs(gh, `org:ROWSHR is:pr is:open archived:false author:${me}`, me),
+    searchPrs(gh, `org:ROWSHR is:pr is:open archived:false involves:${me} -author:${me}`, me),
   ]);
   return { login: me, mine, others };
 }
