@@ -209,3 +209,12 @@ CREATE TABLE IF NOT EXISTS archive_ui_notifications (
   cleared_at TEXT,
   archived_at TEXT NOT NULL
 );
+
+-- My PRs that need work (changes requested, failing checks, open reviewer threads) while no open card names them.
+-- src/attention.ts writes a notification once a PR has gone GRACE_MS like that, and clears it when a card appears or the work is done.
+CREATE TABLE IF NOT EXISTS pr_attention (
+  pr TEXT PRIMARY KEY,
+  sig TEXT NOT NULL,
+  first_seen TEXT NOT NULL,
+  notification_id INTEGER
+);

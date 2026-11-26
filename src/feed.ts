@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
+import { watchAttention } from './attention.ts';
 
 // The data behind My tickets, My PRs and Others' PRs. The board server fetches it itself on a timer: GitHub through
 // the gh CLI (GraphQL) and Linear through its GraphQL API with LINEAR_API_KEY. No bot, no AI call and no `ab` command
@@ -206,6 +207,13 @@ export async function refreshFeed(db: DatabaseSync, deps: FeedDeps = {}): Promis
   }
   db.prepare('INSERT INTO ui_feed (key, json, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at')
     .run('feed', JSON.stringify(feed), iso);
+  if (feed.github.ok) {
+    try {
+      watchAttention(db, feed.mine, now);
+    } catch (e) {
+      console.error(`attention watch failed: ${errText(e)}`);
+    }
+  }
   return feed;
 }
 
