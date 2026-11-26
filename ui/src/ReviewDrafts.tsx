@@ -105,6 +105,8 @@ function CommentCard({
   const local = locals[reviewKey(draft, comment.id)];
   const status = commentStatus(draft, comment, locals);
   const sending = local?.status === "sending";
+  // His note is with the assistant: no Post, Skip or note box until the draft is rewritten.
+  const waiting = status === "pending" && Boolean(comment.pending_bot);
   const where = comment.line ? `${comment.path}:${comment.line}` : comment.path;
   // Posted and skipped comments start collapsed, open ones expanded; his own toggle wins.
   const [collapsed, toggle] = useCollapsed(`review:${reviewKey(draft, comment.id)}`, status !== "pending");
@@ -129,6 +131,7 @@ function CommentCard({
         {status !== "pending" && (
           <span className={`review-flag ${status}`}>{statusLabel(status, comment, local)}</span>
         )}
+        {waiting && <span className="review-flag">Sent to assistant · waiting for the rewrite</span>}
       </header>
       {collapsed ? null : (
         <>
@@ -150,7 +153,7 @@ function CommentCard({
       ) : (
         <Markdown text={body} className="md review-body" />
       )}
-      {status === "pending" && (
+      {status === "pending" && !waiting && (
         <div className="review-actions">
           {editing ? (
             <>
@@ -212,7 +215,7 @@ function CommentCard({
           )}
         </div>
       )}
-      {status !== "skipped" && (
+      {status !== "skipped" && !waiting && (
       <NoteBox
         label="Private note to Assistant, not posted (e.g. soften this, also mention X)"
         button="Send to assistant"

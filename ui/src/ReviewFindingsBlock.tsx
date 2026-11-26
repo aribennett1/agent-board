@@ -150,6 +150,7 @@ export function FindingDraft({
             You said {youSaid}
           </p>
           <FindingStatusLine status={finding.status} postedUrl={finding.posted_url} note={finding.note} />
+          {finding.pending_bot && <p className="finding-waiting" role="status">Waiting for the assistant to rewrite this</p>}
         </div>
       ) : (
         <FindingStatusLine status={finding.status} postedUrl={finding.posted_url} note={finding.note} />

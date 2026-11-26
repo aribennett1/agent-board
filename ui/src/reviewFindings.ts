@@ -107,10 +107,12 @@ export function answersFromAsks(asks: Ask[] | undefined, cardId: string, finding
 }
 
 // Settled (grayed out, no buttons): posted/skipped on GitHub, or the owner tapped Post / Don't post.
-// A free-text note does not close the finding — Post / Don't post stay, so he can still approve
-// a rewrite (for example #214 #4). Fully settled cards drop off the board.
-export function isFindingSettled(finding: Pick<ReviewFinding, "status">, answer?: string): boolean {
+// A free-text note parks the finding with the bot (pending_bot) until the bot rewrites the draft; the rewrite
+// brings Post / Don't post back. Fully settled cards drop off the board.
+export function isFindingSettled(finding: Pick<ReviewFinding, "status" | "pending_bot">, answer?: string): boolean {
   if (finding.status === "posted" || finding.status === "skipped") return true;
+  // His note is with the bot: off his turn until the bot rewrites the draft (the board clears pending_bot then).
+  if (finding.pending_bot) return true;
   const a = (answer ?? "").trim();
   if (!a) return false;
   if (/^don't post(?: any)?$/i.test(a)) return true;

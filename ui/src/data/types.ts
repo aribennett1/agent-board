@@ -46,6 +46,8 @@ export type PostCommentDraft = {
   answer_to_question?: string;
   // Asks at or before this time are not used to close the finding; he still needs to Post the revised text.
   revision_at?: string;
+  // Set by the board when he sent a free-text note: the finding waits for the bot's rewrite and is off his turn.
+  pending_bot?: { at: string; note: string };
 };
 
 export type AlreadyDecided = {
@@ -221,6 +223,8 @@ export type ReviewComment = {
   url?: string;
   // Why the status is what it is, e.g. "Deleted on GitHub at 3:35 PM ET".
   note?: string;
+  // Set by the board when he sent a free-text note: waits for the bot's rewrite and is off his turn.
+  pending_bot?: { at: string; note: string };
 };
 export type ReviewDraft = {
   repo: string;

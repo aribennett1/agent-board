@@ -195,6 +195,7 @@ import { isSlackDraft, normalizeSlack, slackDraftError } from "../src/slack-draf
 import { applyQuietSwap, quietSwapText } from "../src/quiet-swap.ts";
 import { carryDeclined, declinedForPr, declinedOf } from "../src/declined.ts";
 import { healAnswers, settleDecision } from "../src/answered.ts";
+import { carryPendingBot, findingNumber, healNotes, markNotePending } from "../src/finding-notes.ts";
 
 // Storage: the agent-board SQLite file (AGENT_BOARD_DB, default ./agent-board.db) unless AB_FILE names a board.ts
 // file (the file mode is kept for the UI's own tests and for importing an old board.ts).
@@ -1161,6 +1162,7 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   const k = f.b.decisions.findIndex((x) => x.id === d.id);
   if (k < 0 && SQL && sql().prepare("SELECT 1 FROM archive_cards WHERE card_id = ?").get(d.id)) die(4, "refusing: " + d.id + " was answered and archived; use a new id only for a genuinely new decision");
   if (k >= 0 && f.b.decisions[k].answer) die(4, "refusing: " + d.id + " is already answered; never restore an answered decision");
+  if (Array.isArray(d.post_comments)) carryPendingBot(k >= 0 ? f.b.decisions[k].post_comments : undefined, d.post_comments, findingNumber, new Date(), true);
   if (k >= 0 && !asAssistant && f.b.decisions[k].section === "assistant") die(2, "raise: " + d.id + " is a Dr. Assistant card; use ab assistant");
   if (k >= 0 && asAssistant && f.b.decisions[k].section !== "assistant") die(2, "assistant: " + d.id + " is already a Home decision; use a new id");
   d.card_ref = d.card_ref ?? null;
@@ -1352,6 +1354,7 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
     const prev = (Array.isArray(f.b.reviews) ? f.b.reviews : []).find((r) => r.repo === d.repo && r.pr === d.pr);
     const known = declinedOf(prev);
     d.comments = carryDeclined(known, d.comments).comments;
+    carryPendingBot(prev?.comments, d.comments, (c) => c.id, new Date(), true);
     const all = declinedOf({ declined: known, comments: d.comments });
     if (all.length) d.declined = all;
   }
@@ -1400,7 +1403,7 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
     if (drafted) {
       const c = drafted.comments.find((x) => x.id === id);
       if (c) {
-        if (status !== undefined) c.status = status;
+        if (status !== undefined) { c.status = status; delete c.pending_bot; }
         if (urlFlag !== undefined) c.url = urlFlag;
         if (noteFlag !== undefined) { if (noteFlag.trim()) c.note = noteFlag.trim(); else delete c.note; }
         hit = true;
@@ -1416,6 +1419,7 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
     if (status === "posted" && !hit && findings.length && urlFlag === undefined) die(2, "review-status: posted needs --url <github comment or review link>");
     const out = [];
     for (const { card, c } of findings) {
+      if (status !== undefined || answerQFlag !== undefined || bodyFlag !== undefined) delete c.pending_bot;
       if (status !== undefined) c.status = status;
       if (urlFlag !== undefined) c.posted_url = urlFlag;
       if (noteFlag !== undefined) { if (noteFlag.trim()) c.note = noteFlag.trim(); else delete c.note; }
@@ -1485,26 +1489,29 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   const asks = Array.isArray(f.b.asks) ? f.b.asks : [];
   // A card answer is stored on the card here, in the same write that records the ask, so the answer survives a refresh,
   // another browser and a bot re-raise. A browser re-sending an answer the board already has heals a card that missed it.
-  const settled = settleDecision(f.b.decisions?.find((x) => x.id === p.decision_id), p);
+  const noted = markNotePending(f.b, p);
+  const settled = settleDecision(f.b.decisions?.find((x) => x.id === p.decision_id), p) || noted;
   if (asks.some((x) => x.id === a.id)) {
-    if (settled) { save(f, f.b); log({ op: "answer", id: p.decision_id, by: "app", healed: true }); }
+    if (settled) { save(f, f.b); log({ op: noted ? "note-pending" : "answer", id: p.decision_id, by: "app", healed: true }); }
     console.log(JSON.stringify({ ok: true, live: false, id: a.id, duplicate: true, settled })); process.exit(0);
   }
   // After ab wipe, a browser re-sending its old local history must not bring it back.
   if (f.b.reset_at && a.at <= f.b.reset_at) { console.log(JSON.stringify({ ok: true, live: false, id: a.id, before_reset: true })); process.exit(0); }
-  if (settled) { const d = f.b.decisions.find((x) => x.id === p.decision_id); d.updated_at = new Date().toISOString(); }
+  if (settled && !noted) { const d = f.b.decisions.find((x) => x.id === p.decision_id); d.updated_at = new Date().toISOString(); }
   f.b.asks = [...asks, a].sort((x, y) => (x.at < y.at ? -1 : x.at > y.at ? 1 : 0)).slice(-1000);
   const u = save(f, f.b); const live = await waitServed((b) => b.updated_at === u);
   log({ op: "ask", id: a.id, key: a.item_key, kind: a.kind, settled });
   console.log(JSON.stringify({ ok: true, live, id: a.id, key: a.item_key, kind: a.kind, settled }));
 } else if (cmd === "heal-answers") {
   // ab heal-answers: closes every card he answered that the board never marked answered (an answer ask exists, the card
-  // has no answer, and the answer came after the card's latest revision). Safe to rerun. -> {"ok","healed":[ids]}
+  // has no answer, and the answer came after the card's latest revision) and parks findings whose last word from him is a
+  // note (pending_bot). Safe to rerun. -> {"ok","healed":[ids],"parked":[findings]}
   lock(); const f = load();
   const healed = healAnswers(f.b);
-  if (healed.length) save(f, f.b);
-  log({ op: "heal-answers", count: healed.length });
-  console.log(JSON.stringify({ ok: true, healed }));
+  const parked = healNotes(f.b);
+  if (healed.length || parked.length) save(f, f.b);
+  log({ op: "heal-answers", count: healed.length, parked: parked.length });
+  console.log(JSON.stringify({ ok: true, healed, parked }));
 } else if (cmd === "reply") {
   // ab reply <item> "text" [--image path] [--alt "text"] [--question "q" --option "Label" ...]: appends a Assistant reply
   // (Markdown, links) to the item's thread with a timestamp. This is how to answer the owner on the board. The image is copied
@@ -1522,6 +1529,7 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   if (status !== undefined && !STATUS_RE.test(status)) die(2, "reply: --status must be working, done, passed:assistant, passed:ops or waiting:<who>");
   const options = []; for (let o; (o = flag(args, "--option")) !== undefined; ) options.push(o);
   const [target, text] = args;
+  if (text !== undefined && (!nonBlank(text) || text.trimStart().startsWith("--"))) die(2, 'reply: the text must not be empty or start with "--" (a mistyped flag such as --text would be posted as the reply). Pass the reply as the second argument: ab reply <item> "text"');
   if (!nonBlank(target) || (!nonBlank(text) && status === undefined && atFlag === undefined)) die(2, 'reply: usage: ab reply <item> "text" [--image path] [--alt "text"] [--svg file.svg] [--question "q" --context "short paragraph" --option "Label" ...] [--supersedes id,...] [--status working|done|passed:assistant|passed:ops|waiting:<who>] (text is optional with --status); or ab reply <item> --at <iso> "text" to replace an existing reply\'s text');
   if (question !== undefined && (!nonBlank(question) || options.length < 2 || !options.every(nonBlank))) die(2, "reply: --question needs text and at least two --option values");
   if (question === undefined && options.length) die(2, "reply: --option needs --question");
