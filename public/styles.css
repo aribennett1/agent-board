@@ -1,0 +1,24 @@
+:root { --bg:#fafafa; --text:#1d1c1a; --quiet:#6b6b6b; --border:#ddd; --accent:#2f4a6d; --accent-soft:#e8eef6; }
+* { box-sizing: border-box; }
+body { margin:0; font:15px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--text); }
+header { display:flex; gap:12px; align-items:baseline; padding:12px 20px; border-bottom:1px solid var(--border); }
+h1 { font-size:18px; margin:0; }
+main { display:grid; grid-template-columns:320px 1fr; gap:20px; padding:20px; }
+@media (max-width:760px) { main { grid-template-columns:1fr; } }
+.quiet { color:var(--quiet); }
+.task { display:block; width:100%; text-align:left; padding:10px 12px; margin-bottom:8px; border:1px solid var(--border); border-radius:8px; background:#fff; cursor:pointer; font:inherit; }
+.task.selected { border-color:var(--accent); background:var(--accent-soft); }
+.task.needs::before { content:'● '; color:#e11d48; }
+.note { border-left:3px solid var(--border); padding:4px 10px; margin:8px 0; }
+.note.human { border-color:var(--accent); }
+.note small { color:var(--quiet); }
+.field { position:relative; margin:12px 0 4px; }
+.field textarea { width:100%; min-height:80px; padding:8px 40px 8px 8px; border:1px solid var(--border); border-radius:8px; font:inherit; resize:vertical; }
+.field button.send { margin-top:6px; padding:6px 14px; border:0; border-radius:6px; background:var(--accent); color:#fff; font:inherit; cursor:pointer; }
+.field button.send:disabled { opacity:.5; cursor:default; }
+.mic-btn { position:absolute; right:6px; top:6px; width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center; padding:0; border:1px solid transparent; border-radius:50%; background:transparent; color:var(--quiet); cursor:pointer; }
+.mic-btn:hover:not(:disabled) { background:var(--accent-soft); color:var(--text); }
+.mic-btn.listening { color:#fff; background:#dc2626; animation:mic-pulse 1.2s ease-in-out infinite; }
+@keyframes mic-pulse { 0% { box-shadow:0 0 0 0 rgba(220,38,38,.5); } 70% { box-shadow:0 0 0 8px rgba(220,38,38,0); } 100% { box-shadow:0 0 0 0 rgba(220,38,38,0); } }
+@media (prefers-reduced-motion:reduce) { .mic-btn.listening { animation:none; } }
+.mic-hint { position:absolute; right:6px; top:6px; width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center; color:var(--quiet); opacity:.6; cursor:help; }

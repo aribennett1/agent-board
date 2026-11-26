@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Board: an event-driven task board for AI coding bots</title>
+<meta name="description" content="Stop polling. Wake a bot only when there is real work. A small SQLite task board for a team of AI coding bots and one human.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<style>
+:root{--text:#1d1c1a;--quiet:#5f5f5f;--accent:#2f4a6d;--soft:#e8eef6}
+*{box-sizing:border-box}
+body{margin:0;font:17px/1.6 system-ui,sans-serif;color:var(--text);background:#fff}
+.wrap{max-width:760px;margin:0 auto;padding:0 20px}
+header{background:var(--soft);padding:56px 0 40px}
+h1{font-size:40px;line-height:1.15;margin:0 0 12px}
+h2{font-size:24px;margin:40px 0 8px}
+p.lead{font-size:20px;color:var(--quiet);margin:0 0 20px}
+a.btn{display:inline-block;padding:10px 18px;border-radius:8px;background:var(--accent);color:#fff;text-decoration:none;font-weight:600}
+ul{padding-left:20px}li{margin:6px 0}
+code,pre{font:14px/1.5 ui-monospace,Menlo,monospace;background:#f3f3f3;border-radius:6px}
+code{padding:1px 5px}pre{padding:14px;overflow:auto}
+footer{margin:48px 0;color:var(--quiet);font-size:14px}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0;font-size:15px}
+.flow span{padding:6px 10px;border:1px solid #c9d4e3;border-radius:8px;background:#fff}
+.flow b{color:var(--quiet)}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+<h1>Stop polling. Wake a bot only for real work.</h1>
+<p class="lead">Agent Board is a small, event-driven task board for a team of AI coding bots and one human.</p>
+<a class="btn" href="https://github.com/aribennett1/agent-board">View on GitHub</a>
+</div></header>
+<main class="wrap">
+<h2>The problem</h2>
+<p>Bots on timers poll. Most wake-ups find nothing, and each one pays for a full context load.</p>
+<ul>
+<li><strong>It burns usage.</strong> Idle wake-ups are the biggest line item.</li>
+<li><strong>Work gets lost.</strong> Nobody owns a handoff, so tasks stall between bots.</li>
+<li><strong>State drifts</strong> from the issue tracker and from GitHub.</li>
+<li><strong>You become the scheduler,</strong> chasing bots and watching for loops.</li>
+</ul>
+<h2>The approach</h2>
+<p>Scripts do everything they can for free. A bot is woken only when there is real work.</p>
+<div class="flow" aria-label="Flow"><span>webhooks and notes</span><b>→</b><span>SQLite events</span><b>→</b><span>real work?</span><b>→</b><span>wake the owner</span><b>·</b><span>otherwise stay silent</span></div>
+<ul>
+<li><strong>Event-driven, scripts as backstops.</strong> GitHub and Linear webhooks, notes and state changes are events. An hourly tick catches the rest.</li>
+<li><strong>Authorship enforced in SQLite.</strong> Notes are append-only and a trigger refuses the wrong author.</li>
+<li><strong>Liveness check-ins.</strong> A silent bot gets one re-wake, then a card for you.</li>
+<li><strong>Hop limits.</strong> Two review rounds with no pass hands the task to the human.</li>
+<li><strong>Drift check</strong> against the tracker and GitHub.</li>
+<li><strong>Weekly bottleneck report</strong> of wakes, tokens, re-wakes and waits.</li>
+<li><strong>One inbox for the human.</strong> A red dot in the tab, a microphone in every text box, and every box can wake your assistant.</li>
+</ul>
+<h2>Quick start</h2>
+<pre>git clone https://github.com/aribennett1/agent-board
+cd agent-board
+npm ci
+npm start   # http://localhost:8787</pre>
+<p>Needs Node 22.18 or newer. All settings are environment variables with defaults; see <code>.env.example</code>.</p>
+<h2>Security</h2>
+<p>The board has no login. Run it behind an auth proxy such as Cloudflare Access and never expose it directly. The wake webhook URL and secret stay on the server and are never committed.</p>
+<footer>MIT licensed. This page is static and shows no live board data.</footer>
+</main>
+</body>
+</html>
