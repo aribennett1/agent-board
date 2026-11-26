@@ -7,7 +7,7 @@ import { DecisionCard } from "../src/DecisionCard";
 import { PRIORITY_PATH } from "../src/priority";
 import { BOARD_PATH, pushBoard, resetLiveFeed } from "../src/useLiveBoard";
 
-const HOOK = "http://hook.test/priority";
+const HOOK = "/__ab/webhook"; // every send goes through the server route
 
 const d = (id: string, extra: Partial<Decision> = {}): Decision => ({
   id,
@@ -145,8 +145,7 @@ const priorityCalls = () => calls.filter((c) => c.url === PRIORITY_PATH);
 beforeEach(() => {
   vi.resetModules();
   window.localStorage.clear();
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", HOOK);
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_AUTH", "Bearer x");
+  vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "1");
   FakeEventSource.instances = [];
   vi.stubGlobal("EventSource", FakeEventSource);
   resetLiveFeed();
@@ -157,7 +156,7 @@ beforeEach(() => {
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
       if (url === PRIORITY_PATH) return priorityReply();
-      if (url === HOOK) return new Response("ok", { status: 200 });
+      if (url === HOOK) return new Response(JSON.stringify({ status: 200 }), { status: 200 });
       if (url === FALLBACK_PATH) return new Response(JSON.stringify({ status: 200 }), { status: 200 });
       if (url === "/__ab/delivery-log") return new Response(null, { status: 204 });
       if (url === BOARD_PATH) return new Response(JSON.stringify(initial), { status: 200 });

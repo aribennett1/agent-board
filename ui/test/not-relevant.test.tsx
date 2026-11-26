@@ -12,10 +12,8 @@ import {
   type DeliveryReport,
   type KeyValueStorage,
 } from "../src/delivery";
-import { BOARD_PATH, pushBoard, resetLiveFeed } from "../src/useLiveBoard";
+import { BOARD_PATH, resetLiveFeed } from "../src/useLiveBoard";
 
-const HOOK = "http://hook.test/not-relevant";
-const AUTH = "Bearer not relevant  test==";
 const ISO = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/;
 const LABEL = "Not relevant anymore";
 
@@ -40,56 +38,30 @@ const initial: Board = {
 
 vi.mock("../src/data/board", () => ({ board: initial }));
 
-class FakeEventSource extends EventTarget {
-  static instances: FakeEventSource[] = [];
-  readyState = 0;
-  constructor(public url: string) {
-    super();
-    FakeEventSource.instances.push(this);
-  }
-  close() {
-    this.readyState = 2;
-  }
-  open() {
-    this.readyState = 1;
-    this.dispatchEvent(new Event("open"));
-  }
-  board(b: Board) {
-    this.dispatchEvent(new MessageEvent("board", { data: JSON.stringify(b) }));
-  }
-}
-
-// The mock network: the direct POST answers with a status or throws (a CORS block), the dev-server fallback
-// reports the receiver's status, and /__ab/clear answers with a status or throws.
-let direct: number | "cors";
-let fallback: number | null;
+// The mock network: the server's /__ab/webhook route reports the receiver's status (null: the route is down),
+// and /__ab/clear answers with a status or throws.
+let receiver: number | null;
 let clear: number | "down";
 let calls: { url: string; init?: RequestInit }[];
-const webhookCalls = () => calls.filter((c) => c.url === HOOK || c.url === FALLBACK_PATH);
+const webhookCalls = () => calls.filter((c) => c.url === FALLBACK_PATH);
 const clearCalls = () => calls.filter((c) => c.url === CLEAR_PATH);
 const logCalls = () => calls.filter((c) => c.url === "/__ab/delivery-log");
 
 beforeEach(() => {
   vi.resetModules();
   window.localStorage.clear();
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", HOOK);
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_AUTH", AUTH);
-  FakeEventSource.instances = [];
-  vi.stubGlobal("EventSource", FakeEventSource);
+  vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "1");
+  vi.stubGlobal("scrollTo", vi.fn());
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
   resetLiveFeed();
-  direct = 200;
-  fallback = 200;
+  receiver = 200;
   clear = 200;
   calls = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
-      if (url === HOOK) {
-        if (direct === "cors") throw new TypeError("Failed to fetch");
-        return new Response("ok", { status: direct });
-      }
-      if (url === FALLBACK_PATH) return new Response(JSON.stringify({ status: fallback }), { status: fallback === null ? 502 : 200 });
+      if (url === FALLBACK_PATH) return new Response(JSON.stringify({ status: receiver }), { status: receiver === null ? 502 : 200 });
       if (url === CLEAR_PATH) {
         if (clear === "down") throw new TypeError("Failed to fetch");
         return new Response(JSON.stringify({ ok: clear === 200 }), { status: clear });
@@ -116,8 +88,9 @@ const flush = () => act(async () => void (await new Promise((r) => setTimeout(r,
 async function renderApp() {
   const { default: App } = await import("../src/App");
   render(<App />);
-  const es = { board: (b: Board) => pushBoard(b), open: () => {} };
-  act(() => es.open());
+  // The app's modules are re-imported per test (resetModules), so push into the same instance the app uses.
+  const live = await import("../src/useLiveBoard");
+  const es = { board: (b: Board) => live.pushBoard(b) };
   return es;
 }
 
@@ -163,14 +136,14 @@ describe("Not relevant anymore", () => {
     expect([...card("bare")!.querySelector(".card-foot")!.children].map((e) => e.className)).toEqual(["not-relevant"]);
   });
 
-  it("sends exactly one decision.not_relevant POST, and only then POSTs /__ab/clear with the id", async () => {
+  it("sends exactly one decision.not_relevant POST to /__ab/webhook, and only then POSTs /__ab/clear with the id", async () => {
     await renderApp();
     await tap("one");
     expect(webhookCalls()).toHaveLength(1);
     const { url, init } = webhookCalls()[0];
-    expect(url).toBe(HOOK);
+    expect(url).toBe(FALLBACK_PATH);
     expect(init!.method).toBe("POST");
-    expect((init!.headers as Record<string, string>).Authorization).toBe(AUTH);
+    expect((init!.headers as Record<string, string>).Authorization).toBeUndefined();
     const body = JSON.parse(String(init!.body));
     expect(Object.keys(body)).toEqual(["event", "decision_id", "question", "cleared_at"]);
     expect(body).toEqual({ event: "decision.not_relevant", decision_id: "one", question: "Secret question one?", cleared_at: body.cleared_at });
@@ -208,7 +181,7 @@ describe("Not relevant anymore", () => {
     const gate = new Promise<void>((r) => (release = r));
     const base = vi.mocked(fetch).getMockImplementation()!;
     vi.mocked(fetch).mockImplementation(async (url, init) => {
-      if (url === HOOK) await gate;
+      if (url === FALLBACK_PATH) await gate;
       return base(url as string, init);
     });
     act(() => {
@@ -246,7 +219,7 @@ describe("Not relevant anymore", () => {
 
   it("on a non-2xx webhook keeps the card, shows Could not send, re-enables the control and never clears", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    direct = 502;
+    receiver = 502;
     await renderApp();
     await tapAndWait("one");
     expect(webhookCalls()).toHaveLength(3);
@@ -261,7 +234,7 @@ describe("Not relevant anymore", () => {
     expect(needsYou()).toBe("3");
 
     // A later tap retries everything: the webhook again, then the clear.
-    direct = 200;
+    receiver = 200;
     await act(async () => fireEvent.click(button("one")));
     expect(within(card("one")!).queryByRole("alert")).toBeNull();
     await act(async () => void (await vi.advanceTimersByTimeAsync(10)));
@@ -270,13 +243,12 @@ describe("Not relevant anymore", () => {
     expect(within(card("one")!).getByRole("status").textContent).toBe("Clearing...");
   });
 
-  it("on a network error everywhere (direct throws, fallback fails) shows Could not send and never clears", async () => {
+  it("when the webhook route is down shows Could not send and never clears", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    direct = "cors";
-    fallback = null;
+    receiver = null;
     await renderApp();
     await tapAndWait("bare");
-    expect(webhookCalls().map((c) => c.url)).toEqual([HOOK, FALLBACK_PATH, HOOK, FALLBACK_PATH, HOOK, FALLBACK_PATH]);
+    expect(webhookCalls().map((c) => c.url)).toEqual([FALLBACK_PATH, FALLBACK_PATH, FALLBACK_PATH]);
     expect(clearCalls()).toHaveLength(0);
     expect(within(card("bare")!).getByRole("alert").textContent).toBe("Could not send. Try again.");
     expect(button("bare").disabled).toBe(false);
@@ -314,15 +286,12 @@ describe("Not relevant anymore", () => {
     expect(within(card("two")!).getByRole("alert").textContent).toBe("Sent to your assistant, but could not clear. Try again.");
   });
 
-  it("falls back to /__ab/webhook when the direct POST throws, then clears", async () => {
-    direct = "cors";
-    fallback = 201;
+  it("only ever calls /__ab/webhook for the send, then clears", async () => {
+    receiver = 201;
     await renderApp();
     await tap("one");
-    expect(calls.filter((c) => c.url !== "/__ab/delivery-log" && c.url !== BOARD_PATH).map((c) => c.url)).toEqual([HOOK, FALLBACK_PATH, CLEAR_PATH]);
-    const fb = webhookCalls()[1].init!;
-    expect((fb.headers as Record<string, string>).Authorization).toBeUndefined();
-    expect(JSON.parse(String(fb.body))).toMatchObject({ event: "decision.not_relevant", decision_id: "one", question: "Secret question one?" });
+    expect(calls.filter((c) => c.url !== "/__ab/delivery-log" && c.url !== BOARD_PATH && !c.url.startsWith("/api/version")).map((c) => c.url)).toEqual([FALLBACK_PATH, CLEAR_PATH]);
+    expect(JSON.parse(String(webhookCalls()[0].init!.body))).toMatchObject({ event: "decision.not_relevant", decision_id: "one", question: "Secret question one?" });
     expect(within(card("one")!).getByRole("status").textContent).toBe("Clearing...");
   });
 
@@ -332,9 +301,8 @@ describe("Not relevant anymore", () => {
     expect(logCalls()).toHaveLength(1);
     const raw = String(logCalls()[0].init!.body);
     expect(raw).not.toContain("Secret question");
-    expect(raw).not.toContain(HOOK);
     expect(raw).not.toContain("Bearer");
-    expect(JSON.parse(raw)).toEqual({ event: "decision.not_relevant", decision_id: "one", http: 200, via: "direct", attempt: 1, status: "delivered", at: expect.stringMatching(ISO) });
+    expect(JSON.parse(raw)).toEqual({ event: "decision.not_relevant", decision_id: "one", http: 200, via: "fallback", attempt: 1, status: "delivered", at: expect.stringMatching(ISO) });
   });
 
   it("is independent of Explain this better and the priority control", async () => {
@@ -373,16 +341,14 @@ describe("delivery.notRelevant", () => {
     const statuses = [500, 429, 204];
     const slept: number[] = [];
     const delivery = createDelivery({
-      fetch: vi.fn(async () => new Response(null, { status: statuses.shift()! })) as unknown as typeof fetch,
+      fetch: vi.fn(async () => new Response(JSON.stringify({ status: statuses.shift()! }), { status: 200 })) as unknown as typeof fetch,
       sleep: async (ms) => void slept.push(ms),
       storage,
-      webhookUrl: HOOK,
-      webhookAuth: AUTH,
       fallbackUrl: FALLBACK_PATH,
       now: () => NOW,
       report: (r) => reports.push(r),
     });
-    expect(await delivery.notRelevant(buildNotRelevantPayload(d("x"), NOW))).toEqual({ ok: true, http: 204, via: "direct" });
+    expect(await delivery.notRelevant(buildNotRelevantPayload(d("x"), NOW))).toEqual({ ok: true, http: 204, via: "fallback" });
     expect(slept).toEqual([500, 1500]);
     expect(reports.map((r) => [r.event, r.attempt, r.http, r.status])).toEqual([
       ["decision.not_relevant", 1, 500, "retrying"],
@@ -396,13 +362,12 @@ describe("delivery.notRelevant", () => {
 
   it("resolves not ok with the last status after three failures", async () => {
     const delivery = createDelivery({
-      fetch: vi.fn(async () => new Response(null, { status: 503 })) as unknown as typeof fetch,
+      fetch: vi.fn(async () => new Response(JSON.stringify({ status: 503 }), { status: 200 })) as unknown as typeof fetch,
       sleep: async () => undefined,
       storage: memory(),
-      webhookUrl: HOOK,
       fallbackUrl: FALLBACK_PATH,
       report: () => undefined,
     });
-    expect(await delivery.notRelevant(buildNotRelevantPayload(d("x"), NOW))).toEqual({ ok: false, http: 503, via: "direct" });
+    expect(await delivery.notRelevant(buildNotRelevantPayload(d("x"), NOW))).toEqual({ ok: false, http: 503, via: "fallback" });
   });
 });

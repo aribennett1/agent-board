@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Board } from "../src/data/types";
 import { MESSAGES_KEY, STORAGE_KEY } from "../src/delivery";
 
-const HOOK = "http://hook.test/assistant";
+const HOOK = "/__ab/webhook"; // every send goes through the server route
 const PR = "https://github.com/acme/example-web/pull/1461";
 
 const decision = (id: string) => ({
@@ -47,7 +47,7 @@ function stubFetch() {
     vi.fn(async (url: string, init: RequestInit) => {
       if (url === HOOK) {
         posted.push({ url, init });
-        return new Response("ok", { status: statuses.length > 1 ? statuses.shift()! : statuses[0] });
+        return new Response(JSON.stringify({ status: statuses.length > 1 ? statuses.shift()! : statuses[0] }), { status: 200 });
       }
       if (url === "/__ab/delivery-log") return new Response(null, { status: 204 });
       throw new Error("no network in tests");
@@ -59,8 +59,7 @@ beforeEach(() => {
   vi.resetModules();
   window.localStorage.clear();
   statuses = [200];
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", HOOK);
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_AUTH", "Bearer test-auth  value");
+  vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "1");
   stubFetch();
 });
 afterEach(() => {
@@ -84,7 +83,7 @@ async function send(el: HTMLElement, text: string) {
   const w = within(el);
   fireEvent.click(w.getByRole("button", { name: /^Message your assistant about/ }));
   fireEvent.change(w.getByRole("textbox", { name: /^Message to your assistant about/ }), { target: { value: text } });
-  await act(async () => fireEvent.click(w.getByRole("button", { name: "Send to Grok Bot" })));
+  await act(async () => fireEvent.click(w.getByRole("button", { name: "Send to assistant" })));
 }
 
 describe("Message your assistant", () => {
@@ -120,7 +119,7 @@ describe("Message your assistant", () => {
     // Same item_id in Open tickets, but its composer stays closed.
     expect(within(root(PR, "tickets")).queryByRole("textbox")).toBeNull();
 
-    const sendBtn = within(waiting).getByRole("button", { name: "Send to Grok Bot" }) as HTMLButtonElement;
+    const sendBtn = within(waiting).getByRole("button", { name: "Send to assistant" }) as HTMLButtonElement;
     const field = within(waiting).getByRole("textbox");
     expect(sendBtn.disabled).toBe(true);
     fireEvent.change(field, { target: { value: "  \n\t " } });
@@ -141,7 +140,8 @@ describe("Message your assistant", () => {
     await send(waiting, "  Ping Riley about the rescoring  ");
 
     expect(posted).toHaveLength(1);
-    expect(posted[0].init.headers).toEqual({ "Content-Type": "application/json", Authorization: "Bearer test-auth  value" });
+    expect(posted[0].url).toBe("/__ab/webhook");
+    expect(posted[0].init.headers).toEqual({ "Content-Type": "application/json" });
     const body = JSON.parse(String(posted[0].init.body));
     expect(Object.keys(body)).toEqual(["event", "message_id", "item_id", "item_section", "item_title", "item_who", "item_link", "text", "sent_at"]);
     expect(body).toMatchObject({
@@ -186,7 +186,7 @@ describe("Message your assistant", () => {
     await send(ticket, "Is this on for Friday?");
     expect(ticket.querySelector(".msg-status")!.textContent).toBe("Not sent yet, retrying");
     expect(within(ticket).getByRole("textbox")).toBeTruthy();
-    expect((within(ticket).getByRole("button", { name: "Send to Grok Bot" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(ticket).getByRole("button", { name: "Send to assistant" }) as HTMLButtonElement).disabled).toBe(true);
     await act(async () => void (await vi.advanceTimersByTimeAsync(2500)));
     expect(posted).toHaveLength(3);
     expect(ticket.querySelector(".msg-status")!.textContent).toBe("Not delivered, will retry");
@@ -216,14 +216,14 @@ describe("Message your assistant", () => {
     expect(messages()["m-old"]).toMatchObject({ status: "delivered", attempts: 4, last_http: 200 });
   });
 
-  it("without a webhook URL: Not sent yet, retrying, the header marker, and nothing posted", async () => {
-    vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", "");
+  it("with the webhook not configured: Not sent yet, retrying, the header marker, and nothing posted", async () => {
+    vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "");
     await renderApp();
     const item = root("waiting:qa-pass-on-the-banner", "waiting");
     await send(item, "Who is on QA?");
     expect(posted).toHaveLength(0);
     expect(item.querySelector(".msg-status")!.textContent).toBe("Not sent yet, retrying");
-    expect(screen.getByRole("status").textContent).toBe("Webhook not set up (app/.env.local)");
+    expect(screen.getByRole("status").textContent).toBe("Webhook not set up (AGENT_BOARD_WEBHOOK_URL)");
     expect(Object.values(messages())[0]).toMatchObject({ status: "pending", attempts: 0 });
   });
 });

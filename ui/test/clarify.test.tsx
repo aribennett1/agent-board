@@ -11,10 +11,8 @@ import {
   type DeliveryReport,
   type KeyValueStorage,
 } from "../src/delivery";
-import { BOARD_PATH, pushBoard, resetLiveFeed } from "../src/useLiveBoard";
+import { BOARD_PATH, resetLiveFeed } from "../src/useLiveBoard";
 
-const HOOK = "http://hook.test/clarify";
-const AUTH = "Bearer clarify  test==";
 const ISO = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/;
 
 const d = (id: string, extra: object = {}): Decision => ({
@@ -38,53 +36,26 @@ const initial: Board = {
 
 vi.mock("../src/data/board", () => ({ board: initial }));
 
-class FakeEventSource extends EventTarget {
-  static instances: FakeEventSource[] = [];
-  readyState = 0;
-  constructor(public url: string) {
-    super();
-    FakeEventSource.instances.push(this);
-  }
-  close() {
-    this.readyState = 2;
-  }
-  open() {
-    this.readyState = 1;
-    this.dispatchEvent(new Event("open"));
-  }
-  board(b: Board) {
-    this.dispatchEvent(new MessageEvent("board", { data: JSON.stringify(b) }));
-  }
-}
-
-// What the mock network does: the direct POST answers with a status or throws (a CORS block),
-// and the dev-server fallback reports the receiver's status.
-let direct: number | "cors";
-let fallback: number | null;
+// What the mock network does: the server's /__ab/webhook route reports the receiver's status (null: the route is down).
+let receiver: number | null;
 let calls: { url: string; init?: RequestInit }[];
-const webhookCalls = () => calls.filter((c) => c.url === HOOK || c.url === FALLBACK_PATH);
+const webhookCalls = () => calls.filter((c) => c.url === FALLBACK_PATH);
 const logCalls = () => calls.filter((c) => c.url === "/__ab/delivery-log").map((c) => JSON.parse(String(c.init!.body)));
 
 beforeEach(() => {
   vi.resetModules();
   window.localStorage.clear();
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", HOOK);
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_AUTH", AUTH);
-  FakeEventSource.instances = [];
-  vi.stubGlobal("EventSource", FakeEventSource);
+  vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "1");
+  vi.stubGlobal("scrollTo", vi.fn());
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
   resetLiveFeed();
-  direct = 200;
-  fallback = 200;
+  receiver = 200;
   calls = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
-      if (url === HOOK) {
-        if (direct === "cors") throw new TypeError("Failed to fetch");
-        return new Response("ok", { status: direct });
-      }
-      if (url === FALLBACK_PATH) return new Response(JSON.stringify({ status: fallback }), { status: fallback === null ? 502 : 200 });
+      if (url === FALLBACK_PATH) return new Response(JSON.stringify({ status: receiver }), { status: receiver === null ? 502 : 200 });
       if (url === "/__ab/delivery-log") return new Response(null, { status: 204 });
       if (url === BOARD_PATH) return new Response(JSON.stringify(initial), { status: 200 });
       throw new Error("no network in tests");
@@ -106,8 +77,9 @@ const flush = () => act(async () => void (await new Promise((r) => setTimeout(r,
 async function renderApp() {
   const { default: App } = await import("../src/App");
   render(<App />);
-  const es = { board: (b: Board) => pushBoard(b), open: () => {} };
-  act(() => es.open());
+  // The app's modules are re-imported per test (resetModules), so push into the same instance the app uses.
+  const live = await import("../src/useLiveBoard");
+  const es = { board: (b: Board) => live.pushBoard(b) };
   return es;
 }
 
@@ -136,7 +108,7 @@ describe("Explain this better", () => {
       expect(order.slice(0, 4)).toEqual(["High", "Medium", "Low", "Explain this better"]);
       expect(order.slice(1)).toContain("No");
       // The answer controls, then "Not relevant anymore" alone in the card footer.
-      expect(order.slice(-3)).toEqual(["Your own answer", "Send to Grok Bot", "Not relevant anymore"]);
+      expect(order.slice(-3)).toEqual(["Your own answer", "Send to assistant", "Not relevant anymore"]);
     }
   });
 
@@ -151,14 +123,14 @@ describe("Explain this better", () => {
     expect(b.tagName).toBe("BUTTON");
   });
 
-  it("POSTs one decision.clarify payload directly with the Authorization header", async () => {
+  it("POSTs one decision.clarify payload to /__ab/webhook, with no Authorization header", async () => {
     await renderApp();
     await click("one");
     expect(webhookCalls()).toHaveLength(1);
     const { url, init } = webhookCalls()[0];
-    expect(url).toBe(HOOK);
+    expect(url).toBe(FALLBACK_PATH);
     expect(init!.method).toBe("POST");
-    expect((init!.headers as Record<string, string>).Authorization).toBe(AUTH);
+    expect((init!.headers as Record<string, string>).Authorization).toBeUndefined();
     const body = JSON.parse(String(init!.body));
     expect(Object.keys(body)).toEqual(["event", "decision_id", "question", "context", "clicked_at"]);
     expect(body).toEqual({
@@ -181,11 +153,10 @@ describe("Explain this better", () => {
   it("a double click sends one POST", async () => {
     await renderApp();
     let release!: () => void;
-    direct = 200;
     const gate = new Promise<void>((r) => (release = r));
     const base = vi.mocked(fetch).getMockImplementation()!;
     vi.mocked(fetch).mockImplementation(async (url, init) => {
-      if (url === HOOK) await gate;
+      if (url === FALLBACK_PATH) await gate;
       return base(url as string, init);
     });
     act(() => {
@@ -252,7 +223,7 @@ describe("Explain this better", () => {
 
   it("on a non-2xx after the retries shows the HTTP error and re-enables the button; a later click clears it", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    direct = 502;
+    receiver = 502;
     await renderApp();
     await act(async () => fireEvent.click(button("one")));
     await act(async () => void (await vi.advanceTimersByTimeAsync(2500)));
@@ -265,7 +236,7 @@ describe("Explain this better", () => {
     expect(shownIds()).toEqual(["one", "two", "bare"]);
     expect(window.localStorage.getItem(STORAGE_KEY) ?? "{}").toBe("{}");
 
-    direct = 200;
+    receiver = 200;
     await act(async () => fireEvent.click(button("one")));
     expect(within(card("one")!).queryByRole("alert")).toBeNull();
     await act(async () => void (await vi.advanceTimersByTimeAsync(10)));
@@ -275,8 +246,7 @@ describe("Explain this better", () => {
 
   it("on a network error everywhere shows the plain error", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    direct = "cors";
-    fallback = null;
+    receiver = null;
     await renderApp();
     await act(async () => fireEvent.click(button("one")));
     await act(async () => void (await vi.advanceTimersByTimeAsync(2500)));
@@ -284,30 +254,17 @@ describe("Explain this better", () => {
     expect(button("one").disabled).toBe(false);
   });
 
-  it("falls back to /__ab/webhook when the direct POST throws (CORS), like answers", async () => {
-    direct = "cors";
-    fallback = 201;
-    await renderApp();
-    await click("one");
-    expect(webhookCalls().map((c) => c.url)).toEqual([HOOK, FALLBACK_PATH]);
-    const fb = webhookCalls()[1].init!;
-    expect((fb.headers as Record<string, string>).Authorization).toBeUndefined();
-    expect(JSON.parse(String(fb.body))).toMatchObject({ event: "decision.clarify", decision_id: "one" });
-    expect(within(card("one")!).getByRole("status").textContent).toBe("Rewording...");
-    expect(logCalls()).toEqual([{ event: "decision.clarify", decision_id: "one", http: 201, via: "fallback", attempt: 1, status: "delivered", at: expect.stringMatching(ISO) }]);
-  });
-
-  it("without a webhook URL goes straight to the fallback; a 503 there is a failure", async () => {
+  it("reports the attempts to the delivery log via fallback, and a 503 is a failure", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", "");
-    fallback = 503;
+    receiver = 503;
     await renderApp();
     await act(async () => fireEvent.click(button("one")));
     await act(async () => void (await vi.advanceTimersByTimeAsync(2500)));
     expect(webhookCalls().map((c) => c.url)).toEqual([FALLBACK_PATH, FALLBACK_PATH, FALLBACK_PATH]);
     expect(within(card("one")!).getByRole("alert").textContent).toBe("Could not send (HTTP 503). Try again.");
 
-    fallback = 200;
+    expect(logCalls().map((r) => [r.via, r.http, r.status])).toEqual([["fallback", 503, "retrying"], ["fallback", 503, "retrying"], ["fallback", 503, "failed"]]);
+    receiver = 200;
     await act(async () => fireEvent.click(button("one")));
     await act(async () => void (await vi.advanceTimersByTimeAsync(10)));
     expect(within(card("one")!).getByRole("status").textContent).toBe("Rewording...");
@@ -338,16 +295,14 @@ describe("delivery.clarify", () => {
     const statuses = [500, 429, 202];
     const slept: number[] = [];
     const delivery = createDelivery({
-      fetch: vi.fn(async () => new Response(null, { status: statuses.shift()! })) as unknown as typeof fetch,
+      fetch: vi.fn(async () => new Response(JSON.stringify({ status: statuses.shift()! }), { status: 200 })) as unknown as typeof fetch,
       sleep: async (ms) => void slept.push(ms),
       storage,
-      webhookUrl: HOOK,
-      webhookAuth: AUTH,
       fallbackUrl: FALLBACK_PATH,
       now: () => NOW,
       report: (r) => reports.push(r),
     });
-    expect(await delivery.clarify(buildClarifyPayload(d("x"), NOW))).toEqual({ ok: true, http: 202, via: "direct" });
+    expect(await delivery.clarify(buildClarifyPayload(d("x"), NOW))).toEqual({ ok: true, http: 202, via: "fallback" });
     expect(slept).toEqual([500, 1500]);
     expect(reports.map((r) => [r.attempt, r.http, r.status])).toEqual([
       [1, 500, "retrying"],
@@ -361,13 +316,12 @@ describe("delivery.clarify", () => {
 
   it("resolves not ok with the last status after three failures", async () => {
     const delivery = createDelivery({
-      fetch: vi.fn(async () => new Response(null, { status: 502 })) as unknown as typeof fetch,
+      fetch: vi.fn(async () => new Response(JSON.stringify({ status: 502 }), { status: 200 })) as unknown as typeof fetch,
       sleep: async () => undefined,
       storage: memory(),
-      webhookUrl: HOOK,
       fallbackUrl: FALLBACK_PATH,
       report: () => undefined,
     });
-    expect(await delivery.clarify(buildClarifyPayload(d("x"), NOW))).toEqual({ ok: false, http: 502, via: "direct" });
+    expect(await delivery.clarify(buildClarifyPayload(d("x"), NOW))).toEqual({ ok: false, http: 502, via: "fallback" });
   });
 });

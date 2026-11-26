@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Dr. Eggbot tab: ab eggbot posts findings, the tab lists them, Home does not, answers use decision.answered.
+// Audit tab: ab audit posts findings, the tab lists them, Home does not, answers use decision.answered.
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,7 +10,7 @@ import type { Board, Decision } from "../src/data/types";
 
 const A = "/* BOARD-JSON-START */";
 const Z = "/* BOARD-JSON-END */";
-const dir = mkdtempSync(join(tmpdir(), "ab-eggbot-"));
+const dir = mkdtempSync(join(tmpdir(), "ab-audit-"));
 const file = join(dir, "app/src/data/board.ts");
 mkdirSync(join(dir, "app/src/data"), { recursive: true });
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -25,9 +25,9 @@ const seed = (b: Partial<Board>) =>
   writeFileSync(file, `export const board = ${A}\n${JSON.stringify({ updated_at: at, decisions: [], glance: { waiting: [], tickets: [], others: [] }, ...b })}\n${Z};\n`);
 
 const finding = {
-  id: "eggbot-sample-finding",
+  id: "audit-sample-finding",
   title: "Engineer skipped the context paragraph",
-  context: "Dr. Eggbot audited Engineer against the question format rules. One finding is ready for you to accept or change.",
+  context: "The audit checked Engineer against the question format rules. One finding is ready for you to accept or change.",
   bot: "Engineer",
   rule: "Every question needs a short context paragraph.",
   seen: "On a ticket question, Engineer posted with no context paragraph.",
@@ -41,41 +41,41 @@ const finding = {
   ],
 };
 
-describe("ab eggbot", () => {
-  it("posts a finding to section eggbot and lists it in eggbot_open, not open_on_board", () => {
+describe("ab audit", () => {
+  it("posts a finding to section audit and lists it in audit_open, not open_on_board", () => {
     seed({});
-    const r = ab(["eggbot", JSON.stringify(finding)]);
+    const r = ab(["audit", JSON.stringify(finding)]);
     expect(r.status, r.stderr || r.stdout).toBe(0);
     const out = JSON.parse(r.stdout);
-    expect(out).toMatchObject({ ok: true, card: { section: "eggbot", decision_id: "eggbot-sample-finding", bot: "Engineer" } });
-    expect(out.card.footer).toMatch(/#eggbot/);
+    expect(out).toMatchObject({ ok: true, card: { section: "audit", decision_id: "audit-sample-finding", bot: "Engineer" } });
+    expect(out.card.footer).toMatch(/#audit/);
     const d = read().decisions[0];
-    expect(d.section).toBe("eggbot");
+    expect(d.section).toBe("audit");
     expect(d.rule).toBe(finding.rule);
     const check = JSON.parse(ab(["check"]).stdout);
     expect(check.ok).toBe(true);
     expect(check.open_on_board).toEqual([]);
-    expect(check.eggbot_open).toEqual(["eggbot-sample-finding"]);
+    expect(check.audit_open).toEqual(["audit-sample-finding"]);
     expect(ab(["lint"]).status).toBe(0);
   });
 
-  it("refuses a missing bot, a bro word, an apply-all option, and ab raise of an eggbot field", () => {
+  it("refuses a missing bot, a bro word, an apply-all option, and ab raise of an audit field", () => {
     seed({});
     const { bot: _b, ...noBot } = finding;
-    expect(ab(["eggbot", JSON.stringify(noBot)]).status).toBe(2);
-    const bro = ab(["eggbot", JSON.stringify({ ...finding, id: "eggbot-bro-word", rule: "Talk to Eric, bro, in plain words." })]);
+    expect(ab(["audit", JSON.stringify(noBot)]).status).toBe(2);
+    const bro = ab(["audit", JSON.stringify({ ...finding, id: "audit-bro-word", rule: "Talk to Alex, bro, in plain words." })]);
     expect(bro.status).toBe(2);
     expect(bro.stderr).toMatch(/bro/i);
-    expect(ab(["eggbot", JSON.stringify({ ...finding, options: [...finding.options, { id: "all", label: "Apply all" }] })]).stderr).toMatch(/bulk accept/);
-    expect(ab(["raise", JSON.stringify({ ...finding, context: finding.context, id: "home-card-x" })]).stderr).toMatch(/ab eggbot/);
+    expect(ab(["audit", JSON.stringify({ ...finding, options: [...finding.options, { id: "all", label: "Apply all" }] })]).stderr).toMatch(/bulk accept/);
+    expect(ab(["raise", JSON.stringify({ ...finding, context: finding.context, id: "home-card-x" })]).stderr).toMatch(/ab audit/);
   });
 
   it("stores a grouped fixes table and multi-select options", () => {
     seed({});
     const grouped = {
-      id: "eggbot-audit-root-causes",
+      id: "audit-audit-root-causes",
       title: "Root causes R1-R5 from today's audit",
-      context: "Dr. Eggbot audited Engineer and QA against your rules today. Five root causes sat underneath the repeated questions.",
+      context: "The audit checked Engineer and QA against your rules today. Five root causes sat underneath the repeated questions.",
       bot: "Engineer and QA",
       rule: "Root causes behind today's board and profile drift",
       question: "Which of these root-cause fixes should be applied?",
@@ -92,8 +92,8 @@ describe("ab eggbot", () => {
         { id: "change", label: "Change something" },
       ],
     };
-    expect(ab(["eggbot", JSON.stringify(grouped)]).status, ab(["eggbot", JSON.stringify(grouped)]).stderr).toBe(0);
-    const d = read().decisions.find((x) => x.id === "eggbot-audit-root-causes")!;
+    expect(ab(["audit", JSON.stringify(grouped)]).status, ab(["audit", JSON.stringify(grouped)]).stderr).toBe(0);
+    const d = read().decisions.find((x) => x.id === "audit-audit-root-causes")!;
     expect(d.multiSelect).toBe(true);
     expect(d.fixes?.map((f) => f.id)).toEqual(["R1", "R2"]);
     expect(ab(["lint"]).status).toBe(0);
@@ -102,21 +102,21 @@ describe("ab eggbot", () => {
   it("stores a sanitized svg diagram and refuses a non-SVG", () => {
     seed({});
     const dirty = '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script><text>Roots</text></svg>';
-    const r = ab(["eggbot", JSON.stringify({ ...finding, id: "eggbot-svg", svg: dirty })]);
+    const r = ab(["audit", JSON.stringify({ ...finding, id: "audit-svg", svg: dirty })]);
     expect(r.status, r.stderr || r.stdout).toBe(0);
-    const d = read().decisions.find((x) => x.id === "eggbot-svg")!;
+    const d = read().decisions.find((x) => x.id === "audit-svg")!;
     expect(d.svg).toContain("<svg");
     expect(d.svg).toContain("Roots");
     expect(d.svg).not.toMatch(/script|onload/i);
     expect(ab(["lint"]).status).toBe(0);
-    expect(ab(["eggbot", JSON.stringify({ ...finding, id: "eggbot-not-svg", svg: "just a sketch" })]).status).toBe(2);
+    expect(ab(["audit", JSON.stringify({ ...finding, id: "audit-not-svg", svg: "just a sketch" })]).status).toBe(2);
   });
 });
 
-const eggbotCard: Decision = {
-  id: "eggbot-audit-engineer",
+const auditCard: Decision = {
+  id: "audit-audit-engineer",
   card_ref: null,
-  section: "eggbot",
+  section: "audit",
   title: "Engineer profile fixes E1-E10",
   context: "The audit has ten proposed edits to Engineer's profile. Pick any that should go in.",
   bot: "Engineer",
@@ -151,7 +151,7 @@ const homeCard: Decision = {
 vi.mock("../src/data/board", () => ({
   board: {
     updated_at: at,
-    decisions: [eggbotCard, homeCard],
+    decisions: [auditCard, homeCard],
     glance: { waiting: [], tickets: [], others: [] },
   } satisfies Board,
 }));
@@ -162,13 +162,14 @@ beforeEach(() => {
   window.localStorage.clear();
   window.history.replaceState(null, "", "/");
   posted = [];
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", "http://hook.test/assistant");
+  vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "1");
+  vi.stubGlobal("scrollTo", vi.fn());
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
-      if (url === "http://hook.test/assistant") {
+      if (url === "/__ab/webhook") {
         posted.push(JSON.parse(String(init?.body)));
-        return new Response("ok", { status: 200 });
+        return new Response(JSON.stringify({ status: 200 }), { status: 200 });
       }
       return new Response(null, { status: 204 });
     }),
@@ -180,28 +181,28 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("Dr. Eggbot tab", () => {
+describe("Audit tab", () => {
   it("lists the tab, keeps findings off Home, and includes them in Needs-you counts", async () => {
     const { default: Tabs } = await import("../src/Tabs");
     render(<Tabs />);
     const nav = screen.getByRole("navigation", { name: "Views" });
     const item = (view: string) => nav.querySelector<HTMLButtonElement>(`[data-view="${view}"]`)!;
-    expect([...nav.querySelectorAll(".nav-item")].map((b) => b.getAttribute("data-view"))).toContain("eggbot");
-    expect(item("eggbot").textContent).toMatch(/Dr\. Eggbot/);
-    expect(item("eggbot").querySelector(".nav-count")?.textContent).toBe("1");
+    expect([...nav.querySelectorAll(".nav-item")].map((b) => b.getAttribute("data-view"))).toContain("audit");
+    expect(item("audit").textContent).toMatch(/^Audit/);
+    expect(item("audit").querySelector(".nav-count")?.textContent).toBe("1");
     expect(item("conversation").querySelector(".nav-count")?.textContent).toBe("2");
     expect(item("home").querySelector(".nav-count")?.textContent).toBe("1");
 
     fireEvent.click(item("home"));
-    expect(document.querySelector('[data-decision-id="eggbot-audit-engineer"]')).toBeNull();
+    expect(document.querySelector('[data-decision-id="audit-audit-engineer"]')).toBeNull();
     expect(document.querySelector('[data-decision-id="single"]')).not.toBeNull();
 
-    fireEvent.click(item("eggbot"));
-    expect(window.location.hash).toBe("#eggbot");
-    expect(screen.getByRole("heading", { name: "Dr. Eggbot" })).toBeTruthy();
+    fireEvent.click(item("audit"));
+    expect(window.location.hash).toBe("#audit");
+    expect(screen.getByRole("heading", { name: "Audit" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: /Needs you\s*1/ })).toBeTruthy();
-    const card = document.querySelector<HTMLElement>('[data-decision-id="eggbot-audit-engineer"]')!;
-    expect(card.getAttribute("data-section")).toBe("eggbot");
+    const card = document.querySelector<HTMLElement>('[data-decision-id="audit-audit-engineer"]')!;
+    expect(card.getAttribute("data-section")).toBe("audit");
     expect(within(card).getByText("Engineer")).toBeTruthy();
     expect(within(card).getByRole("columnheader", { name: "What was seen" })).toBeTruthy();
     expect(within(card).getByText("The nickname showed up in board text.")).toBeTruthy();
@@ -215,9 +216,9 @@ describe("Dr. Eggbot tab", () => {
     fireEvent.click(e1);
     fireEvent.click(within(card).getByRole("button", { name: "E2" }));
     expect(e1.getAttribute("aria-pressed")).toBe("true");
-    const send = within(card).getAllByRole("button", { name: "Send to Grok Bot" }).find((b) => b.getAttribute("type") !== "submit")!;
+    const send = within(card).getAllByRole("button", { name: "Send to assistant" }).find((b) => b.getAttribute("type") !== "submit")!;
     fireEvent.click(send);
     await act(async () => {});
-    expect(posted.at(-1)).toMatchObject({ event: "decision.answered", decision_id: "eggbot-audit-engineer", answer: ["e1", "e2"] });
+    expect(posted.at(-1)).toMatchObject({ event: "decision.answered", decision_id: "audit-audit-engineer", answer: ["e1", "e2"] });
   });
 });

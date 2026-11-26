@@ -65,7 +65,7 @@ function editCard(over: Partial<Decision> = {}): Decision {
   return {
     id: "pr1936-ot-suggestion-fix-test",
     title: "Fix a code suggestion in your overtime comment",
-    card_ref: "https://github.com/ROWSHR/rows-backend/pull/1936#discussion_r1",
+    card_ref: "https://github.com/acme/example-repo/pull/1936#discussion_r1",
     context: "You already posted a comment on the payroll export about overtime counting twice. Only the code box is broken.",
     question: "Swap the broken code box in your posted overtime comment for the clean one?",
     what_happens_after: "If you pick Yes, I edit your comment on GitHub to the new text right away. If No, nothing happens.",
@@ -74,19 +74,19 @@ function editCard(over: Partial<Decision> = {}): Decision {
       { id: "leave", label: "No, leave my comment as is" },
     ],
     answers_comment: {
-      author: "aribennett1",
+      author: "alex-dev",
       pr: 1936,
-      repo: "ROWSHR/rows-backend",
+      repo: "acme/example-repo",
       path: "app/Services/Timecard/MasterTimecardPayrollExportRowBuilder.php",
       line: 205,
-      url: "https://github.com/ROWSHR/rows-backend/pull/1936#discussion_r1",
+      url: "https://github.com/acme/example-repo/pull/1936#discussion_r1",
       body: current,
     },
     post_text: next,
     current_text: current,
     glance: {
-      ticket: { id: "ROWS-4937", summary: "Master timecard payroll export for all employees in a pay period." },
-      pr: { number: 1936, link: "https://github.com/ROWSHR/rows-backend/pull/1936" },
+      ticket: { id: "PROJ-4937", summary: "Master timecard payroll export for all employees in a pay period." },
+      pr: { number: 1936, link: "https://github.com/acme/example-repo/pull/1936" },
       asking,
       outcomes: [
         { id: "edit", happens: "I edit your posted comment on GitHub. Only the code box changes." },
@@ -144,11 +144,11 @@ describe("ab raise and lint require current_text and an honest what_happens_afte
     context: "You already posted a comment on the payroll export about overtime counting twice. Only the code box is broken.",
     question: "Swap the broken code box in your posted overtime comment for the clean one?",
     answers_comment: {
-      author: "aribennett1",
+      author: "alex-dev",
       pr: 1936,
       path: "app/Foo.php",
       line: 10,
-      url: "https://github.com/ROWSHR/rows-backend/pull/1936#discussion_r1",
+      url: "https://github.com/acme/example-repo/pull/1936#discussion_r1",
       body: current,
     },
     post_text: next,
@@ -158,7 +158,7 @@ describe("ab raise and lint require current_text and an honest what_happens_afte
     ],
     glance: {
       ticket: { id: "export-review", summary: "Payroll export review comments" },
-      pr: { number: 1936, link: "https://github.com/ROWSHR/rows-backend/pull/1936" },
+      pr: { number: 1936, link: "https://github.com/acme/example-repo/pull/1936" },
       asking,
       outcomes: [
         { id: "edit", happens: "Edits the posted comment." },
@@ -167,7 +167,7 @@ describe("ab raise and lint require current_text and an honest what_happens_afte
     },
     tier: "quick",
     estimate: "20 seconds",
-    group: "pr:rows-backend/1936",
+    group: "pr:example-repo/1936",
   };
 
   it("rejects an edit card with no current_text", () => {

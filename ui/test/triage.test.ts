@@ -42,7 +42,7 @@ describe("sameSha and cardStale", () => {
       id: "pr2015-push",
       title: "Push the trimmed 2015",
       question: "Push the trimmed #2015?",
-      group: "pr:rows-backend/2015",
+      group: "pr:example-repo/2015",
       sha: "fc39d5f2b83ae3c313b4c5146e3027e8a60b5020",
       tier: "quick",
     });
@@ -50,9 +50,9 @@ describe("sameSha and cardStale", () => {
       stale: true,
       reason: "Superseded by pr2015-waiting-stamp",
     });
-    expect(cardStale(push, { stamps: { "pr:rows-backend/2015": "aaa1111bbbb" } }).stale).toBe(true);
-    expect(cardStale(push, { heads: { "pr:rows-backend/2015": "834f5f3c8215" } }).stale).toBe(true);
-    expect(cardStale(push, { stamps: { "pr:rows-backend/2015": "fc39d5f2b83ae3c313b4c5146e3027e8a60b5020" } }).stale).toBe(false);
+    expect(cardStale(push, { stamps: { "pr:example-repo/2015": "aaa1111bbbb" } }).stale).toBe(true);
+    expect(cardStale(push, { heads: { "pr:example-repo/2015": "834f5f3c8215" } }).stale).toBe(true);
+    expect(cardStale(push, { stamps: { "pr:example-repo/2015": "fc39d5f2b83ae3c313b4c5146e3027e8a60b5020" } }).stale).toBe(false);
   });
 });
 
@@ -78,13 +78,13 @@ describe("waitingLabel", () => {
 
 describe("sortTriage, groupByTicket, nextFiveMinutes", () => {
   const cards: Decision[] = [
-    at("2026-11-25T19:24:00.000Z", { id: "pr2016-push", title: "Push 2016", group: "pr:rows-backend/2016", tier: "quick", unblocks: 3, sha: "89fcc9545" }),
-    at("2026-11-25T19:24:10.000Z", { id: "pr2016-thumbs", title: "Thumbs on 2016", group: "pr:rows-backend/2016", tier: "quick", unblocks: 1 }),
-    at("2026-11-25T19:19:00.000Z", { id: "pr2015-push", title: "Push 2015", group: "pr:rows-backend/2015", tier: "quick", unblocks: 2 }),
-    at("2026-11-25T18:00:00.000Z", { id: "plan-a", title: "Plan question", group: "pr:rows-backend/2014", tier: "decision", unblocks: 5 }),
+    at("2026-11-25T19:24:00.000Z", { id: "pr2016-push", title: "Push 2016", group: "pr:example-repo/2016", tier: "quick", unblocks: 3, sha: "89fcc9545" }),
+    at("2026-11-25T19:24:10.000Z", { id: "pr2016-thumbs", title: "Thumbs on 2016", group: "pr:example-repo/2016", tier: "quick", unblocks: 1 }),
+    at("2026-11-25T19:19:00.000Z", { id: "pr2015-push", title: "Push 2015", group: "pr:example-repo/2015", tier: "quick", unblocks: 2 }),
+    at("2026-11-25T18:00:00.000Z", { id: "plan-a", title: "Plan question", group: "pr:example-repo/2014", tier: "decision", unblocks: 5 }),
     at("2026-11-25T17:00:00.000Z", { id: "land-2027", title: "Land 2027", group: "stack:2027-2036", tier: "blocking", unblocks: 8 }),
-    at("2026-11-25T16:00:00.000Z", { id: "fyi-1917", title: "QA approved 1917", group: "pr:rows-backend/1917", tier: "fyi", unblocks: 0 }),
-    at("2026-11-25T15:00:00.000Z", { id: "old-push", title: "Push old", group: "pr:rows-backend/2036", tier: "quick", unblocks: 4, sha: "be32466ea", superseded_by: "land-2027" }),
+    at("2026-11-25T16:00:00.000Z", { id: "fyi-1917", title: "QA approved 1917", group: "pr:example-repo/1917", tier: "fyi", unblocks: 0 }),
+    at("2026-11-25T15:00:00.000Z", { id: "old-push", title: "Push old", group: "pr:example-repo/2036", tier: "quick", unblocks: 4, sha: "be32466ea", superseded_by: "land-2027" }),
   ];
 
   it("sorts by tier, then how much work it unblocks, then age", () => {
@@ -103,16 +103,16 @@ describe("sortTriage, groupByTicket, nextFiveMinutes", () => {
     const groups = groupByTicket(cards);
     expect(groups.map((g) => g.key)).toEqual([
       "stack:2027-2036",
-      "pr:rows-backend/2016",
-      "pr:rows-backend/2015",
-      "pr:rows-backend/2014",
-      "pr:rows-backend/1917",
-      "pr:rows-backend/2036",
+      "pr:example-repo/2016",
+      "pr:example-repo/2015",
+      "pr:example-repo/2014",
+      "pr:example-repo/1917",
+      "pr:example-repo/2036",
     ]);
-    const g2016 = groups.find((g) => g.key === "pr:rows-backend/2016")!;
+    const g2016 = groups.find((g) => g.key === "pr:example-repo/2016")!;
     expect(g2016.actionable.map((d) => d.id)).toEqual(["pr2016-push", "pr2016-thumbs"]);
-    expect(groups.find((g) => g.key === "pr:rows-backend/2036")!.actionable).toEqual([]);
-    expect(groups.find((g) => g.key === "pr:rows-backend/2036")!.stale.map((d) => d.id)).toEqual(["old-push"]);
+    expect(groups.find((g) => g.key === "pr:example-repo/2036")!.actionable).toEqual([]);
+    expect(groups.find((g) => g.key === "pr:example-repo/2036")!.stale.map((d) => d.id)).toEqual(["old-push"]);
   });
 
   it("picks the few quick taps that unblock the most work", () => {

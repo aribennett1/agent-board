@@ -20,7 +20,7 @@ const base = (glance: Board["glance"]): Board => ({ updated_at: "2026-11-10T09:0
 beforeEach(() => {
   window.localStorage.clear();
   vi.resetModules();
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", "");
+  vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "");
   vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("no network in tests"))));
 });
 afterEach(() => {
@@ -77,7 +77,7 @@ describe("isBoard and others", () => {
 describe("Others' PRs with you panel", () => {
   const others = [pr("Billing banner", "Blake's fixes", "Riley"), pr("Tax tiers", "Your review requested", "Blake"), pr("chat alerts", "review requested", "Kai")];
   const glance: Board["glance"] = {
-    waiting: [{ title: "My PR", who: "Vlad", link: "https://github.com/o/r/pull/9" }],
+    waiting: [{ title: "My PR", who: "Sam", link: "https://github.com/o/r/pull/9" }],
     tickets: [{ id: "PROJ-1", title: "A ticket", status: "To Do" }],
     others,
   };

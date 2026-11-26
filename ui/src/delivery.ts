@@ -294,7 +294,7 @@ export function pruneMessages(messages: AppMessages, max = MESSAGE_RETENTION): A
 export function deliveryMarker(answers: Record<string, { status: DeliveryStatus }>, webhookConfigured: boolean): string | null {
   const recs = Object.values(answers);
   if (!webhookConfigured) {
-    return recs.some((r) => r.status !== "delivered") ? "Webhook not set up (app/.env.local)" : null;
+    return recs.some((r) => r.status !== "delivered") ? "Webhook not set up (AGENT_BOARD_WEBHOOK_URL)" : null;
   }
   const failed = recs.filter((r) => r.status === "failed").length;
   if (failed === 0) return null;

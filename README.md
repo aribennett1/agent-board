@@ -44,7 +44,7 @@ flowchart LR
 Needs Node 22.18 or newer.
 
 ```sh
-npm ci
+npm run setup            # installs both packages and builds the React UI into ui/dist
 cp .env.example .env     # optional, every setting has a default
 npm start                # board UI, webhooks and API on http://localhost:8787
 ```
@@ -63,10 +63,20 @@ The sender is in **shadow mode**: it logs who it would wake and calls nothing. P
 
 ## Board UI
 
-- **Auto-refresh.** Every 10 seconds, and when you come back to the tab, the board asks a small version endpoint for a content hash. If the hash is the same, nothing moves. If it changed, only the parts that changed are swapped in. Checks never overlap, they wait while you are typing or the mic is recording, and they keep your scroll position. The red dot and favicon update from the same poll.
-- **Red dot.** The favicon and tab title change while a task waits for you, and update live without a reload.
-- **Microphone.** Every text box has a mic button (Chrome, Safari) that types what you say at the cursor. It never sends by itself. Browsers without speech recognition show a hint.
-- **Every text box can wake your assistant.** An answer, or a free-text message, is POSTed to your wake webhook from the server, so the URL and secret never reach the browser.
+A React app in `ui/`, built into `ui/dist` and served by the same server. State lives in SQLite (`ui_*` tables in `schema.sql`); tasks waiting on you and open cards appear as decision cards alongside the ones raised with `bin/ab.mjs`.
+
+- **Decision cards with options.** One-click answers, multi-select, or your own words. Answering a task question adds a note that wakes the owner.
+- **Explain this better** and **Not relevant anymore** on every card. Not-relevant cards are kept and can be restored with `ab restore`.
+- **Priority ordering.** High, medium and low sections; tap a card's level to change it.
+- **Tabs.** Conversation, Home, Tickets, My PRs, Reviews, Waiting, Others, Audit and a Project tab (hidden until `ab project-refresh` has data). Each item opens in a focus view.
+- **Glance sections, details and toggles.** Lists of waiting items, tickets and PRs, with expandable ticket briefs and review findings.
+- **Threads.** Reply thread per item with follow-up questions and one-click answers. Replies and images come from `ab reply`.
+- **Diagrams.** A card may carry an inline SVG, sanitized before it renders.
+- **Auto-refresh.** Every 10 seconds, and when you come back to the tab, the board asks `/api/version` for a content hash (covering tasks, notes, cards and every `ui_*` document). If the hash is the same, nothing moves. If it changed, only the parts that changed are swapped in. Checks never overlap, they wait while a field is focused or holds a draft or the mic is on, and they keep your scroll position. It covers every tab and the red dot.
+- **Red dot.** The favicon and tab title change while anything needs you, and update live.
+- **Microphone.** Every text box has a mic button (Chrome, Safari) that types what you say at the cursor. It never sends by itself.
+- **Every text box can wake your assistant.** The page POSTs to `/__ab/webhook`; the server forwards to your wake webhook with the URL and auth, which never reach the browser. Payloads use the local board's event names and fields, so an existing receiver keeps working: `decision.answered`, `decision.clarify`, `decision.not_relevant`, `item.message`, `review.answer`. A retried `item.message` is sent once, and a delivery log records outcomes without the URL, auth or text.
+- **Timezone.** Stamps use `AGENT_BOARD_TIMEZONE`.
 
 ## Configuration
 
@@ -80,6 +90,8 @@ All settings are environment variables (see `.env.example`). A bad value stops t
 | `AGENT_BOARD_WEBHOOK_URL` | Wake webhook, secret | off |
 | `AGENT_BOARD_WEBHOOK_AUTH` | Sent as the `Authorization` header, secret | none |
 | `AGENT_BOARD_ASSISTANT_NAME` | Name shown in the UI | `your assistant` |
+| `AGENT_BOARD_TIMEZONE` | IANA time zone for card stamps | `America/New_York` |
+| `AGENT_BOARD_REPLIES_DIR` | Images attached to `ab reply` | `replies/` next to the DB |
 | `AGENT_BOT` | Identity for CLI writes, instead of `--bot` | none |
 | `AGENT_BOARD_BASE`, `AGENT_BOARD_GH_AUTHOR`, `AGENT_BOARD_HOOKS_INSTALL` | `dev-merge` settings | `main`, `@me`, none |
 
@@ -97,6 +109,7 @@ The bots are `planner`, `engineer`, `qa`, `ops` and `chief`. `human` is you and 
 | `tick [--drift <file>]` | Hourly backstop: wake, liveness, failed sends, drift. Safe to repeat. |
 | `drift <file>` | Compare with a JSON array of `{task, linear: {status, labels}, github: {state, checks}}`. |
 | `report [--since ISO]` | Weekly bottleneck report in markdown. |
+| `node bin/ab.mjs <raise\|audit\|answer\|clear\|restore\|priority\|glance\|reply\|detail\|...>` | Write the board's decisions, glance lists, details and replies (run `ab.mjs` with no arguments for usage). |
 | `dev-merge --repo <path>` | Merge the base branch into your open PR branches, check, and push. |
 
 Note kinds: `started answer question work review_pass review_changes pass_through info`.
@@ -109,12 +122,13 @@ States and owners: `planning`→planner, `plan_review`→qa, `building`→engine
 ## HTTP
 
 - `POST /webhooks/github` is deduped by `X-GitHub-Delivery`. `POST /webhooks/linear` is deduped by `Linear-Delivery` and feeds drift only.
+- `GET /__ab/board` (the UI feed), `POST /__ab/webhook`, `/__ab/priority`, `/__ab/clear`, `/__ab/delivery-log`.
 - `GET /api/tasks`, `GET /api/tasks/:id`, `POST /api/tasks/:id/answer` `{"body"}`, `POST /api/tasks/:id/message` `{"text"}`.
 
 ## Tests
 
 ```sh
-npm test            # node:test, no extra services
+npm test            # node:test for the server and CLI, then vitest for the UI
 npm run typecheck
 ```
 

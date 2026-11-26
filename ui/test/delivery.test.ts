@@ -221,7 +221,7 @@ describe("delivery against a real local receiver", () => {
     expect(receiver.received).toHaveLength(0);
     const answers = loadAnswers(storage);
     expect(answers[decision.id]).toMatchObject({ status: "pending", attempts: 0, last_http: null });
-    expect(deliveryMarker(answers, false)).toBe("Webhook not set up (app/.env.local)");
+    expect(deliveryMarker(answers, false)).toBe("Webhook not set up (AGENT_BOARD_WEBHOOK_URL)");
   });
 
   it("never posts for decisions the file already answered (chat), and drops the local entry", async () => {

@@ -54,7 +54,7 @@ const finding = (n: number, extra: Partial<Decision["post_comments"] extends (in
   severity: "High",
   path: "app/Services/Foo.php",
   line: 100 + n,
-  url: `https://github.com/ROWSHR/rows-backend/pull/1935/files`,
+  url: `https://github.com/acme/example-repo/pull/1935/files`,
   summary: `Summary for finding ${n}`,
   body: `Exact comment text for #${n}.`,
   ...extra,
@@ -63,17 +63,17 @@ const finding = (n: number, extra: Partial<Decision["post_comments"] extends (in
 function reviewCard(over: Partial<Decision> = {}): Decision {
   return {
     id: "pr1935-test",
-    card_ref: "https://github.com/ROWSHR/rows-backend/pull/1935",
+    card_ref: "https://github.com/acme/example-repo/pull/1935",
     title: "QA review of #1935",
     context: "QA reviewed PR #1935 and found two issues on the export.",
     question: "Should QA post each of these comments?",
     what_happens_after: "Each answer goes to QA with the PR, finding number, and file:line.",
     options: [],
     post_comments: [finding(1), finding(2)],
-    group: "pr:rows-backend/1935",
+    group: "pr:example-repo/1935",
     glance: {
-      ticket: { id: "ROWS-4936", summary: "Rebuilds the single-employee timecard export" },
-      pr: { number: 1935, link: "https://github.com/ROWSHR/rows-backend/pull/1935" },
+      ticket: { id: "PROJ-4936", summary: "Rebuilds the single-employee timecard export" },
+      pr: { number: 1935, link: "https://github.com/acme/example-repo/pull/1935" },
       asking: "For each comment, Post, Don't post, or write your own words.",
       outcomes: [
         { id: "post", happens: "QA posts that comment as written." },
@@ -95,9 +95,9 @@ describe("per-finding review helpers", () => {
       event: "review.answer",
       decision_id: "pr1935-test:1",
       card_id: "pr1935-test",
-      repo: "ROWSHR/rows-backend",
+      repo: "acme/example-repo",
       pr: 1935,
-      pr_link: "https://github.com/ROWSHR/rows-backend/pull/1935",
+      pr_link: "https://github.com/acme/example-repo/pull/1935",
       comment_id: "1",
       finding: 1,
       action: "note",
@@ -189,7 +189,7 @@ describe("per-finding review helpers", () => {
 });
 
 describe("per-finding review card UI", () => {
-  it("shows Post, Don't post, and a free-text Send to Grok Bot on each finding, with no preselect and a separate Don't post any", async () => {
+  it("shows Post, Don't post, and a free-text Send to assistant on each finding, with no preselect and a separate Don't post any", async () => {
     const onAnswerFinding = vi.fn<FindingFn>(async () => true);
     render(
       <DecisionCard
@@ -205,7 +205,7 @@ describe("per-finding review card UI", () => {
     expect(screen.getAllByRole("button", { name: "Don't post" }).every((b) => b.getAttribute("aria-pressed") !== "true")).toBe(true);
     const post = screen.getAllByRole("button", { name: "Post" });
     const skip = screen.getAllByRole("button", { name: "Don't post" });
-    const send = screen.getAllByRole("button", { name: "Send to Grok Bot" });
+    const send = screen.getAllByRole("button", { name: "Send to assistant" });
     expect(post).toHaveLength(2);
     expect(skip).toHaveLength(2);
     expect(send).toHaveLength(2);
@@ -268,7 +268,7 @@ describe("per-finding review card UI", () => {
     );
     const box = screen.getAllByLabelText("Or write your own words")[0] as HTMLTextAreaElement;
     fireEvent.change(box, { target: { value: "Please get me a link for the figma" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "Send to Grok Bot" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Send to assistant" })[0]);
     await waitFor(() => expect(onAnswerFinding).toHaveBeenCalled());
     const noteCall = onAnswerFinding.mock.calls[0]!;
     expect(noteCall[2]).toBe("note");
@@ -368,7 +368,7 @@ describe("per-finding review card UI", () => {
   });
 
   it("shows Posted with a view link, or a not-posted reason, on an answered finding", () => {
-    const posted = finding(1, { status: "posted", posted_url: "https://github.com/ROWSHR/rows-backend/pull/1935#discussion_r1" });
+    const posted = finding(1, { status: "posted", posted_url: "https://github.com/acme/example-repo/pull/1935#discussion_r1" });
     const pending = finding(2, { status: "pending", note: "The file and line are in the diff, so this comment can still be posted." });
     const { rerender } = render(
       <FindingDraft cardId="pr1935-test" finding={posted} answered="Post" onAnswer={async () => true} />,
@@ -386,14 +386,14 @@ describe("per-finding review card UI", () => {
 describe("ab raise and lint require the per-finding review shape", () => {
   const raiseBase = {
     id: "test-review-per-finding",
-    group: "pr:rows-backend/9997",
+    group: "pr:example-repo/9997",
     title: "QA review of #9997",
     context: "QA reviewed PR #9997 and found two issues on the export.",
     question: "Should QA post each of these comments?",
     what_happens_after: "Each answer goes to QA with the PR, finding number, and file:line.",
     glance: {
       ticket: { id: "export-review", summary: "Rebuilds a sample export for review comments" },
-      pr: { number: 9997, link: "https://github.com/ROWSHR/rows-backend/pull/9997" },
+      pr: { number: 9997, link: "https://github.com/acme/example-repo/pull/9997" },
       asking: "For each comment, Post, Don't post, or write your own words.",
       outcomes: [
         { id: "post", happens: "QA posts that comment as written." },

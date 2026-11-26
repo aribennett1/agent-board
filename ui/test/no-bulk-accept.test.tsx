@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// t103u: Eric answers every Engineer question himself. No card or thread offers "accept all picks", no option is
+// t103u: The owner answers every Engineer question himself. No card or thread offers "accept all picks", no option is
 // labelled "(pick)", nothing is preselected, and a question already answered (ab already-answered) is never re-asked.
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -49,29 +49,29 @@ describe("no bulk accept (t103u)", () => {
   it("ab reply refuses them; ab lint flags old ones; drop-bulk-options cleans them up", () => {
     seed({
       decisions: [{ ...card([{ id: "all", label: "Accept all 5 of Engineer's picks" }, { id: "each", label: "I'll answer each one" }]), created_at: at } as Board["decisions"][number]],
-      details: { "ticket:ROWS-1": { thread: [{ at, from: "bot", text: "x", question: { id: "q", text: "Q4: guard?", options: [{ id: "o1", label: "Check only (pick)" }, { id: "o2", label: "Hard stop" }] } }] } },
+      details: { "ticket:PROJ-1": { thread: [{ at, from: "bot", text: "x", question: { id: "q", text: "Q4: guard?", options: [{ id: "o1", label: "Check only (pick)" }, { id: "o2", label: "Hard stop" }] } }] } },
     });
-    expect(ab(["reply", "ticket:ROWS-1", "Q5?", "--question", "Q5: undo?", "--option", "Final (pick)", "--option", "Reversible"]).status).toBe(2);
+    expect(ab(["reply", "ticket:PROJ-1", "Q5?", "--question", "Q5: undo?", "--option", "Final (pick)", "--option", "Reversible"]).status).toBe(2);
     expect(ab(["lint"]).status).toBe(1);
     expect(ab(["drop-bulk-options"]).status).toBe(0);
     const b = read();
     expect(b.decisions[0].options.map((o) => o.label)).toEqual(["I'll answer each one"]);
-    expect(b.details!["ticket:ROWS-1"].thread![0].question!.options.map((o) => o.label)).toEqual(["Check only", "Hard stop"]);
+    expect(b.details!["ticket:PROJ-1"].thread![0].question!.options.map((o) => o.label)).toEqual(["Check only", "Hard stop"]);
   });
 
   it("ab already-answered closes a plan question with his words and notes it on the item; supersede hides a thread question", () => {
     seed({
       details: {
-        "ticket:ROWS-2": {
+        "ticket:PROJ-2": {
           questions: [{ id: "Q1", question: "One PR?" }, { id: "Q2", question: "Undo?" }],
           thread: [{ at, from: "bot", text: "x", question: { id: "old", text: "Q3: old", options: [{ id: "o1", label: "A" }, { id: "o2", label: "B" }] } }],
         },
       },
     });
-    expect(ab(["already-answered", "ticket:ROWS-2", "Q1", "--quote", "I think one PR is the way to go", "--source", "time off plan Q2"]).status).toBe(0);
-    expect(ab(["already-answered", "ticket:ROWS-2", "Q2", "--superseded-by", "time off plan Q5"]).status).toBe(0);
-    expect(ab(["supersede", "ticket:ROWS-2", "old"]).status).toBe(0);
-    const d = read().details!["ticket:ROWS-2"];
+    expect(ab(["already-answered", "ticket:PROJ-2", "Q1", "--quote", "I think one PR is the way to go", "--source", "time off plan Q2"]).status).toBe(0);
+    expect(ab(["already-answered", "ticket:PROJ-2", "Q2", "--superseded-by", "time off plan Q5"]).status).toBe(0);
+    expect(ab(["supersede", "ticket:PROJ-2", "old"]).status).toBe(0);
+    const d = read().details!["ticket:PROJ-2"];
     expect(d.questions![0].answered).toMatchObject({ text: "I think one PR is the way to go", source: "time off plan Q2" });
     expect(d.questions![1].superseded_by).toBe("time off plan Q5");
     expect(d.thread![0].question!.superseded_by).toBe("superseded");

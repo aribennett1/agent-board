@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Board } from "../src/data/types";
 import { decodeEntities, postText } from "../src/entities";
 
-const HOOK = "http://hook.test/assistant";
+const HOOK = "/__ab/webhook"; // every send goes through the server route
 const ENCODED = "Calls `$employee-&gt;loadMissing()` when a &lt;row&gt; has &quot;notes&quot; &amp; it&#39;s noted.\n\n```suggestions\n$a-&gt;b();\n```";
 const RAW = "Calls `$employee->loadMissing()` when a <row> has \"notes\" & it's noted.\n\n```suggestion\n$a->b();\n```";
 
@@ -21,11 +21,11 @@ vi.mock("../src/data/board", () => ({
     glance: {
       waiting: [],
       tickets: [],
-      others: [{ title: "Rotation notes", author: "alex", who: "Your review requested", link: "https://github.com/ROWSHR/rows-backend/pull/1987" }],
+      others: [{ title: "Rotation notes", author: "alex", who: "Your review requested", link: "https://github.com/acme/example-repo/pull/1987" }],
     },
     reviews: [
       {
-        repo: "rows-backend",
+        repo: "example-repo",
         pr: 1987,
         verdict: "Comment",
         comments: [{ id: "c1", severity: "low", title: "Hoist -&gt; loop", path: "a.php", line: 66, body: ENCODED, status: "pending" }],
@@ -40,14 +40,13 @@ beforeEach(() => {
   window.localStorage.clear();
   window.location.hash = "#reviews";
   posted = [];
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", HOOK);
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_AUTH", "Bearer test");
+  vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "1");
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init: RequestInit) => {
       if (url === HOOK) {
         posted.push(JSON.parse(String(init.body)));
-        return new Response("ok", { status: 200 });
+        return new Response(JSON.stringify({ status: 200 }), { status: 200 });
       }
       if (url === "/__ab/delivery-log") return new Response(null, { status: 204 });
       throw new Error("no network in tests");
@@ -110,7 +109,7 @@ describe("review comment entities", () => {
     const Z = "/* BOARD-JSON-END */";
     writeFileSync(file, `export const board = ${A}\n${JSON.stringify({ updated_at: "2026-11-10T09:00:00.000Z", decisions: [], glance: { waiting: [], tickets: [], others: [] } })}\n${Z};\n`);
     try {
-      const draft = { repo: "rows-backend", pr: 1987, verdict: "Comment", comments: [{ id: "c1", severity: "low", title: "a -&gt; b", path: "a.php", line: 66, body: ENCODED, status: "pending" }] };
+      const draft = { repo: "example-repo", pr: 1987, verdict: "Comment", comments: [{ id: "c1", severity: "low", title: "a -&gt; b", path: "a.php", line: 66, body: ENCODED, status: "pending" }] };
       const r = spawnSync("node", [join(root, "bin/ab.mjs"), "reviews"], { input: JSON.stringify([draft]), encoding: "utf8", env: { ...process.env, AB_FILE: file, AB_NO_SERVER: "1" } });
       expect(r.status).toBe(0);
       const s = readFileSync(file, "utf8");

@@ -1,4 +1,4 @@
-// Nov 24: Eric does not want to be called "bro". ab lint flags the word on a card, reply or question
+// Nov 24: The owner does not want to be called "bro". ab lint flags the word on a card, reply or question
 // (case-insensitive, whole word; "broken" is fine). ab reply --at rewrites an existing reply's text.
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -23,7 +23,7 @@ const at = "2026-11-24T22:22:06.000Z";
 const seed = (b: Partial<Board>) =>
   writeFileSync(file, `export const board = ${A}\n${JSON.stringify({ updated_at: at, decisions: [], glance: { waiting: [], tickets: [], others: [] }, ...b })}\n${Z};\n`);
 
-describe("ab lint: no calling Eric bro", () => {
+describe("ab lint: no calling the owner bro", () => {
   it("flags the word on a card, a reply, a question and a plan, and ignores 'broken'", () => {
     seed({
       decisions: [
@@ -49,7 +49,7 @@ describe("ab lint: no calling Eric bro", () => {
         },
       ],
       details: {
-        "mypr:rows-backend/1": {
+        "mypr:example-repo/1": {
           thread: [
             { at, from: "bot", text: "Got it bro: convert to UTC." },
             {
@@ -65,8 +65,8 @@ describe("ab lint: no calling Eric bro", () => {
             },
           ],
         },
-        "ticket:ROWS-1": { plan: "# Ticket\n\n## 2. Bro summary\n\nWhen someone edits a deduction pay code, it waits." },
-        "ticket:ROWS-2": { plan: "# Ticket\n\nThe import is broken until we patch it.", ticket: "Nothing broken on the happy path." },
+        "ticket:PROJ-1": { plan: "# Ticket\n\n## 2. Bro summary\n\nWhen someone edits a deduction pay code, it waits." },
+        "ticket:PROJ-2": { plan: "# Ticket\n\nThe import is broken until we patch it.", ticket: "Nothing broken on the happy path." },
       },
     });
     const r = ab(["lint"]);
@@ -74,29 +74,29 @@ describe("ab lint: no calling Eric bro", () => {
     const failing = Object.fromEntries(JSON.parse(r.stdout).failing.map((x: { id: string; problems: string[] }) => [x.id, x.problems]));
     expect(failing["c-bro"]).toEqual([expect.stringMatching(/context contains the word "bro"/)]);
     expect(failing["c-ok"]).toBeUndefined();
-    expect(failing["mypr:rows-backend/1"]).toEqual([
+    expect(failing["mypr:example-repo/1"]).toEqual([
       expect.stringMatching(/^reply contains the word "bro"$/),
       expect.stringMatching(/^question "Bro, lock the row\?" contains the word "bro"$/),
     ]);
-    expect(failing["ticket:ROWS-1"]).toEqual([expect.stringMatching(/plan contains the word "bro"/)]);
-    expect(failing["ticket:ROWS-2"]).toBeUndefined();
+    expect(failing["ticket:PROJ-1"]).toEqual([expect.stringMatching(/plan contains the word "bro"/)]);
+    expect(failing["ticket:PROJ-2"]).toBeUndefined();
   });
 
   it("ab reply --at rewrites that reply and lint goes clean", () => {
     seed({
       details: {
-        "mypr:rows-backend/1": {
+        "mypr:example-repo/1": {
           thread: [{ at, from: "bot", text: "Got it bro: convert to UTC." }],
         },
       },
     });
     expect(ab(["lint"]).status).toBe(1);
-    const badAt = ab(["reply", "mypr:rows-backend/1", "--at", "1999-01-01T00:00:00.000Z", "Got it: convert to UTC."]);
+    const badAt = ab(["reply", "mypr:example-repo/1", "--at", "1999-01-01T00:00:00.000Z", "Got it: convert to UTC."]);
     expect(badAt.status).toBe(2);
-    const edit = ab(["reply", "mypr:rows-backend/1", "--at", at, "Got it: convert to UTC."]);
+    const edit = ab(["reply", "mypr:example-repo/1", "--at", at, "Got it: convert to UTC."]);
     expect(edit.status).toBe(0);
-    expect(JSON.parse(edit.stdout)).toMatchObject({ ok: true, edited: true, at, key: "mypr:rows-backend/1" });
-    expect(read().details!["mypr:rows-backend/1"].thread![0].text).toBe("Got it: convert to UTC.");
+    expect(JSON.parse(edit.stdout)).toMatchObject({ ok: true, edited: true, at, key: "mypr:example-repo/1" });
+    expect(read().details!["mypr:example-repo/1"].thread![0].text).toBe("Got it: convert to UTC.");
     expect(ab(["lint"]).status).toBe(0);
   });
 });

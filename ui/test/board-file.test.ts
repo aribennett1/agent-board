@@ -54,7 +54,7 @@ function checkBoard(b: any): string[] {
       `keys of ${d.id}`,
     );
     need(d.priority === undefined || ["high", "medium", "low"].includes(d.priority), `priority of ${d.id}`);
-    need(d.section === undefined || d.section === "eggbot", `section of ${d.id}`);
+    need(d.section === undefined || d.section === "audit", `section of ${d.id}`);
     need(d.rule === undefined || isStr(d.rule), `rule of ${d.id}`);
     need(d.seen === undefined || isStr(d.seen), `seen of ${d.id}`);
     need(d.proposed_fix === undefined || isStr(d.proposed_fix), `proposed_fix of ${d.id}`);
@@ -121,7 +121,7 @@ describe("board.ts", () => {
   });
 
   it("is plain data: a type import, the comment, the export and the markers", () => {
-    expect(text.startsWith('import type { Board } from "./types";\n// An example board.')).toBe(true);
+    expect(text.startsWith('import type { Board } from "./types";\n// Empty seed.')).toBe(true);
     expect(text).toContain(`export const board: Board =\n${START}\n{`);
     expect(text.trimEnd().endsWith(`}\n${END}\n;`)).toBe(true);
   });

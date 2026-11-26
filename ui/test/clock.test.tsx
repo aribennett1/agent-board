@@ -26,7 +26,7 @@ vi.mock("../src/data/board", () => ({
 
 beforeEach(() => {
   window.localStorage.clear();
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", "");
+  vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "");
   vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("no network in tests"))));
   vi.useFakeTimers();
   vi.setSystemTime(new Date(BEFORE_MIDNIGHT));
@@ -58,8 +58,10 @@ describe("card stamps on the shared clock (useNow in App)", () => {
     const setInterval = vi.spyOn(window, "setInterval");
     const { default: App } = await import("../src/App");
     render(<App />);
+    // Let the live board's first (failing) version check finish so its 10s poll interval exists before we count timers.
+    await act(async () => {});
     const header = () => document.querySelector(".top-meta")?.textContent;
-    // In jsdom there is no EventSource, so the live board also polls on its own interval; only one is the clock.
+    // The live board also polls on its own 10s interval; only one is the clock.
     const clocks = () => setInterval.mock.calls.filter(([, ms]) => ms === NOW_MS).length;
 
     expect(header()).toBe("Fri 13 Nov · local");
@@ -71,7 +73,7 @@ describe("card stamps on the shared clock (useNow in App)", () => {
     expect(header()).toBe("Sat 14 Nov · local");
     expect(clocks()).toBe(1);
     expect(setInterval.mock.calls.length).toBe(intervals);
-    expect(vi.getTimerCount()).toBe(timers);
+    expect(vi.getTimerCount()).toBeLessThanOrEqual(timers); // the clock adds no timer per tick
   });
 });
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-// Grok Bot answers Eric on the item itself (ab reply). A reply shows in the item's thread, moves the item to
-// Needs you with an unread dot until opened, and any question in it takes a one-click answer or Eric's own words.
+// The assistant answers the owner on the item itself (ab reply). A reply shows in the item's thread, moves the item to
+// Needs you with an unread dot until opened, and any question in it takes a one-click answer or the owner's own words.
 // Every option set on the board (decision cards, reply questions, plan questions, review comments) also has a
 // free text box with a mic for dictation.
 import { spawnSync } from "node:child_process";
@@ -12,7 +12,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import type { Board } from "../src/data/types";
 import { itemStatus } from "../src/itemStatus";
 
-const HOOK = "http://hook.test/assistant";
+const HOOK = "/__ab/webhook"; // every send goes through the server route
 const REPLY_AT = "2026-11-24T21:06:21.000Z";
 
 vi.mock("../src/data/board", () => ({
@@ -25,7 +25,7 @@ vi.mock("../src/data/board", () => ({
         question: "Which one?",
         context: "Two ways to go.",
         what_happens_after: "I do the picked one.",
-        card_ref: "https://github.com/ROWSHR/rows-backend/pull/1",
+        card_ref: "https://github.com/acme/example-repo/pull/1",
         options: [{ id: "a", label: "A" }, { id: "b", label: "B" }],
         allowCustom: false,
         created_at: "2026-11-24T20:00:00.000Z",
@@ -33,26 +33,26 @@ vi.mock("../src/data/board", () => ({
     ],
     glance: {
       waiting: [],
-      tickets: [{ id: "ROWS-1", title: "Banks in seconds", status: "Todo" }],
+      tickets: [{ id: "PROJ-1", title: "Banks in seconds", status: "Todo" }],
       others: [
-        { title: "Standard hours fix", author: "alex", who: "Your review requested", link: "https://github.com/ROWSHR/rows-backend/pull/1955" },
-        { title: "Docs pass", author: "vlad", who: "Waiting on author", link: "https://github.com/ROWSHR/rows-backend/pull/7" },
+        { title: "Standard hours fix", author: "alex", who: "Your review requested", link: "https://github.com/acme/example-repo/pull/1955" },
+        { title: "Docs pass", author: "sam", who: "Waiting on author", link: "https://github.com/acme/example-repo/pull/7" },
       ],
     },
-    reviews: [{ repo: "rows-backend", pr: 1955, verdict: "Comment", comments: [{ id: "c1", severity: "low", title: "Nit", path: "a.php", line: 3, body: "Rename it.", status: "pending" }] }],
+    reviews: [{ repo: "example-repo", pr: 1955, verdict: "Comment", comments: [{ id: "c1", severity: "low", title: "Nit", path: "a.php", line: 3, body: "Rename it.", status: "pending" }] }],
     details: {
-      "pr:rows-backend/1955": {
+      "pr:example-repo/1955": {
         thread: [
           {
             at: REPLY_AT,
             from: "bot",
-            text: "Ready to approve: [#1955](https://github.com/ROWSHR/rows-backend/pull/1955).",
+            text: "Ready to approve: [#1955](https://github.com/acme/example-repo/pull/1955).",
             image: "/replies/x.png",
             question: { id: "q1", text: "What do you want to do?", options: [{ id: "o1", label: "Approve with LGTM now" }, { id: "o2", label: "Wait for Alex" }] },
           },
         ],
       },
-      "ticket:ROWS-1": { plain: "Banks drift.", questions: [{ id: "Q1", question: "Round up?", recommendation: "Yes" }] },
+      "ticket:PROJ-1": { plain: "Banks drift.", questions: [{ id: "Q1", question: "Round up?", recommendation: "Yes" }] },
     },
   } satisfies Board,
 }));
@@ -76,14 +76,13 @@ beforeEach(() => {
   window.location.hash = "#reviews";
   posted = [];
   (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition = FakeRecognition;
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", HOOK);
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_AUTH", "Bearer test");
+  vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "1");
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init: RequestInit) => {
       if (url === HOOK) {
         posted.push(JSON.parse(String(init.body)));
-        return new Response("ok", { status: 200 });
+        return new Response(JSON.stringify({ status: 200 }), { status: 200 });
       }
       if (url === "/__ab/delivery-log") return new Response(null, { status: 204 });
       throw new Error("no network in tests");
@@ -110,7 +109,7 @@ describe("reply thread", () => {
     fireEvent.click(within(row).getByRole("button", { name: "Expand" }));
     expect(within(row).queryByRole("img", { name: "New reply" })).toBeNull();
     const thread = row.querySelector<HTMLElement>(".item-thread")!;
-    expect(within(thread).getByRole("link", { name: "#1955" }).getAttribute("href")).toBe("https://github.com/ROWSHR/rows-backend/pull/1955");
+    expect(within(thread).getByRole("link", { name: "#1955" }).getAttribute("href")).toBe("https://github.com/acme/example-repo/pull/1955");
     expect(thread.querySelector("img.thread-image")?.getAttribute("src")).toBe("/replies/x.png");
 
     // Others' PRs: the PR with no details sits in the collapsed In progress group.
@@ -132,7 +131,7 @@ describe("reply thread", () => {
     const box = within(thread).getByLabelText("Or answer in your own words") as HTMLTextAreaElement;
     expect(within(box.closest(".mic-wrap") as HTMLElement).getByRole("button", { name: "Voice typing" })).toBeTruthy();
     fireEvent.change(box, { target: { value: "Approve, but ping Alex first" } });
-    fireEvent.click(within(thread).getByRole("button", { name: "Send to Grok Bot" }));
+    fireEvent.click(within(thread).getByRole("button", { name: "Send to assistant" }));
     await act(async () => {});
     const m = posted.filter((p) => p.event === "item.message").at(-1)!;
     expect(m.text).toBe('Answer to "What do you want to do?": Approve, but ping Alex first');
@@ -149,11 +148,11 @@ describe("free text with a mic on every option set", () => {
     const card = document.querySelector<HTMLElement>('[data-decision-id="closed"]')!;
     const custom = within(card).getByRole("textbox", { name: "Your own answer" });
     expect(within(card).getByRole("button", { name: "Voice typing" })).toBeTruthy();
-    fireEvent.change(custom, { target: { value: "Neither, ask Vlad" } });
-    fireEvent.click(within(card).getByRole("button", { name: "Send to Grok Bot" }));
+    fireEvent.change(custom, { target: { value: "Neither, ask Sam" } });
+    fireEvent.click(within(card).getByRole("button", { name: "Send to assistant" }));
     await act(async () => {});
     const d = posted.find((p) => p.event === "decision.answered")!;
-    expect(d).toMatchObject({ answer: "custom", custom_text: "Neither, ask Vlad" });
+    expect(d).toMatchObject({ answer: "custom", custom_text: "Neither, ask Sam" });
 
     window.location.hash = "#tickets";
     await act(async () => {
@@ -229,7 +228,7 @@ describe("ab reply", () => {
       `export const board = ${A}\n${JSON.stringify({
         updated_at: "2026-11-10T09:00:00.000Z",
         decisions: [],
-        glance: { waiting: [], tickets: [], others: [{ title: "x", author: "a", who: "w", link: "https://github.com/ROWSHR/rows-backend/pull/1955" }], mine: [{ repo: "rows-backend", number: 1982, title: "y", state: "open", link: "https://github.com/ROWSHR/rows-backend/pull/1982" }] },
+        glance: { waiting: [], tickets: [], others: [{ title: "x", author: "a", who: "w", link: "https://github.com/acme/example-repo/pull/1955" }], mine: [{ repo: "example-repo", number: 1982, title: "y", state: "open", link: "https://github.com/acme/example-repo/pull/1982" }] },
       })}\n${Z};\n`,
     );
     const png = join(dir, "shot.png");
@@ -239,15 +238,15 @@ describe("ab reply", () => {
     expect(ab(["reply", "#1955", "hi", "--question", "Q?", "--option", "only one"]).status).toBe(2);
     expect(ab(["reply", "#1955", "Ready: **yes**", "--question", "Do it?", "--option", "Yes", "--option", "No"]).status).toBe(2);
     expect(ab(["reply", "#1955", "Ready: **yes**", "--question", "Do it?", "--context", "Alex fixed the save bug. We're asking if you want to approve it now.", "--option", "Yes", "--option", "No"]).status).toBe(0);
-    const r = ab(["reply", "rows-backend#1982", "PHPStan fails", "--image", png]);
+    const r = ab(["reply", "example-repo#1982", "PHPStan fails", "--image", png]);
     expect(r.status).toBe(0);
     const d = read().details!;
-    expect(d["pr:rows-backend/1955"].thread).toEqual([
+    expect(d["pr:example-repo/1955"].thread).toEqual([
       expect.objectContaining({ from: "bot", text: "Ready: **yes**", question: expect.objectContaining({ text: "Do it?", options: [{ id: "o1", label: "Yes" }, { id: "o2", label: "No" }] }) }),
     ]);
-    const t = d["mypr:rows-backend/1982"].thread![0];
+    const t = d["mypr:example-repo/1982"].thread![0];
     expect(Number.isNaN(Date.parse(t.at))).toBe(false);
-    expect(t.image).toMatch(/^\/replies\/mypr-rows-backend-1982-\d+\.png$/);
+    expect(t.image).toMatch(/^\/replies\/mypr-example-repo-1982-\d+\.png$/);
     expect(existsSync(join(dir, "app/public", t.image!))).toBe(true);
   });
 });

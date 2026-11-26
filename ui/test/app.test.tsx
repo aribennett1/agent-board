@@ -38,7 +38,7 @@ vi.mock("../src/data/board", () => ({
 beforeEach(() => {
   window.localStorage.clear();
   // No webhook in tests: answers stay pending and nothing is posted.
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", "");
+  vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "");
   vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("no network in tests"))));
 });
 afterEach(() => {
@@ -73,12 +73,12 @@ describe("App", () => {
     const c = within(card("multi")!);
     fireEvent.click(c.getByRole("button", { name: "No" }));
     fireEvent.click(c.getByRole("button", { name: "Yes" }));
-    await act(async () => fireEvent.click(within(c.getByRole("button", { name: "No" }).closest(".card")!.querySelector(".submit-row") as HTMLElement).getByRole("button", { name: "Send to Grok Bot" })));
+    await act(async () => fireEvent.click(within(c.getByRole("button", { name: "No" }).closest(".card")!.querySelector(".submit-row") as HTMLElement).getByRole("button", { name: "Send to assistant" })));
     expect(stored().multi.payload).toMatchObject({ answer: ["yes", "no"], answer_label: ["Yes", "No"], answered_by: "app" });
     expect(stored().multi.status).toBe("pending");
     expect(card("multi")).toBeNull();
     expect(screen.getByText("Answered: Yes, No")).toBeTruthy();
-    expect(screen.getByRole("status").textContent).toBe("Webhook not set up (app/.env.local)");
+    expect(screen.getByRole("status").textContent).toBe("Webhook not set up (AGENT_BOARD_WEBHOOK_URL)");
   });
 
   it("records nothing for blank text and records trimmed custom text", async () => {
@@ -91,7 +91,7 @@ describe("App", () => {
     expect(card("single")).not.toBeNull();
 
     fireEvent.change(input, { target: { value: "  Neither, ask Sage  " } });
-    await act(async () => fireEvent.click(c.getByRole("button", { name: "Send to Grok Bot" })));
+    await act(async () => fireEvent.click(c.getByRole("button", { name: "Send to assistant" })));
     expect(stored().single.payload).toMatchObject({ answer: "custom", answer_label: "Neither, ask Sage", custom_text: "Neither, ask Sage" });
     expect(card("single")).toBeNull();
   });

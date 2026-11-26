@@ -31,7 +31,7 @@ vi.mock("../src/data/board", () => ({
 beforeEach(() => {
   window.localStorage.clear();
   window.history.replaceState(null, "", "/");
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", "");
+  vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "");
   vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("no network in tests"))));
 });
 afterEach(() => {
@@ -49,7 +49,7 @@ const item = (view: string) => nav().querySelector<HTMLButtonElement>(`[data-vie
 const current = () => [...nav().querySelectorAll('[aria-current="page"]')].map((b) => b.getAttribute("data-view"));
 
 
-// Rows not needing Eric sit in a collapsed "In progress, not ready yet" group: open every one.
+// Items not needing the owner sit in a collapsed "In progress, not ready yet" group: open every one.
 const openInProgress = () => {
   for (const b of screen.queryAllByRole("button", { name: /In progress, not ready yet/ })) if (b.getAttribute("aria-expanded") === "false") fireEvent.click(b);
 };
@@ -69,7 +69,7 @@ describe("Left nav", () => {
       "reviews",
       "waiting",
       "others",
-      "eggbot",
+      "audit",
     ]);
     expect(item("project")).toBeNull();
     expect(item("home").querySelector(".nav-count")?.textContent).toBe("1");
@@ -79,12 +79,12 @@ describe("Left nav", () => {
     expect(item("others").querySelector(".nav-count")).toBeNull();
     expect(item("tickets").querySelector(".nav-count")).toBeNull();
     expect(item("mine").querySelector(".nav-count")).toBeNull();
-    expect(item("eggbot").querySelector(".nav-count")).toBeNull();
+    expect(item("audit").querySelector(".nav-count")).toBeNull();
     expect(item("waiting").querySelector(".nav-count")).toBeNull();
     expect(current()).toEqual(["home"]);
     expect(screen.getByRole("heading", { name: /Needs you\s*1/ })).toBeTruthy();
     expect(document.querySelector('[data-decision-id="single"]')).not.toBeNull();
-    // Home also lists the PRs waiting on a review. None of them need Eric, so the header has no count.
+    // Home also lists the PRs waiting on a review. None of them need the owner, so the header has no count.
     expect(screen.getByRole("heading", { name: "Reviews waiting for your yes" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: /Reviews waiting for your yes\s+\d/ })).toBeNull();
     expect(screen.getByText("Nothing needs you here")).toBeTruthy();

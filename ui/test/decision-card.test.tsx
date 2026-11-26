@@ -47,7 +47,7 @@ describe("DecisionCard: single select", () => {
 describe("DecisionCard: multi select", () => {
   it("toggles options with aria-pressed and keeps Submit disabled until something is picked", () => {
     const onAnswer = renderCard(multi);
-    const submit = within(document.querySelector(".submit-row") as HTMLElement).getByRole("button", { name: "Send to Grok Bot" }) as HTMLButtonElement;
+    const submit = within(document.querySelector(".submit-row") as HTMLElement).getByRole("button", { name: "Send to assistant" }) as HTMLButtonElement;
     const blake = screen.getByRole("button", { name: "Blake" });
     const riley = screen.getByRole("button", { name: "Riley" });
     expect(submit.disabled).toBe(true);
@@ -82,13 +82,13 @@ describe("DecisionCard: free text", () => {
     cleanup();
     renderCard({ ...base, allowCustom: false });
     expect(screen.getByRole("textbox", { name: "Your own answer" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Send to Grok Bot" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Send to assistant" })).toBeTruthy();
   });
 
   it("rejects blank and whitespace-only text, and sends trimmed text", () => {
     const onAnswer = renderCard(multi);
     const input = screen.getByRole("textbox", { name: "Your own answer" });
-    const send = within(input.closest("form") as HTMLElement).getByRole("button", { name: "Send to Grok Bot" }) as HTMLButtonElement;
+    const send = within(input.closest("form") as HTMLElement).getByRole("button", { name: "Send to assistant" }) as HTMLButtonElement;
     expect(send.disabled).toBe(true);
     fireEvent.submit(input.closest("form")!);
     fireEvent.change(input, { target: { value: "   \t " } });
@@ -374,14 +374,14 @@ describe("DecisionCard: links", () => {
   });
 });
 
-describe("DecisionCard: eggbot table and svg", () => {
+describe("DecisionCard: audit table and svg", () => {
   it("renders a sanitized SVG diagram and markdown in the fixes table", () => {
     const dirty = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script><text>Pick a root</text></svg>';
     const { container } = render(
       <DecisionCard
         decision={{
           ...base,
-          section: "eggbot",
+          section: "audit",
           bot: "Engineer",
           rule: "Root causes",
           svg: dirty,
@@ -401,7 +401,7 @@ describe("DecisionCard: eggbot table and svg", () => {
     expect(svg.querySelector("script")).toBeNull();
     expect(svg.getAttribute("onload")).toBeNull();
     expect(svg.textContent).toContain("Pick a root");
-    const cell = container.querySelector(".eggbot-table tbody")!;
+    const cell = container.querySelector(".audit-table tbody")!;
     expect(cell.querySelector("u")?.textContent).toBe("headings");
     expect(cell.querySelector("mark")?.textContent).toBe("Plain summary");
   });

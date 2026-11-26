@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Board } from "../src/data/types";
 import { STORAGE_KEY } from "../src/delivery";
 
-const HOOK = "http://hook.test/assistant";
+const HOOK = "/__ab/webhook"; // every send goes through the server route
 
 const decision = (id: string, extra: object = {}) => ({
   id,
@@ -41,14 +41,13 @@ beforeEach(() => {
   vi.resetModules();
   window.localStorage.clear();
   posted = [];
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", HOOK);
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_AUTH", "Bearer test");
+  vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "1");
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init: RequestInit) => {
       if (url === HOOK) {
         posted.push(JSON.parse(String(init.body)));
-        return new Response("ok", { status: 200 });
+        return new Response(JSON.stringify({ status: 200 }), { status: 200 });
       }
       if (url === "/__ab/delivery-log") return new Response(null, { status: 204 });
       throw new Error("no network in tests");
@@ -96,7 +95,7 @@ describe("Message your assistant composer: keyboard", () => {
     await renderApp();
     const a = open("Item A");
     fireEvent.change(a.field, { target: { value: "  same note  " } });
-    await act(async () => fireEvent.click(a.w.getByRole("button", { name: "Send to Grok Bot" })));
+    await act(async () => fireEvent.click(a.w.getByRole("button", { name: "Send to assistant" })));
     await flush();
     expect(posted).toHaveLength(1);
 
@@ -189,10 +188,10 @@ describe("Decision card own answer: keyboard", () => {
   const card = (id: string) => within(document.querySelector<HTMLElement>(`[data-decision-id="${id}"]`)!);
   const input = (id: string) => card(id).getByRole("textbox", { name: "Your own answer" }) as HTMLInputElement;
 
-  it("Enter sends once, with the same payload as Send to Grok Bot", async () => {
+  it("Enter sends once, with the same payload as Send to assistant", async () => {
     await renderApp();
     fireEvent.change(input("s1"), { target: { value: "  Ask Sage  " } });
-    await act(async () => fireEvent.click(card("s1").getByRole("button", { name: "Send to Grok Bot" })));
+    await act(async () => fireEvent.click(card("s1").getByRole("button", { name: "Send to assistant" })));
     fireEvent.change(input("s2"), { target: { value: "  Ask Sage  " } });
     const field = input("s2");
     expect(key(field)).toBe(false);
@@ -207,13 +206,13 @@ describe("Decision card own answer: keyboard", () => {
     expect(shape(viaEnter, "decision_id", "answered_at")).toEqual(shape(viaButton, "decision_id", "answered_at"));
   });
 
-  it("on a multi-select card, Enter sends the custom text exactly as Send to Grok Bot does, ignoring picked options", async () => {
+  it("on a multi-select card, Enter sends the custom text exactly as Send to assistant does, ignoring picked options", async () => {
     await renderApp();
     for (const id of ["m1", "m2"]) {
       fireEvent.click(card(id).getByRole("button", { name: "Yes" }));
       fireEvent.change(input(id), { target: { value: "Both later" } });
     }
-    await act(async () => fireEvent.click(within(input("m1").closest("form") as HTMLElement).getByRole("button", { name: "Send to Grok Bot" })));
+    await act(async () => fireEvent.click(within(input("m1").closest("form") as HTMLElement).getByRole("button", { name: "Send to assistant" })));
     key(input("m2"));
     await flush();
 

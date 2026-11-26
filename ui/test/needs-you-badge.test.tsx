@@ -15,12 +15,12 @@ describe("isClarifying", () => {
   it("treats a follow-up that contains a question as clarifying, even if it does not end with ?", () => {
     expect(isClarifying("This PR already exists. what are you changing in the existing PR? doesn't it already work that way")).toBe(true);
     expect(isClarifying("Yes, push")).toBe(false);
-    expect(isClarifying("See https://github.com/ROWSHR/rows-backend/pull/2014")).toBe(false);
+    expect(isClarifying("See https://github.com/acme/example-repo/pull/2014")).toBe(false);
   });
 });
 
 describe("needs-you tab badge", () => {
-  it("puts a red-dot favicon and a dot in the title when something needs Eric, and restores them when nothing does", () => {
+  it("puts a red-dot favicon and a dot in the title when something needs the owner, and restores them when nothing does", () => {
     document.head.innerHTML = '<link rel="icon" href="/favicon.svg">';
     document.title = "Action Board";
     const { rerender } = render(<Badge needsYou={true} />);
