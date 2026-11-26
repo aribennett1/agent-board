@@ -21,6 +21,46 @@ import type { HistoryMsg } from "./topics";
 // ones as one line, and the whole back-and-forth folded under "Show the thread", oldest first. Cards that need the owner come
 // first; in-progress cards are folded; done cards hide behind a toggle. Every question renders once.
 
+
+// Collapse markdown and whitespace so we can tell when the topic-explain block or
+// the topic-summary line is already on screen in an open question or decision.
+export function normCopy(s: string): string {
+  return s
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/[`*_#>[\]()]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+export function openQuestionBody(q: { text?: string; context?: string; decision?: Decision }): string {
+  if (q.decision) {
+    const d = q.decision;
+    return [d.title, d.context, d.question].filter((x) => x?.trim()).join("\n\n");
+  }
+  return [q.context, q.text].filter((x) => x?.trim()).join("\n\n");
+}
+
+export function botTextCoveredByOpen(botText: string, open: { text?: string; context?: string; decision?: Decision }[]): boolean {
+  const bot = normCopy(botText);
+  if (!bot) return false;
+  return open.some((q) => {
+    const body = normCopy(openQuestionBody(q));
+    return body === bot || body.includes(bot);
+  });
+}
+
+export function summaryCoveredByBody(summary: string, bodies: string[]): boolean {
+  const s = normCopy(summary);
+  if (!s) return false;
+  return bodies.some((b) =>
+    b
+      .split(/\n+/)
+      .map(normCopy)
+      .some((block) => block === s || block.startsWith(s)),
+  );
+}
+
 const when = (iso: string) => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -346,6 +386,14 @@ function TopicCard({ t, a, onOpen, sent, sentTo, markSent, brief, detail, chrome
   const answered = [...t.answered, ...justSent];
   const ids = open.map((q) => q.label).filter(Boolean);
   const latestBot = [...t.history].reverse().find((m) => m.who !== "You" && m.text?.trim());
+  const showBot = Boolean(latestBot) && !botTextCoveredByOpen(latestBot!.text, open);
+  const shownBodies = [
+    brief?.summary,
+    detail?.plain,
+    showBot ? latestBot?.text : undefined,
+    ...open.flatMap((q) => [q.decision?.context, q.context, openQuestionBody(q)]),
+  ].filter((s): s is string => Boolean(s?.trim()));
+  const showSummary = Boolean(t.summary) && !summaryCoveredByBody(t.summary!, shownBodies);
   return (
     <article className={`topic topic-${t.group}`} data-topic={t.key}>
       <header className="topic-head">
@@ -364,7 +412,7 @@ function TopicCard({ t, a, onOpen, sent, sentTo, markSent, brief, detail, chrome
           {open.length ? "Your turn" : t.ball === "Done" ? "Done" : t.ball === "You" ? "Assistant" : t.ball}
         </span>
       </header>
-      {t.summary && <p className="topic-summary">{t.summary}</p>}
+      {showSummary && <p className="topic-summary">{t.summary}</p>}
       {brief ? (
         <TicketBrief brief={brief} defaultOpen={true} />
       ) : detail?.plain ? (
@@ -378,7 +426,7 @@ function TopicCard({ t, a, onOpen, sent, sentTo, markSent, brief, detail, chrome
           <Markdown text={detail.ticket} className="md ticket-md" />
         </details>
       )}
-      {latestBot && (
+      {showBot && latestBot && (
         <div className="topic-explain" data-bot-explain>
           <p className="msg-who">{latestBot.who}{latestBot.at ? <span className="msg-at"> {when(latestBot.at)}</span> : null}</p>
           <Markdown text={latestBot.text} className="md msg-text" />
