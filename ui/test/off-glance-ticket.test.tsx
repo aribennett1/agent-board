@@ -73,7 +73,7 @@ describe("Off-glance ticket plan/thread questions deliver answers", () => {
     const input = topic.querySelector("textarea.note-input") as HTMLTextAreaElement;
     const answerText = "Please get me a link for the figma";
     fireEvent.change(input, { target: { value: answerText } });
-    fireEvent.click(within(topic).getByRole("button", { name: "Send to assistant" }));
+    fireEvent.click(within(topic).getByRole("button", { name: /^Send to / }));
 
     await waitFor(() => {
       const postCalls = fetchMock.mock.calls.filter((c) => c[1]?.method === "POST" && String(c[1]?.body ?? "").includes("item.message"));

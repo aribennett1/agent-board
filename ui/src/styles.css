@@ -2920,16 +2920,24 @@ mark { background: #fff1a8; padding: 0 2px; border-radius: 3px; }
 .checks-read { color: #2563eb; }
 .topic-tab-link { margin-left: auto; margin-right: 8px; font-size: 12px; color: var(--muted, #667085); }
 
-/* Notifications feed. An X clears a note; that never wakes a bot. */
-.notice-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
-.notice { position: relative; border: 1px solid var(--border); border-radius: 10px; padding: 12px 40px 12px 14px; background: var(--surface, #fff); }
-.notice-clear { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border: 0; padding: 0; background: none; font-size: 18px; line-height: 1; color: var(--muted, #667085); cursor: pointer; }
-.notice-clear:hover, .notice-clear:focus-visible { color: inherit; }
-.notice-meta { display: flex; gap: 10px; align-items: baseline; margin: 0 0 6px; font-size: 13px; color: var(--muted, #667085); }
-.notice-bot { color: inherit; font-size: 14px; }
-.notice-text { margin: 0; }
-.notice-next, .notice-link { margin: 6px 0 0; font-size: 13px; color: var(--muted, #667085); }
-.view.notices .view-head .btn { margin-top: 8px; }
+/* Notifications feed: chat bubbles in the bottom of the sidebar. An X clears one; that never wakes a bot. */
+.feed { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--border); padding-top: 10px; margin: 0 -4px; }
+.feed-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 6px 8px; }
+.feed-head h2 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #667085); }
+.feed-dismiss { appearance: none; border: 0; background: none; font: inherit; font-size: 12px; color: var(--cobalt, #1a56db); cursor: pointer; padding: 2px 4px; border-radius: 5px; }
+.feed-dismiss:hover, .feed-dismiss:focus-visible { background: #e8edf4; }
+.feed-empty { margin: 0; padding: 0 6px; font-size: 13px; color: var(--quiet, #98a2b3); }
+.feed-list { flex: 1; min-height: 0; overflow-y: auto; list-style: none; margin: 0; padding: 0 4px 4px; display: flex; flex-direction: column; gap: 8px; scroll-behavior: smooth; }
+.notice { display: flex; align-items: flex-start; gap: 6px; }
+.notice-avatar { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+.notice-bubble { position: relative; flex: 1; min-width: 0; background: #fff; border: 1px solid var(--border); border-radius: 4px 12px 12px 12px; padding: 6px 24px 7px 9px; font-size: 12.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.notice-clear { position: absolute; top: 2px; right: 3px; width: 20px; height: 20px; border: 0; padding: 0; background: none; font-size: 15px; line-height: 1; color: var(--muted, #667085); cursor: pointer; border-radius: 50%; }
+.notice-clear:hover, .notice-clear:focus-visible { background: #eef0f3; color: inherit; }
+.notice-meta { display: flex; gap: 6px; align-items: baseline; margin: 0 0 2px; font-size: 11px; color: var(--muted, #667085); }
+.notice-bot { font-size: 12px; background: none !important; }
+.notice-text { margin: 0; font-size: 12.5px; }
+.notice-text p { margin: 0 0 4px; }
+.notice-next, .notice-link { margin: 3px 0 0; font-size: 11px; color: var(--muted, #667085); }
 
 
 /* Who raised a Conversation card or thread. One color per bot, small pill, top left. */
@@ -2940,3 +2948,56 @@ mark { background: #fff1a8; padding: 0 2px; border-radius: 3px; }
 .bot-pill-engineer { background: #ecfdf3; color: #067647; }
 .bot-pill-eggbot { background: #fff4e5; color: #b54708; }
 .bot-pill-grok { background: #f2f4f7; color: #1d2939; }
+
+/* My tickets, My PRs, Others' PRs: compact rows from the server's own fetch. */
+.live-note { margin: 4px 0 0; font-size: 12.5px; color: var(--quiet); }
+.live-note.warn { color: var(--warn-text); background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 6px; padding: 6px 10px; }
+.live-group { margin-top: 18px; }
+.live-group h3 { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--text); display: flex; gap: 6px; align-items: center; }
+.live-group h3 .n { font-size: 11.5px; font-weight: 600; color: var(--muted); background: #e5e7eb; border-radius: 99px; padding: 0 7px; }
+.live-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.live-row { display: flex; gap: 4px; padding: 7px 10px; border-top: 1px solid var(--border); }
+.live-row:first-child { border-top: 0; }
+.live-row.ticket-row { padding-left: 14px; }
+.live-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.live-line1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.live-ref { font-size: 12px; color: var(--quiet); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.live-title { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+a.live-title:hover { text-decoration: underline; }
+.live-chips { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.live-line2 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12px; color: var(--quiet); }
+.live-line2 .strong { color: var(--text); font-weight: 600; }
+.live-line2 .when { margin-left: auto; }
+.live-line2 .diff b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.live-line2 .add { color: #166534; }
+.live-line2 .del { color: var(--high-text); }
+.lbl { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 99px; padding: 0 7px; }
+.lbl i, .status-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); display: inline-block; }
+.status-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; color: var(--cobalt); background: var(--accent-soft); border-radius: 99px; padding: 2px 9px; white-space: nowrap; }
+.prio { font-size: 11px; font-weight: 600; border-radius: 99px; padding: 2px 8px; background: var(--low-bg); color: var(--low-text); }
+.prio-1 { background: var(--high-bg); color: var(--high-text); }
+.prio-2 { background: var(--medium-bg); color: var(--medium-text); }
+.pr-link { color: var(--cobalt); text-decoration: none; }
+.live-body { margin-top: 6px; padding: 8px 10px; background: var(--surface-2); border-radius: 8px; font-size: 13px; }
+.live-body h4 { margin: 8px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--quiet); }
+.live-body h4:first-child { margin-top: 0; }
+.live-fail { margin: 0 0 6px; color: var(--high-text); font-weight: 600; }
+.live-threads ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.live-threads li p { margin: 2px 0 0; color: var(--muted); white-space: pre-wrap; }
+.live-threads a { color: var(--text); text-decoration: none; }
+.live-desc { max-height: 360px; overflow: auto; }
+.live-empty, .live-branch { margin: 0; color: var(--quiet); font-size: 12px; }
+.live-branch { margin-top: 8px; }
+@media (max-width: 860px) { .live-line1 { flex-wrap: wrap; } .live-chips { width: 100%; } }
+
+/* Conversation: one collapsible section per asking bot. */
+.bot-section { margin-top: 14px; }
+.bot-section-head { appearance: none; width: 100%; display: flex; align-items: center; gap: 8px; border: 0; background: #f3f4f6; border-radius: 8px; padding: 8px 12px; font: inherit; font-size: 14px; font-weight: 700; color: var(--text); cursor: pointer; text-align: left; }
+.bot-section-head:hover { background: #eceef2; }
+.bot-section-name { flex: 1; }
+.bot-section-count { font-size: 12px; font-weight: 600; color: var(--muted); background: #e5e7eb; border-radius: 99px; padding: 1px 9px; }
+.bot-section-count.open { color: var(--high-text); background: var(--high-bg); }
+.bot-section-body { padding-top: 8px; }
+.recipient-picker { font: inherit; font-size: 12.5px; color: var(--cobalt); background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 5px 4px; margin-left: -4px; cursor: pointer; }
+.msg-to { font-size: 12px; color: var(--cobalt); font-weight: 600; }
+.bot-section-head[aria-expanded="true"] .chev { transform: rotate(45deg); }

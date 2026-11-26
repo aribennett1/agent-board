@@ -25,25 +25,26 @@ afterEach(() => {
 });
 
 describe("Notifications feed", () => {
-  it("lists newest first with the bot, ET time, text, next update, and an X at the top right; nothing is grayed out", () => {
+  it("lists oldest first so the newest is at the bottom, with the bot, ET time, text, next update, and an X on each bubble; nothing is grayed out", () => {
     const items = [
       note(2, { bot: "QA", text: "Approved **PR #12** at `abc`.", created_at: "2026-11-26T17:10:00.000Z" }),
       note(1, { bot: "Planner", text: "Starting now.", next_update: "1:15 PM ET", created_at: "2026-11-26T14:00:00.000Z" }),
     ];
     render(<Notifications items={items} now={now} />);
     const rows = [...document.querySelectorAll<HTMLElement>("[data-notice-id]")];
-    expect(rows.map((r) => r.dataset.noticeId)).toEqual(["2", "1"]);
-    expect(within(rows[0]).getByText("QA")).toBeTruthy();
-    expect(within(rows[0]).getByText("12:10 PM ET")).toBeTruthy();
-    expect(rows[0].querySelector(".notice-text")?.textContent).toContain("PR #12");
-    expect(within(rows[1]).getByText("Next update by 1:15 PM ET")).toBeTruthy();
-    expect(rows[0].querySelector(".notice-read")).toBeNull();
-    expect(rows[0].classList.contains("notice-read")).toBe(false);
-    const x = within(rows[0]).getByRole("button", { name: "Clear notification" });
+    expect(rows.map((r) => r.dataset.noticeId)).toEqual(["1", "2"]);
+    expect(within(rows[1]).getByText("QA", { selector: ".notice-bot" })).toBeTruthy();
+    expect(rows[1].querySelector(".notice-avatar")?.className).toContain("bot-pill-qa");
+    expect(within(rows[1]).getByText("12:10 PM ET")).toBeTruthy();
+    expect(rows[1].querySelector(".notice-text")?.textContent).toContain("PR #12");
+    expect(within(rows[0]).getByText("Next update by 1:15 PM ET")).toBeTruthy();
+    expect(rows[1].querySelector(".notice-read")).toBeNull();
+    expect(rows[1].classList.contains("notice-read")).toBe(false);
+    const x = within(rows[1]).getByRole("button", { name: "Clear notification" });
     expect(x.textContent).toBe("×");
     const style = getComputedStyle(x);
     // The class places it in the top right of the note.
-    expect(rows[0].className).toBe("notice");
+    expect(rows[1].className).toBe("notice");
     expect(x.className).toBe("notice-clear");
     expect(noticeTime("2026-11-25T17:00:00.000Z", now)).toBe("Nov 25, 12:00 PM ET");
     expect(screen.getByRole("button", { name: "Dismiss all" })).toBeTruthy();
@@ -111,23 +112,48 @@ describe("Notifications stay off Conversation and the red dot", () => {
     document.head.querySelector("link[rel='icon']")?.remove();
   });
 
-  it("shows an unread badge on the tab, hides the note from Conversation, and leaves the red dot off", async () => {
+  it("has no Notifications tab: the feed sits in the sidebar under the tab list, off Conversation and the red dot", async () => {
     vi.resetModules();
     vi.doMock("../src/data/board", () => ({ board: board() }));
     const { default: Tabs } = await import("../src/Tabs");
     render(<Tabs />);
     const nav = screen.getByRole("navigation", { name: "Views" });
-    const item = (view: string) => nav.querySelector<HTMLButtonElement>(`[data-view="${view}"]`)!;
-    expect(item("notifications").querySelector(".nav-count")?.textContent).toBe("1");
-    expect(item("notifications").querySelector(".nav-count")?.classList.contains("urgent")).toBe(false);
-    expect(screen.queryByText(/Starting the plan now/)).toBeNull();
+    expect(nav.querySelector('[data-view="notifications"]')).toBeNull();
+    const feed = nav.querySelector(".feed")!;
+    expect(feed).not.toBeNull();
+    // Right after the tab list, before the date footer.
+    expect(nav.querySelector("ul")!.nextElementSibling).toBe(feed);
+    expect(within(feed as HTMLElement).getByText(/Starting the plan now/)).toBeTruthy();
+    expect(within(feed as HTMLElement).getByRole("button", { name: "Dismiss all" })).toBeTruthy();
+    expect(screen.getAllByText(/Starting the plan now/)).toHaveLength(1);
     expect(document.title).toBe(badgeTitle.base);
     expect(document.querySelector("link[rel='icon']")?.getAttribute("href")).toBe(badgeTitle.baseIcon);
-    fireEvent.click(item("notifications"));
-    expect(window.location.hash).toBe("#notifications");
-    expect(screen.getByRole("heading", { name: "Notifications" })).toBeTruthy();
-    expect(screen.getByText(/Starting the plan now/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Dismiss all" })).toBeTruthy();
+    // #notifications is not a tab any more.
+    expect(window.location.hash).toBe("");
+  });
+});
+
+describe("feed scrolling", () => {
+  const scrollSetup = (el: HTMLElement, top: number, height: number, client: number) => {
+    Object.defineProperty(el, "scrollHeight", { configurable: true, get: () => height });
+    Object.defineProperty(el, "clientHeight", { configurable: true, get: () => client });
+    el.scrollTop = top;
+  };
+
+  it("jumps to the newest note when one arrives, unless he has scrolled up", () => {
+    const { rerender } = render(<Notifications items={[note(1), note(2)]} now={now} />);
+    const list = document.querySelector<HTMLElement>(".feed-list")!;
+    scrollSetup(list, 0, 500, 200);
+    // At the bottom: follow.
+    list.scrollTop = 300;
+    fireEvent.scroll(list);
+    rerender(<Notifications items={[note(1), note(2), note(3)]} now={now} />);
+    expect(list.scrollTop).toBe(500);
+    // Scrolled up to read: stay put.
+    list.scrollTop = 10;
+    fireEvent.scroll(list);
+    rerender(<Notifications items={[note(1), note(2), note(3), note(4)]} now={now} />);
+    expect(list.scrollTop).toBe(10);
   });
 });
 
@@ -149,7 +175,7 @@ describe("a live refresh picks up a new notification", () => {
     vi.resetModules();
     vi.doMock("../src/data/board", () => ({ board: initial }));
     const { default: App } = await import("../src/App");
-    render(<App view="notifications" />);
+    render(<App view="conversation" />);
     await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
     expect(screen.getByText("No notifications yet.")).toBeTruthy();
     served = { ...initial, notifications: [note(4, { text: "On it.", created_at: "2026-11-26T17:20:00.000Z" })] };

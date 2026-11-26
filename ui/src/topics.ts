@@ -13,7 +13,7 @@ import { raisedByOf, raisedByFromId, type BoardBot } from "./raisedBy";
 export type Who = "You" | "Assistant" | "ops";
 // A message in a topic's thread. `status` marks one of the human's own messages (it gets checks); `card` marks an
 // answered decision card, shown as one line (title + answer) that expands to its question.
-export type HistoryMsg = { at: string; who: Who; text: string; key: string; status?: CheckStatus; card?: { title: string; answer: string; body: string; raisedBy?: BoardBot }; raisedBy?: BoardBot };
+export type HistoryMsg = { at: string; who: Who; text: string; key: string; to?: string; status?: CheckStatus; card?: { title: string; answer: string; body: string; raisedBy?: BoardBot; to?: string }; raisedBy?: BoardBot };
 export type TopicQuestion = {
   uid: string; // unique on the page: one question renders once
   label?: string; // "Q4", "Q3b"
@@ -45,6 +45,7 @@ export type TopicQuestion = {
 };
 export type AnsweredQuestion = {
   uid: string;
+  to?: string; // the bot the answer was sent to
   label?: string;
   text: string;
   answer: string;
@@ -222,7 +223,7 @@ export function buildTopics(
       );
       const already_decided = d.already_decided ?? (prior?.answer ? { answer: choiceText(prior.answer), source: prior.title ?? "earlier card", at: prior.answer.answered_at } : undefined);
       open.push({
-        uid: `decision:${d.id}`, text: d.question, context: d.context, itemKey: `decision:${d.id}`, kind: "decision", decision: d, raisedBy: raisedByOf(d),
+        uid: `decision:${d.id}`, text: d.question, context: d.context, itemKey: `decision:${d.id}`, kind: "decision", decision: d, raisedBy: raisedByOf(d, details),
         ...(d.section === "assistant" ? { bot: d.bot, rule: d.rule, seen: d.seen, proposed_fix: d.proposed_fix, fixes: d.fixes, svg: d.svg } : {}),
         ...(d.answers_comment ? { answers_comment: d.answers_comment } : {}),
         ...(d.post_text !== undefined ? { post_text: d.post_text } : {}),
@@ -247,14 +248,14 @@ export function buildTopics(
     const history: HistoryMsg[] = [
       ...tAsks.map((a) => {
         const d = decisions.get(a.item_key);
-        return { at: a.at, who: "You" as Who, text: a.text, key: a.item_key, status: (a.status ?? "sent") as CheckStatus, ...(isCardAsk(a) ? { card: { title: a.label, answer: a.text, body: cardBody(d), raisedBy: d ? raisedByOf(d) : raisedByFromId(a.item_key) } } : {}) };
+        return { at: a.at, who: "You" as Who, text: a.text, key: a.item_key, ...(a.to_bot ? { to: a.to_bot } : {}), status: (a.status ?? "sent") as CheckStatus, ...(isCardAsk(a) ? { card: { title: a.label, answer: a.text, body: cardBody(d), raisedBy: d ? raisedByOf(d, details) : raisedByFromId(a.item_key), ...(a.to_bot ? { to: a.to_bot } : {}) } } : {}) };
       }),
       ...tThread.filter((e) => e.text.trim() || e.question).map((e) => ({ at: e.at, who: whoOf(e), text: [e.text.trim(), e.question ? `**${e.question.text}**` : ""].filter(Boolean).join("\n\n"), key: e.key })),
       ...tDecisions.filter((d) => !collapsed.has(`decision:${d.id}`)).flatMap((d) => (d.created_at ? [{ at: d.created_at, who: "Assistant" as Who, text: `**${d.title ?? d.question}**\n\n${d.context}`, key: `decision:${d.id}` }] : [])),
       ...tDecisions.flatMap((d) => {
         const said = ansText(d);
         if (!d.answer || !said || cardAsks.some((a) => a.item_key === `decision:${d.id}`)) return [];
-        return [{ at: d.answer.answered_at ?? d.created_at ?? "", who: "You" as Who, text: `You chose: ${said}`, key: `decision:${d.id}`, card: { title: d.title ?? d.question, answer: said, body: cardBody(d), raisedBy: raisedByOf(d) } }];
+        return [{ at: d.answer.answered_at ?? d.created_at ?? "", who: "You" as Who, text: `You chose: ${said}`, key: `decision:${d.id}`, card: { title: d.title ?? d.question, answer: said, body: cardBody(d), raisedBy: raisedByOf(d, details) } }];
       }),
     ].sort(byAt);
 
@@ -284,7 +285,7 @@ export function buildTopics(
     topics.push({
       key: tkey, keys: members, label, link: labels[tkey]?.link, summary: summary ? short(summary) : undefined, ball, statusLine,
       group: open.length ? "you" : ball === "Done" ? "done" : "progress", open, answered, history, at: last?.at ?? "",
-      raisedBy: tDecisions.map((d) => raisedByOf(d)).find(Boolean) ?? members.map((k) => raisedByFromId(k)).find(Boolean),
+      raisedBy: tDecisions.map((d) => raisedByOf(d, details)).find(Boolean) ?? members.map((k) => raisedByFromId(k)).find(Boolean),
     });
   }
   const rank = { you: 0, progress: 1, done: 2 } as const;

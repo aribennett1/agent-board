@@ -100,43 +100,31 @@ afterEach(() => {
 const rowOf = (title: string | RegExp) => screen.getByText(title).closest("li")!;
 
 describe("reply thread", () => {
-  it("puts an item with an open reply question in Needs you, with an unread dot that clears on open", async () => {
+  it("lists the PR on Others' PRs and puts its open reply question on Conversation, never in the tab", async () => {
     const { default: Tabs } = await import("../src/Tabs");
     render(<Tabs />);
-    const row = rowOf("Standard hours fix");
-    expect(within(row).getByRole("img", { name: "New reply" })).toBeTruthy();
-    expect(within(row).getByText("Question for you")).toBeTruthy();
-    fireEvent.click(within(row).getByRole("button", { name: "Expand" }));
-    expect(within(row).queryByRole("img", { name: "New reply" })).toBeNull();
-    const thread = row.querySelector<HTMLElement>(".item-thread")!;
-    expect(within(thread).getByRole("link", { name: "#203" }).getAttribute("href")).toBe("https://github.com/example/app/pull/203");
-    expect(thread.querySelector("img.thread-image")?.getAttribute("src")).toBe("/replies/x.png");
-
-    // Others' PRs: the PR with no details sits in the collapsed In progress group.
-    window.location.hash = "#others";
+    expect(screen.getByRole("region", { name: "Your review requested" })).toBeTruthy();
+    expect(within(rowOf("Standard hours fix")).getByText("app #203")).toBeTruthy();
+    expect(within(rowOf("Docs pass")).getByText("Waiting on author")).toBeTruthy();
+    window.location.hash = "";
     await act(async () => {
       window.dispatchEvent(new HashChangeEvent("hashchange"));
     });
-    expect(screen.queryByText("Docs pass")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /In progress, not ready yet \(1\)/ }));
-    expect(within(rowOf("Docs pass")).getByText("No details yet")).toBeTruthy();
+    expect(screen.getAllByText("What do you want to do?")[0]).toBeTruthy();
   });
 
   it("sends a one-click answer and a free-form answer as item messages", async () => {
+    window.location.hash = "";
     const { default: Tabs } = await import("../src/Tabs");
     render(<Tabs />);
-    const row = rowOf("Standard hours fix");
-    fireEvent.click(within(row).getByRole("button", { name: "Expand" }));
-    const thread = row.querySelector<HTMLElement>(".item-thread")!;
-    const box = within(thread).getByLabelText("Or answer in your own words") as HTMLTextAreaElement;
+    const q = screen.getAllByText("What do you want to do?")[0].closest("li")!;
+    const box = within(q).getByLabelText("Or answer in your own words") as HTMLTextAreaElement;
     expect(within(box.closest(".mic-wrap") as HTMLElement).getByRole("button", { name: "Voice typing" })).toBeTruthy();
     fireEvent.change(box, { target: { value: "Approve, but ping Sam first" } });
-    fireEvent.click(within(thread).getByRole("button", { name: "Send to assistant" }));
+    fireEvent.click(within(q).getByRole("button", { name: /^Send to / }));
     await act(async () => {});
     const m = posted.filter((p) => p.event === "item.message").at(-1)!;
     expect(m.text).toBe('Answer to "What do you want to do?": Approve, but ping Sam first');
-    expect(within(thread).getByText("Answered: Approve, but ping Sam first", { selector: ".review-flag" })).toBeTruthy();
-    expect(within(thread).queryByRole("button", { name: "Approve with LGTM now" })).toBeNull();
   });
 });
 
@@ -149,20 +137,10 @@ describe("free text with a mic on every option set", () => {
     const custom = within(card).getByRole("textbox", { name: "Your own answer" });
     expect(within(card).getByRole("button", { name: "Voice typing" })).toBeTruthy();
     fireEvent.change(custom, { target: { value: "Neither, ask Sam" } });
-    fireEvent.click(within(card).getByRole("button", { name: "Send to assistant" }));
+    fireEvent.click(within(card).getByRole("button", { name: /^Send to / }));
     await act(async () => {});
     const d = posted.find((p) => p.event === "decision.answered")!;
     expect(d).toMatchObject({ answer: "custom", custom_text: "Neither, ask Sam" });
-
-    window.location.hash = "#tickets";
-    await act(async () => {
-      window.dispatchEvent(new HashChangeEvent("hashchange"));
-    });
-    const ticket = rowOf(/Banks in seconds/);
-    fireEvent.click(within(ticket).getByRole("button", { name: "Expand" }));
-    const q = ticket.querySelector<HTMLElement>(".question-row")!;
-    expect(within(q).getByLabelText("Or type your own answer")).toBeTruthy();
-    expect(within(q).getByRole("button", { name: "Voice typing" })).toBeTruthy();
 
     window.location.hash = "#reviews";
     await act(async () => {

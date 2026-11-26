@@ -5,7 +5,7 @@ import { ProjectTab, ProjectTabLabel } from "./ProjectTab";
 import { useLiveProject } from "./useLiveBoard";
 import type { Project } from "./data/types";
 
-const BOARD_VIEWS: View[] = ["conversation", "notifications", "home", "tickets", "mine", "reviews", "others"];
+const BOARD_VIEWS: View[] = ["conversation", "home", "tickets", "mine", "others"];
 const views = (project: Project | null): View[] => (project && hasProject(project) ? [...BOARD_VIEWS, "project"] : BOARD_VIEWS);
 const FOCUS_KINDS = ["ticket", "mypr", "pr", "waiting", "decision"];
 
@@ -18,8 +18,8 @@ const fromHash = (project: Project | null = null): Route => {
   const slash = h.indexOf("/");
   if (slash > 0 && FOCUS_KINDS.includes(h.slice(0, slash)) && h.length > slash + 1) return { view: "focus", focus: h };
   const allowed = views(project);
-  // Retired tabs keep their links: Waiting on others lives under My tickets; Dr. Assistant findings sit on Home.
-  const name = h === "waiting" ? "tickets" : h === "assistant" ? "home" : h;
+  // Retired tabs keep their links: Waiting on others lives under My tickets; Dr. Assistant findings sit on Home; Reviews is part of Others' PRs. #notifications is the sidebar feed now.
+  const name = h === "waiting" ? "tickets" : h === "assistant" ? "home" : h === "reviews" ? "others" : h;
   return { view: allowed.includes(name as View) ? (name as View) : "conversation" };
 };
 

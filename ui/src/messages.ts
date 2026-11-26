@@ -13,7 +13,7 @@ export type BoardItem = {
   item_link?: string;
 };
 
-export type MessagePayload = { event: "item.message"; message_id: string } & BoardItem & { text: string; sent_at: string };
+export type MessagePayload = { event: "item.message"; message_id: string } & BoardItem & { text: string; sent_at: string; to_bot?: string };
 
 const present = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
 
@@ -71,7 +71,7 @@ export function newMessageId(c: Pick<Crypto, "getRandomValues"> & { randomUUID?:
 }
 
 // The item.message payload, fields in a fixed order. Throws on blank text; the text is trimmed.
-export function buildMessagePayload(item: BoardItem, text: string, now: Date, messageId: string): MessagePayload {
+export function buildMessagePayload(item: BoardItem, text: string, now: Date, messageId: string, toBot?: string): MessagePayload {
   const t = text.trim();
   if (!t) throw new Error("Message is blank");
   const opt = (k: "item_who" | "item_status" | "item_link") => (present(item[k]) ? { [k]: item[k] } : {});
@@ -86,5 +86,6 @@ export function buildMessagePayload(item: BoardItem, text: string, now: Date, me
     ...opt("item_link"),
     text: t,
     sent_at: now.toISOString(),
+    ...(toBot ? { to_bot: toBot } : {}),
   };
 }

@@ -9,6 +9,7 @@ export function boardVersion(db: DatabaseSync, webhookConfigured = false): strin
   const ui = db.prepare('SELECT key, json FROM ui_doc ORDER BY key').all();
   const derived = db.prepare('SELECT * FROM ui_derived_state ORDER BY decision_id').all();
   const receipts = [db.prepare('SELECT * FROM ui_ask_delivered ORDER BY ask_id').all(), db.prepare('SELECT * FROM ui_item_read ORDER BY item_key').all()];
+  const feed = db.prepare('SELECT key, json FROM ui_feed ORDER BY key').all();
   const notifications = db.prepare('SELECT * FROM ui_notifications ORDER BY id').all();
-  return createHash('sha256').update(JSON.stringify({ tasks, notes, cards, ui, derived, receipts, notifications, webhookConfigured })).digest('hex');
+  return createHash('sha256').update(JSON.stringify({ tasks, notes, cards, ui, derived, receipts, notifications, feed, webhookConfigured })).digest('hex');
 }

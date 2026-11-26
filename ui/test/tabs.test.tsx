@@ -63,19 +63,19 @@ describe("Left nav", () => {
     expect(window.location.hash).toBe("#home");
     expect([...nav().querySelectorAll(".nav-item")].map((b) => b.getAttribute("data-view"))).toEqual([
       "conversation",
-      "notifications",
       "home",
       "tickets",
       "mine",
-      "reviews",
       "others",
     ]);
+    expect(item("notifications")).toBeNull();
+    expect(item("reviews")).toBeNull();
     expect(item("project")).toBeNull();
     expect(item("home").querySelector(".nav-count")?.textContent).toBe("1");
     expect(item("conversation").querySelector(".nav-count")?.textContent).toBe("1");
     // Sidebar badges and tab headers show only the Needs-you count; none when it's 0.
-    expect(item("reviews").querySelector(".nav-count")).toBeNull();
-    expect(item("others").querySelector(".nav-count")).toBeNull();
+    // Others' PRs badges the review requests waiting on the owner (one here); the rest show none.
+    expect(item("others").querySelector(".nav-count")?.textContent).toBe("1");
     expect(item("tickets").querySelector(".nav-count")).toBeNull();
     expect(item("mine").querySelector(".nav-count")).toBeNull();
     // Waiting on others and Dr. Assistant are folded into My tickets and Home; the old tabs are gone from the nav.
@@ -100,13 +100,11 @@ describe("Left nav", () => {
     fireEvent.click(item("tickets"));
     expect(current()).toEqual(["tickets"]);
     expect(window.location.hash).toBe("#tickets");
-    openInProgress();
-    expect(screen.getByText("Signed NDA")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "My tickets" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: /Needs you/ })).toBeNull();
 
     fireEvent.click(item("others"));
     expect(window.location.hash).toBe("#others");
-    openInProgress();
     expect(screen.getByText("Docs pass")).toBeTruthy();
 
     fireEvent.click(item("conversation"));
@@ -129,7 +127,6 @@ describe("Left nav", () => {
     window.history.replaceState(null, "", "/#others");
     await renderTabs();
     expect(current()).toEqual(["others"]);
-    openInProgress();
     expect(screen.getByText("Docs pass")).toBeTruthy();
   });
 
@@ -148,16 +145,18 @@ describe("Left nav", () => {
     expect(current()).toEqual(["conversation"]);
   });
 
-  it("on Reviews, hides the empty Needs you header and shows no sidebar badge when nothing needs you", async () => {
+  it("Reviews and Others' PRs are one tab: Others' PRs, with the review requests grouped first", async () => {
     await renderTabs();
-    fireEvent.click(item("reviews"));
-    expect(item("reviews").querySelector(".nav-count")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Reviews waiting for your yes" })).toBeTruthy();
-    expect(screen.queryByText(/Needs you \(0\)/)).toBeNull();
-    expect(screen.getByText("Nothing needs you here")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /In progress, not ready yet \(1\)/ })).toBeTruthy();
-    expect(screen.queryByText("api #12")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /In progress, not ready yet \(1\)/ }));
+    fireEvent.click(item("others"));
+    expect(window.location.hash).toBe("#others");
+    expect(screen.getByRole("heading", { name: "Others' PRs" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Your review requested" })).toBeTruthy();
     expect(screen.getByText("api #12")).toBeTruthy();
+    // The old #reviews link lands on the merged tab.
+    await act(async () => {
+      window.location.hash = "#reviews";
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    expect(current()).toEqual(["others"]);
   });
 });

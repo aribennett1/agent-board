@@ -1,10 +1,12 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { BoardNotification } from "./data/types";
 import { TIME_ZONE } from "./config";
 import { Markdown } from "./markdown";
+import { isBoardBot, botPillClass } from "./raisedBy";
 
-// The Notifications tab: a reverse-chronological feed of status notes the bots posted with `ab notify`.
-// An X on a note, or Dismiss all, clears it through /__ab/notifications/clear.
+// The notifications feed in the bottom of the sidebar: status notes the bots posted with `ab notify`, as chat bubbles,
+// oldest at the top and newest at the bottom. It follows new notes unless the reader has scrolled up.
+// An X on a bubble, or Dismiss all, clears it through /__ab/notifications/clear.
 // That call never hits the wake webhook; the bots are not notified. Cleared notes leave the feed.
 
 export const CLEAR_PATH = "/__ab/notifications/clear";
@@ -31,11 +33,32 @@ async function postClear(body: { id: number } | { all: true }): Promise<boolean>
   }
 }
 
+const NEAR_BOTTOM = 24;
+const initial = (bot: string) => (bot.trim()[0] ?? "?").toUpperCase();
+const avatarClass = (bot: string) => (isBoardBot(bot) ? botPillClass(bot).replace("bot-pill ", "") : "bot-pill-grok");
+
 export function Notifications({ items, now = new Date() }: { items: BoardNotification[]; now?: Date }) {
   const [hidden, setHidden] = useState<Set<number>>(() => new Set());
   const pending = useRef(new Set<number>());
+  const listRef = useRef<HTMLOListElement>(null);
+  const follow = useRef(true);
 
-  const visible = items.filter((n) => !n.cleared_at && !hidden.has(n.id));
+  // Oldest first, so the newest bubble is at the bottom like a chat.
+  const visible = items
+    .filter((n) => !n.cleared_at && !hidden.has(n.id))
+    .sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.id - b.id));
+  const newest = visible[visible.length - 1]?.id;
+
+  // New note arrived: stay glued to the bottom unless he scrolled up to read.
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (el && follow.current) el.scrollTop = el.scrollHeight;
+  }, [newest, visible.length]);
+
+  const onScroll = () => {
+    const el = listRef.current;
+    if (el) follow.current = el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM;
+  };
 
   const hide = (ids: number[]) =>
     setHidden((s) => {
@@ -64,42 +87,46 @@ export function Notifications({ items, now = new Date() }: { items: BoardNotific
   };
 
   return (
-    <div className="view notices">
-      <header className="view-head">
-        <h1>Notifications</h1>
-        <p>Status updates from the bots. Clearing one does not wake anyone.</p>
+    <section className="feed" aria-label="Notifications">
+      <header className="feed-head">
+        <h2>Notifications</h2>
         {visible.length > 0 && (
-          <button type="button" className="btn" onClick={dismissAll}>
+          <button type="button" className="feed-dismiss" onClick={dismissAll}>
             Dismiss all
           </button>
         )}
       </header>
       {visible.length === 0 ? (
-        <p className="panel-empty">No notifications yet.</p>
+        <p className="feed-empty">No notifications yet.</p>
       ) : (
-        <ol className="notice-list" aria-label="Notifications">
+        <ol className="feed-list" ref={listRef} onScroll={onScroll}>
           {visible.map((n) => (
             <li key={n.id} data-notice-id={n.id} className="notice">
-              <button type="button" className="notice-clear" aria-label="Clear notification" onClick={() => clearOne(n.id)}>
-                ×
-              </button>
-              <p className="notice-meta">
-                <strong className="notice-bot">{n.bot}</strong>
-                <time dateTime={n.created_at}>{noticeTime(n.created_at, now)}</time>
-              </p>
-              <Markdown text={n.text} className="md notice-text" />
-              {n.next_update && <p className="notice-next">Next update by {n.next_update}</p>}
-              {n.link && (
-                <p className="notice-link">
-                  <a href={n.link} target="_blank" rel="noopener noreferrer">
-                    {n.link}
-                  </a>
+              <span className={`notice-avatar ${avatarClass(n.bot)}`} aria-hidden="true">
+                {initial(n.bot)}
+              </span>
+              <div className="notice-bubble">
+                <button type="button" className="notice-clear" aria-label="Clear notification" onClick={() => clearOne(n.id)}>
+                  ×
+                </button>
+                <p className="notice-meta">
+                  <strong className={`notice-bot ${avatarClass(n.bot)}`}>{n.bot}</strong>
+                  <time dateTime={n.created_at}>{noticeTime(n.created_at, now)}</time>
                 </p>
-              )}
+                <Markdown text={n.text} className="md notice-text" />
+                {n.next_update && <p className="notice-next">Next update by {n.next_update}</p>}
+                {n.link && (
+                  <p className="notice-link">
+                    <a href={n.link} target="_blank" rel="noopener noreferrer">
+                      {n.link}
+                    </a>
+                  </p>
+                )}
+              </div>
             </li>
           ))}
         </ol>
       )}
-    </div>
+    </section>
   );
 }

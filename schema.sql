@@ -163,3 +163,10 @@ CREATE TABLE IF NOT EXISTS ui_notifications (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   cleared_at TEXT
 );
+
+-- Tickets and PRs for My tickets, My PRs and Others' PRs: fetched by the board server itself (src/feed.ts), never written by a bot.
+CREATE TABLE IF NOT EXISTS ui_feed (
+  key TEXT PRIMARY KEY,
+  json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);

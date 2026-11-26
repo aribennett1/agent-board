@@ -27,10 +27,11 @@ import { buildMessagePayload, decisionItem, glanceItem, itemKey, newMessageId, s
 import { MessageAssistant, type Draft } from "./MessageAssistant";
 import { isReviewRequest, prRef, prPath, sortOthers } from "./others";
 import { ExpandableRow, FocusView, ItemDetails } from "./ItemExpand";
-import { Markdown } from "./markdown";
 import { hasUnread, loadMyNotes, loadSeen, rememberMyNote, saveSeen } from "./Thread";
 import { Conversation } from "./Conversation";
 import { Notifications } from "./Notifications";
+import { MyPrs, MyTickets, OthersPrs } from "./LiveLists";
+import { counts as feedCounts, type FeedPr, type FeedTicket } from "./liveLists";
 import { buildTopics, openCount } from "./topics";
 import type { Ask, ReplyQuestion } from "./data/types";
 import {
@@ -76,7 +77,7 @@ const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(r
 const withoutPriority = ({ priority: _priority, ...rest }: Decision) => JSON.stringify(rest);
 
 // The left nav's destinations. #project is the project tab; the rest are board sections.
-export type View = "conversation" | "notifications" | "home" | "tickets" | "mine" | "reviews" | "others" | "project" | "focus";
+export type View = "conversation" | "home" | "tickets" | "mine" | "others" | "project" | "focus";
 
 type AppProps = {
   // Which section the main area shows. Missing: the classic one-page board with every section (used by tests).
@@ -229,10 +230,10 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   }, []);
 
   const choose = useCallback(
-    (decision: Decision, pick: AppChoice) => {
+    (decision: Decision, pick: AppChoice, toBot?: string) => {
       let payload;
       try {
-        payload = buildPayload(decision, pick, new Date());
+        payload = buildPayload(decision, pick, new Date(), toBot);
       } catch {
         return; // The card only offers valid picks; ignore anything else rather than record it.
       }
@@ -503,10 +504,10 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   // A reply box or quick action on an item: an item.message to the assistant, like "Message your assistant".
   // If an identical message failed earlier, retry the same message_id rather than queuing a duplicate.
   const sendNote = useCallback(
-    async (item: BoardItem, text: string): Promise<boolean> => {
+    async (item: BoardItem, text: string, toBot?: string): Promise<boolean> => {
       let payload;
       try {
-        payload = buildMessagePayload(item, text, new Date(), newMessageId());
+        payload = buildMessagePayload(item, text, new Date(), newMessageId(), toBot);
       } catch {
         return false;
       }
@@ -949,7 +950,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   const [, setConvoTick] = useState(0);
   // A plan question answered on its own (t103u): "PROJ-2512 Q3: his words", sent as an item message.
   const answeredPlans = useRef(new Set<string>());
-  const answerPlan = async (key: string, label: string, text: string) => {
+  const answerPlan = async (key: string, label: string, text: string, toBot?: string) => {
     const ref = itemIndex[key]?.ref;
     if (!ref) return false;
     const guard = `${key}|${label}`;
@@ -957,7 +958,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
     answeredPlans.current.add(guard);
     const prefix = key.startsWith("ticket:") ? `${key.slice(7)} ` : "";
     const msg = `${prefix}${label}: ${text}`;
-    const ok = await sendNote(ref, msg);
+    const ok = await sendNote(ref, msg, toBot);
     if (ok) {
       rememberMyNote(key, { at: new Date().toISOString(), text: msg });
       setConvoTick((n) => n + 1);
@@ -967,13 +968,13 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
     return ok;
   };
   const answeredThreads = useRef(new Set<string>());
-  const answerThread = async (key: string, q: ReplyQuestion, text: string) => {
+  const answerThread = async (key: string, q: ReplyQuestion, text: string, toBot?: string) => {
     const ref = itemIndex[key]?.ref;
     if (!ref) return false;
     const guard = `${key}|${q.id}`;
     if (answeredThreads.current.has(guard)) return false;
     answeredThreads.current.add(guard);
-    const ok = await sendNote(ref, `Answer to "${q.text}": ${text}`);
+    const ok = await sendNote(ref, `Answer to "${q.text}": ${text}`, toBot);
     if (ok) {
       rememberMyNote(key, { at: new Date().toISOString(), text, reply: q.id });
       setConvoTick((n) => n + 1);
@@ -985,14 +986,13 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
 
   // Sidebar badges and tab headers show only the Needs-you count. Zero means no badge.
   const needsCount = (entries: Entry[]) => entries.filter((e) => statusOf(e).needs).length;
+  const live = feedCounts({ tickets: board.glance.tickets, mine: board.glance.mine as unknown as FeedPr[] ?? [], others: board.glance.others as unknown as FeedPr[] ?? [] });
   const nav: { id: View; label: ReactNode; count?: number; urgent?: boolean }[] = [
     { id: "conversation", label: "Conversation", count: openQs, urgent: openQs > 0 },
-    { id: "notifications", label: "Notifications", count: (board.notifications ?? []).filter((n) => !n.cleared_at).length },
     { id: "home", label: "Home", count: queue.length + assistantQueue.length, urgent },
-    { id: "tickets", label: "My tickets", count: needsCount(ticketEntries) + needsCount(waitingEntries) },
-    { id: "mine", label: "My PRs", count: needsCount(myEntries) },
-    { id: "reviews", label: "Reviews", count: needsCount(reviewEntries) },
-    { id: "others", label: "Others' PRs", count: needsCount(otherEntries) },
+    { id: "tickets", label: "My tickets" },
+    { id: "mine", label: "My PRs", count: live.mineNeeds },
+    { id: "others", label: "Others' PRs", count: live.othersAsked },
     ...(project ? [{ id: "project" as const, label: projectLabel ?? "Project" }] : []),
   ];
 
@@ -1090,6 +1090,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
             </li>
           ))}
         </ul>
+        <Notifications items={board.notifications ?? []} />
         <div className="sidenav-foot">{headerDate(now)} · local</div>
       </nav>
 
@@ -1099,7 +1100,6 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
         {view === "conversation" && (
           <Conversation topics={topics} briefs={board.briefs} details={details} onOpen={openItem} onAnswerThread={answerThread} onAnswerPlan={answerPlan} onAnswerDecision={choose} onAnswerFinding={answerFinding} />
         )}
-        {view === "notifications" && <Notifications items={board.notifications ?? []} />}
         {view === "home" && (
           <div className="view">
             <header className="view-head">
@@ -1150,73 +1150,28 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
             </PrTable>
           </div>
         )}
-        {view === "tickets" && (
-          <div className="view">
-            <header className="view-head">
-              <h1>My tickets</h1>
-              <p>Tickets with no PR yet. Click a title to focus on it.</p>
-            </header>
-            {details["page:tickets"]?.plan && <PagePlan text={details["page:tickets"].plan} file={details["page:tickets"].plan_file} />}
-            <WidePanel title="Tickets with no PR yet" count={needsCount(ticketEntries)} total={ticketEntries.length} head={["Ticket", "Status"]}>
-              {rows(ticketEntries.map((e) => ({ ...e, title: `${e.id}  ${e.title}` })))}
-            </WidePanel>
-            <WidePanel title="Waiting on others" count={needsCount(waitingEntries)} total={waitingEntries.length} head={["Item", "Waiting on"]}>
-              {rows(waitingEntries)}
-            </WidePanel>
-          </div>
-        )}
-        {view === "mine" && (
-          <div className="view">
-            <header className="view-head">
-              <h1>My PRs</h1>
-              <p>Your open pull requests.</p>
-            </header>
-            <WidePanel title="My open PRs" count={needsCount(myEntries)} total={myEntries.length} head={["Pull request", "State", "CI", "Reviews"]}>
-              {rows(myEntries)}
-            </WidePanel>
-          </div>
-        )}
-        {view === "reviews" && (
-          <div className="view">
-            <header className="view-head">
-              <h1>Reviews</h1>
-              <p>Pull requests waiting on your review. Open a row to see the drafted comments.</p>
-            </header>
-            <PrTable title="Reviews waiting for your yes" count={needsCount(reviewEntries)} total={reviewEntries.length}>
-              {rows(reviewEntries)}
-            </PrTable>
-          </div>
-        )}
-        {view === "others" && (
-          <div className="view">
-            <header className="view-head">
-              <h1>Others' PRs</h1>
-              <p>Other people's open PRs that involve you.</p>
-            </header>
-            <PrTable title="Others' PRs with you" count={needsCount(otherEntries)} total={otherEntries.length}>
-              {rows(otherEntries)}
-            </PrTable>
-          </div>
-        )}
+        {view === "tickets" && <MyTickets items={(board.glance.tickets ?? []) as unknown as FeedTicket[]} meta={board.feed ?? undefined} />}
+        {view === "mine" && <MyPrs items={(board.glance.mine ?? []) as unknown as FeedPr[]} meta={board.feed ?? undefined} />}
+        {view === "others" && <OthersPrs
+            items={(board.glance.others ?? []) as unknown as FeedPr[]}
+            meta={board.feed ?? undefined}
+            x={{
+              badge: (p) => {
+                const d = reviewDrafts.get(`${p.repo}/${p.number}`);
+                const sum = d && draftSummary(d, reviewLocals);
+                return sum ? <span className={sum.done ? "draft-chip done" : "draft-chip"}>{sum.label}</span> : null;
+              },
+              extra: (p) => {
+                const d = reviewDrafts.get(`${p.repo}/${p.number}`);
+                return d ? <ReviewDrafts draft={d} locals={reviewLocals} onReview={onReview} /> : null;
+              },
+            }}
+          />}
         {view === "project" && <div className="view">{project}</div>}
         {footer}
       </div>
       {toastList}
     </div>
-  );
-}
-
-// A page-level plan above a list (e.g. the build order on My tickets), collapsible.
-function PagePlan({ text, file }: { text: string; file?: string }) {
-  const [open, setOpen] = useState(true);
-  return (
-    <section className="panel page-plan">
-      <button type="button" className="chev-btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <span className="chev" aria-hidden="true" />
-        {file ? file.replace(/\.md$/, "").replace(/[-_]/g, " ") : "Plan"}
-      </button>
-      {open && <Markdown text={text} className="md plan-md" />}
-    </section>
   );
 }
 

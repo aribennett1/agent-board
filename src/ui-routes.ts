@@ -6,6 +6,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { Hono } from 'hono';
 import { OWNERS, addNote, getTask, type Clock } from './board.ts';
 import type { WebhookConfig } from './config.ts';
+import { routeWebhook } from './routing.ts';
+import { readFeed, refreshFeed, type FeedDeps } from './feed.ts';
 
 // The action board UI's server side, ported from the original local board's dev-server routes (/__ab/*):
 // the live board feed, the webhook forwarder, the conversation record, delivery log, priority and "Not relevant".
@@ -35,6 +37,10 @@ export type UiOptions = {
   timeZone?: string;
   /** Override the ab runner (tests). */
   runAb?: (args: string[], stdin?: string) => Promise<{ code: number | null }>;
+  /** The .env file re-read on every forward for the per-bot webhook keys (AB_WEBHOOK_URL_<BOT>, AB_WEBHOOK_SECRET_<BOT>). */
+  envFile?: string;
+  /** Override the GitHub / Linear fetchers behind the feed (tests). */
+  feed?: FeedDeps;
 };
 
 const EMPTY_BOARD = () => ({ updated_at: new Date(0).toISOString(), decisions: [] as Json[], glance: { waiting: [], tickets: [], others: [], mine: [] } });
@@ -54,6 +60,8 @@ const isStr = (v: unknown): v is string => typeof v === 'string';
 const isId = (v: unknown): v is string => isStr(v) && v.length > 0;
 const isStrOrList = (v: unknown) => isStr(v) || (Array.isArray(v) && v.every(isStr));
 
+const BOT_OF_AUTHOR: Record<string, string> = { planner: 'Planner', engineer: 'Engineer', qa: 'QA', ops: 'dr eggbot', chief: 'Grok Bot' };
+
 /** Task questions and open cards, as decision cards. Ids: task:<task>:<note>, card:<card>. */
 export function derivedDecisions(db: DatabaseSync): Json[] {
   const state = new Map((db.prepare('SELECT decision_id, priority, cleared_at, answered_at FROM ui_derived_state').all() as Json[]).map((r) => [r.decision_id, r]));
@@ -71,7 +79,7 @@ export function derivedDecisions(db: DatabaseSync): Json[] {
       id, title: String(n.title).slice(0, 60), card_ref: null,
       context: `${n.author} asked this on task ${n.task_id}${n.ticket ? ` (${n.ticket})` : ''}. The task is in ${n.state}.`,
       question: n.body, what_happens_after: `Your answer is added to task ${n.task_id} as a note and wakes ${owner}.`,
-      options: [], tier: 'decision', group: `task:${n.task_id}`,
+      options: [], tier: 'decision', group: `task:${n.task_id}`, ...(BOT_OF_AUTHOR[n.author] ? { raised_by: BOT_OF_AUTHOR[n.author] } : {}),
       priority: s?.priority ?? (n.state === 'waiting_human' ? 'high' : 'medium'),
       created_at: n.created_at, updated_at: n.created_at,
     });
@@ -120,7 +128,11 @@ function asksWithStatus(db: DatabaseSync, asks: Json[]): Json[] {
 export function boardFeed(db: DatabaseSync): Json {
   const b: Json = doc(db, 'board') ?? EMPTY_BOARD();
   const notifications = db.prepare('SELECT id, bot, text, next_update, link, created_at, cleared_at FROM ui_notifications WHERE cleared_at IS NULL ORDER BY id DESC').all();
-  return { ...b, ...(Array.isArray(b.asks) ? { asks: asksWithStatus(db, b.asks) } : {}), decisions: [...(Array.isArray(b.decisions) ? b.decisions : []), ...derivedDecisions(db)], project: doc(db, 'project') ?? EMPTY_PROJECT(), notifications };
+  // My tickets, My PRs and Others' PRs come only from the server's own fetch (src/feed.ts), never from the ab document.
+  const f = readFeed(db);
+  const glance = { ...(b.glance ?? {}), tickets: f?.tickets ?? [], mine: f?.mine ?? [], others: f?.others ?? [] };
+  const feed = f ? { fetched_at: f.fetched_at, github: f.github, linear: f.linear } : null;
+  return { ...b, glance, feed, ...(Array.isArray(b.asks) ? { asks: asksWithStatus(db, b.asks) } : {}), decisions: [...(Array.isArray(b.decisions) ? b.decisions : []), ...derivedDecisions(db)], project: doc(db, 'project') ?? EMPTY_PROJECT(), notifications };
 }
 
 /** The delivery log line: only known fields in a fixed order, so a URL, auth value or message text is never stored. */
@@ -195,6 +207,15 @@ export function mountUi(app: Hono, db: DatabaseSync, clock: Clock, o: UiOptions 
 
   app.get('/__ab/config', (c) => c.json({ assistantName: o.assistantName ?? 'your assistant', timeZone: o.timeZone ?? 'America/New_York', webhookConfigured: Boolean(o.webhook) }));
 
+  // Fetch tickets and PRs now (the timer does it every two minutes). Rate limited to one run per 15 seconds.
+  let lastFeedRun = 0;
+  app.post('/__ab/feed/refresh', async (c) => {
+    if (Date.now() - lastFeedRun < 15_000) return c.json({ ok: true, skipped: true });
+    lastFeedRun = Date.now();
+    const f = await refreshFeed(db, o.feed);
+    return c.json({ ok: true, github: f.github.ok, linear: f.linear.ok });
+  });
+
   // Clear a notification. Never forwards to the wake webhook: this is only for the human's feed.
   app.post('/__ab/notifications/clear', async (c) => {
     const fail = (code: number) => c.json({ ok: false }, code as 200);
@@ -246,7 +267,9 @@ export function mountUi(app: Hono, db: DatabaseSync, clock: Clock, o: UiOptions 
       local = true;
     }
 
-    if (!o.webhook) {
+    const route = routeWebhook(db, p, () => derivedDecisions(db), o.webhook ?? null, o.envFile);
+    const hook = route.webhook;
+    if (!hook) {
       if (local) {
         void recordAsk(raw);
         return reply(200, 200);
@@ -254,10 +277,10 @@ export function mountUi(app: Hono, db: DatabaseSync, clock: Clock, o: UiOptions 
       return reply(503, null);
     }
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (o.webhook.auth) headers.Authorization = o.webhook.auth;
+    if (hook.auth) headers.Authorization = hook.auth;
     let status: number | null = null;
     try {
-      const up = await fetchImpl(o.webhook.url, { method: 'POST', headers, body: raw, signal: AbortSignal.timeout(15000) });
+      const up = await fetchImpl(hook.url, { method: 'POST', headers, body: raw, signal: AbortSignal.timeout(15000) });
       status = up.status;
       if (up.ok) {
         const askId = askIdOf(p);

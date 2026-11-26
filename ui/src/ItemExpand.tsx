@@ -42,6 +42,8 @@ export function NoteBox({
   buttonClass = "btn ghost small",
   sentLabel = "Sent to assistant",
   draftKey,
+  sendingLabel = "Sending to assistant...",
+  extra,
 }: {
   label: string;
   button?: string;
@@ -52,6 +54,9 @@ export function NoteBox({
   // e.g. "Sent to assistant": shown with the time once the note went through.
   sentLabel?: string;
   draftKey?: string;
+  sendingLabel?: string;
+  // Beside the send button (the recipient picker).
+  extra?: ReactNode;
 }) {
   const [sentAt, setSentAt] = useState<Date | null>(null);
   const [text, setText] = useState(() => loadNoteDraft(draftKey));
@@ -147,8 +152,9 @@ export function NoteBox({
           onClick={() => void send()}
         >
           {icon}
-          {state === "sending" ? "Sending to assistant..." : state === "failed" ? "Try again" : button}
+          {state === "sending" ? sendingLabel : state === "failed" ? "Try again" : button}
         </button>
+        {extra}
         {state === "sent" && (
           <span className="review-flag ok">
             {sentLabel} · {clockTime(sentAt!)}

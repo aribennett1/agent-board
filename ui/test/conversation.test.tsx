@@ -115,7 +115,7 @@ describe("Conversation view", () => {
     const q7 = document.querySelector<HTMLElement>('[data-question-uid="pr:app/7#q7"]')!;
     expect(within(q7).getByRole("img", { name: /Voice typing/ })).toBeTruthy();
     fireEvent.change(within(q7).getByLabelText("Or answer in your own words"), { target: { value: "Approve after lunch" } });
-    fireEvent.click(within(q7).getByRole("button", { name: "Send to assistant" }));
+    fireEvent.click(within(q7).getByRole("button", { name: /^Send to / }));
     await act(async () => {});
     expect(posted.at(-1)).toMatchObject({ event: "item.message", text: 'Answer to "Approve #7?": Approve after lunch' });
     expect(document.querySelector('[data-question-uid="pr:app/7#q7"]')).toBeNull();

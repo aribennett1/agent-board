@@ -8,6 +8,7 @@ import { loadServerConfig, ConfigError } from './config.ts';
 import { makeNotify, type Notify } from './webhook.ts';
 import { OWNERS, addNote, getTask, ingest, printSender, runWake, type Clock } from './board.ts';
 import { boardVersion } from './version.ts';
+import { startFeedTimer } from './feed.ts';
 import { mountUi, type UiOptions } from './ui-routes.ts';
 
 // shortcut: no auth here; run the board behind an auth proxy (e.g. Cloudflare Access) and never expose it directly. Linear signatures are not verified yet; add before exposing.
@@ -157,9 +158,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const assistantName = process.env.AGENT_BOARD_ASSISTANT_NAME?.trim() || undefined;
   const app = createApp(db, clock, {
     notify: makeNotify(cfg.webhook), githubWebhookSecret: cfg.githubWebhookSecret, assistantName,
-    ui: { dbPath: cfg.dbPath, webhook: cfg.webhook, timeZone: cfg.timeZone, repliesDir: process.env.AGENT_BOARD_REPLIES_DIR?.trim() || undefined },
+    ui: { envFile: fileURLToPath(new URL('../.env', import.meta.url)), dbPath: cfg.dbPath, webhook: cfg.webhook, timeZone: cfg.timeZone, repliesDir: process.env.AGENT_BOARD_REPLIES_DIR?.trim() || undefined },
   });
   serve({ fetch: app.fetch, port: cfg.port }, (i) => console.log(`agent-board on :${i.port}${cfg.webhook ? ', wake webhook on' : ', wake webhook off'}`));
+  startFeedTimer(db);
   // the save script: settle batches every 10s (shadow mode sender: logs only)
   setInterval(() => runWake(db, { ...clock, send: printSender }), 10_000);
 }

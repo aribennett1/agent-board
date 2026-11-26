@@ -34,6 +34,8 @@ export type WebhookPayload = {
 } & Choice & {
   answered_by: "app";
   answered_at: string;
+  // The bot the answer is sent to (the card's author, or the one picked beside the send button).
+  to_bot?: string;
 };
 
 // "Explain this better" on a card: asks the assistant to reword the decision. Never stored and never answers it.
@@ -201,7 +203,7 @@ export type DeliveryDeps = {
   report?: DeliveryReporter;
 };
 
-export function buildPayload(decision: Decision, pick: AppChoice, now: Date): WebhookPayload {
+export function buildPayload(decision: Decision, pick: AppChoice, now: Date, toBot?: string): WebhookPayload {
   const choice = toChoice(decision, pick);
   return {
     event: "decision.answered",
@@ -213,6 +215,7 @@ export function buildPayload(decision: Decision, pick: AppChoice, now: Date): We
     answered_by: "app",
     answered_at: now.toISOString(),
     ...("custom_text" in choice ? { custom_text: choice.custom_text } : {}),
+    ...(toBot ? { to_bot: toBot } : {}),
   } as WebhookPayload;
 }
 

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import type { Decision, ItemDetail, ReplyQuestion, TicketBrief as Brief } from "./data/types";
 import { TicketBrief } from "./TicketBrief";
 import type { AppChoice } from "./delivery";
@@ -12,7 +12,7 @@ import { FindingDraft, FindingStatusLine, type OnAnswerFinding } from "./ReviewF
 import { isFindingSettled } from "./reviewFindings";
 import { Markdown } from "./markdown";
 import { Checks } from "./Checks";
-import { botPillClass } from "./raisedBy";
+import { botPillClass, type BoardBot } from "./raisedBy";
 import type { HistoryMsg } from "./topics";
 
 // The landing view (t102u): one card per topic (ticket, PR or plan). Each card says what it is, what's happening and
@@ -28,9 +28,9 @@ const when = (iso: string) => {
 };
 
 export type Answerers = {
-  onAnswerThread: (itemKey: string, q: ReplyQuestion, text: string) => Promise<boolean>;
-  onAnswerPlan: (itemKey: string, label: string, text: string) => Promise<boolean>;
-  onAnswerDecision: (d: Decision, pick: AppChoice) => void;
+  onAnswerThread: (itemKey: string, q: ReplyQuestion, text: string, toBot?: string) => Promise<boolean>;
+  onAnswerPlan: (itemKey: string, label: string, text: string, toBot?: string) => Promise<boolean>;
+  onAnswerDecision: (d: Decision, pick: AppChoice, toBot?: string) => void;
   onAnswerFinding?: OnAnswerFinding;
 };
 
@@ -49,7 +49,30 @@ function Context({ text }: { text: string }) {
   );
 }
 
-function OpenQuestionBox({ q, a, onDone }: { q: TopicQuestion; a: Answerers; onDone: (text: string) => void }) {
+// The bots a card can be sent to. Grok Bot is only offered when it is the card's default (no known author).
+const PICKABLE: BoardBot[] = ["Planner", "QA", "Engineer", "dr eggbot"];
+
+// Split send button: the send button beside it reads "Send to <bot>" for the default; this picker sends to another bot.
+export function RecipientPicker({ value, onChange }: { value: BoardBot; onChange: (b: BoardBot) => void }) {
+  const options = PICKABLE.includes(value) ? PICKABLE : [...PICKABLE, value];
+  return (
+    <select className="recipient-picker" aria-label="Send to a different bot" value={value} onChange={(e) => onChange(e.target.value as BoardBot)}>
+      {options.map((b) => (
+        <option key={b} value={b}>
+          {b}
+        </option>
+      ))}
+    </select>
+  );
+}
+const DEFAULT_BOT: BoardBot = "Grok Bot";
+
+
+function OpenQuestionBox({ q, a, onDone }: { q: TopicQuestion; a: Answerers; onDone: (text: string, to?: string) => void }) {
+  const [recipient, setRecipient] = useState<BoardBot | undefined>();
+  const to: BoardBot = recipient ?? q.raisedBy ?? DEFAULT_BOT;
+  // Only name a recipient in the payload when the card has a known author or one was picked.
+  const toBot = recipient ?? q.raisedBy;
   const [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
   const [pickError, setPickError] = useState(false);
@@ -60,9 +83,9 @@ function OpenQuestionBox({ q, a, onDone }: { q: TopicQuestion; a: Answerers; onD
     let ok = false;
     setPickError(false);
     try {
-      if (q.kind === "thread" && q.thread) ok = await a.onAnswerThread(q.itemKey, q.thread, text);
-      else if (q.kind === "plan" && q.label) ok = await a.onAnswerPlan(q.itemKey, q.label, text);
-      if (ok) onDone(text);
+      if (q.kind === "thread" && q.thread) ok = await a.onAnswerThread(q.itemKey, q.thread, text, toBot);
+      else if (q.kind === "plan" && q.label) ok = await a.onAnswerPlan(q.itemKey, q.label, text, toBot);
+      if (ok) onDone(text, to);
     } finally {
       if (!ok) sending.current = false;
     }
@@ -73,8 +96,8 @@ function OpenQuestionBox({ q, a, onDone }: { q: TopicQuestion; a: Answerers; onD
     setBusy(true);
     if (q.kind === "decision" && q.decision) {
       sending.current = true;
-      a.onAnswerDecision(q.decision, id);
-      onDone(label);
+      a.onAnswerDecision(q.decision, id, toBot);
+      onDone(label, to);
     } else {
       const ok = await send(label);
       if (!ok) setPickError(true);
@@ -163,12 +186,12 @@ function OpenQuestionBox({ q, a, onDone }: { q: TopicQuestion; a: Answerers; onD
               sending.current = true;
               setBusy(true);
               const labels = q.options.filter((o) => picked.includes(o.id)).map((o) => o.label).join(", ");
-              a.onAnswerDecision(q.decision, picked);
-              onDone(labels);
+              a.onAnswerDecision(q.decision, picked, toBot);
+              onDone(labels, to);
               setBusy(false);
             }}
           >
-            Send to assistant
+            Send to {to}
           </button>
         </div>
       )}
@@ -176,11 +199,14 @@ function OpenQuestionBox({ q, a, onDone }: { q: TopicQuestion; a: Answerers; onD
       <NoteBox
         draftKey={q.uid}
         label={q.options.length ? "Or answer in your own words" : "Your answer"}
-        button="Send to assistant"
+        button={`Send to ${to}`}
+        sendingLabel={`Sending to ${to}...`}
+        sentLabel={`Sent to ${to}`}
+        extra={<RecipientPicker value={to} onChange={setRecipient} />}
         onSend={async (t) => {
           if (q.kind === "decision" && q.decision) {
-            a.onAnswerDecision(q.decision, { custom: t });
-            onDone(t);
+            a.onAnswerDecision(q.decision, { custom: t }, toBot);
+            onDone(t, to);
             return true;
           }
           return send(t);
@@ -246,6 +272,7 @@ function ThreadMessage({ m }: { m: HistoryMsg }) {
           {m.card.raisedBy && <span className={botPillClass(m.card.raisedBy)}>{m.card.raisedBy}</span>}
           <span className="msg-card-title">{m.card.title}</span>
           <span className="msg-card-answer">{m.card.answer}</span>
+          {m.card.to && <span className="msg-to">→ {m.card.to}</span>}
           {checks}
         </button>
         {open && m.card.body && <Markdown text={m.card.body} className="md msg-text" />}
@@ -255,7 +282,8 @@ function ThreadMessage({ m }: { m: HistoryMsg }) {
   return (
     <li className={`msg msg-${mine ? "you" : "bot"}`}>
       <p className="msg-who">
-        {m.who} <span className="msg-at">{when(m.at)}</span>
+        {m.who}
+        {m.to ? <span className="msg-to"> → {m.to}</span> : null} <span className="msg-at">{when(m.at)}</span>
         {checks}
       </p>
       <Markdown text={m.text} className="md msg-text" />
@@ -269,7 +297,7 @@ const tabOf = (key: string) => TAB_OF[key.split(":")[0]] ?? TAB_OF.decision;
 
 const BALL_CLASS = (ball: string) => (ball === "You" ? "you" : ball === "Done" ? "done" : ball === "Assistant" ? "bot" : "others");
 
-function TopicCard({ t, a, onOpen, sent, markSent, brief, detail }: { t: Topic; a: Answerers; onOpen: (key: string) => void; sent: Record<string, string>; markSent: (uid: string, text: string) => void; brief?: Brief; detail?: ItemDetail }) {
+function TopicCard({ t, a, onOpen, sent, sentTo, markSent, brief, detail }: { t: Topic; a: Answerers; onOpen: (key: string) => void; sent: Record<string, string>; sentTo: Record<string, string>; markSent: (uid: string, text: string, to?: string) => void; brief?: Brief; detail?: ItemDetail }) {
   const [history, setHistory] = useState(t.group !== "done");
   const open = t.open.filter((q) => !(q.uid in sent));
   const justSent: AnsweredQuestion[] = t.open.filter((q) => q.uid in sent).map((q) => ({
@@ -277,6 +305,7 @@ function TopicCard({ t, a, onOpen, sent, markSent, brief, detail }: { t: Topic; 
     label: q.label,
     text: q.text,
     answer: sent[q.uid],
+    ...(sentTo[q.uid] ? { to: sentTo[q.uid] } : {}),
     ...(q.finding?.status ? { status: q.finding.status } : {}),
     ...(q.finding?.posted_url ? { posted_url: q.finding.posted_url } : {}),
     ...(q.finding?.note ? { note: q.finding.note } : {}),
@@ -321,7 +350,7 @@ function TopicCard({ t, a, onOpen, sent, markSent, brief, detail }: { t: Topic; 
           </h4>
           <ol className="tq-list">
             {open.map((q) => (
-              <OpenQuestionBox key={q.uid} q={q} a={a} onDone={(text) => markSent(q.uid, text)} />
+              <OpenQuestionBox key={q.uid} q={q} a={a} onDone={(text, to) => markSent(q.uid, text, to)} />
             ))}
           </ol>
           <DontPostAny open={open} a={a} onDone={(uid, text) => markSent(uid, text)} />
@@ -332,7 +361,7 @@ function TopicCard({ t, a, onOpen, sent, markSent, brief, detail }: { t: Topic; 
           {answered.map((q) => (
             <li key={q.uid} data-answered-uid={q.uid}>
               ✓ {q.label ? `${q.label}: ` : ""}
-              <span className="answered-q">{q.label ? q.text.replace(new RegExp(`^${q.label}\\s*[:.]\\s*`), "") : q.text}</span> <span className="answered-a">you said {q.answer.startsWith('"') ? q.answer : `"${q.answer}"`}</span>
+              <span className="answered-q">{q.label ? q.text.replace(new RegExp(`^${q.label}\\s*[:.]\\s*`), "") : q.text}</span> <span className="answered-a">you said {q.answer.startsWith('"') ? q.answer : `"${q.answer}"`}</span>{q.to && <span className="msg-to"> → sent to {q.to}</span>}
               <FindingStatusLine status={q.status} postedUrl={q.posted_url} note={q.note} inline />
             </li>
           ))}
@@ -356,40 +385,108 @@ function TopicCard({ t, a, onOpen, sent, markSent, brief, detail }: { t: Topic; 
   );
 }
 
-export function Conversation({ topics, onOpen, briefs, details, ...a }: { topics: Topic[]; onOpen: (itemKey: string) => void; briefs?: Record<string, Brief>; details?: Record<string, ItemDetail> } & Answerers) {
-  const [sent, setSent] = useState<Record<string, string>>({});
+// One collapsible section per asking bot, plus Unknown for cards with no author data. Collapse state is remembered locally.
+const COLLAPSE_KEY = "agent-board:convo-collapsed";
+export const UNKNOWN = "Unknown";
+export const SECTION_ORDER: string[] = ["Planner", "QA", "Engineer", "dr eggbot", "Grok Bot", UNKNOWN];
+
+function loadCollapsed(): string[] {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(COLLAPSE_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+// Answering a card removes it from the page, so go back to the top the moment he sends.
+export function scrollToTop() {
+  try {
+    window.scrollTo?.(0, 0);
+    document.querySelector(".content")?.scrollTo?.(0, 0);
+  } catch {
+    // jsdom and old browsers: nothing to scroll
+  }
+}
+
+function BotSection({ name, open, collapsed, onToggle, topics, card }: { name: string; open: number; collapsed: boolean; onToggle: () => void; topics: Topic[]; card: (t: Topic) => ReactNode }) {
   const [showProgress, setShowProgress] = useState(false);
   const [showDone, setShowDone] = useState(false);
-  const markSent = (uid: string, text: string) => setSent((s) => ({ ...s, [uid]: text }));
-  const live = topics.map((t) => ({ ...t, open: t.open.filter((q) => !(q.uid in sent)) }));
   const mine = topics.filter((t) => t.group === "you");
   const progress = topics.filter((t) => t.group === "progress");
   const done = topics.filter((t) => t.group === "done");
-  const card = (t: Topic) => <TopicCard key={t.key} t={t} a={a} onOpen={onOpen} sent={sent} markSent={markSent} brief={briefs?.[t.key]} detail={details?.[t.key] ?? t.keys.map((k) => details?.[k]).find(Boolean)} />;
+  return (
+    <section className="bot-section" aria-label={name} data-bot-section={name}>
+      <button type="button" className="bot-section-head" aria-expanded={!collapsed} onClick={onToggle}>
+        <span className="chev" aria-hidden="true" />
+        <span className="bot-section-name">{name}</span>
+        <span className={open ? "bot-section-count open" : "bot-section-count"}>{open} open</span>
+      </button>
+      {!collapsed && (
+        <div className="bot-section-body">
+          {mine.length === 0 ? <p className="panel-empty">Nothing needs you here.</p> : mine.map(card)}
+          {progress.length > 0 && (
+            <div className="topic-group">
+              <button type="button" className="group-toggle" aria-expanded={showProgress} onClick={() => setShowProgress((x) => !x)}>
+                In progress ({progress.length})
+              </button>
+              {showProgress && progress.map(card)}
+            </div>
+          )}
+          {done.length > 0 && (
+            <div className="topic-group">
+              <button type="button" className="group-toggle" aria-expanded={showDone} onClick={() => setShowDone((x) => !x)}>
+                {showDone ? "Hide done" : `Show done (${done.length})`}
+              </button>
+              {showDone && done.map(card)}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function Conversation({ topics, onOpen, briefs, details, ...a }: { topics: Topic[]; onOpen: (itemKey: string) => void; briefs?: Record<string, Brief>; details?: Record<string, ItemDetail> } & Answerers) {
+  const [sent, setSent] = useState<Record<string, string>>({});
+  const [sentTo, setSentTo] = useState<Record<string, string>>({});
+  const [collapsed, setCollapsed] = useState<string[]>(loadCollapsed);
+  const markSent = (uid: string, text: string, to?: string) => {
+    setSent((s) => ({ ...s, [uid]: text }));
+    if (to) setSentTo((s) => ({ ...s, [uid]: to }));
+    scrollToTop();
+  };
+  const toggle = (name: string) =>
+    setCollapsed((c) => {
+      const next = c.includes(name) ? c.filter((x) => x !== name) : [...c, name];
+      try {
+        window.localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next));
+      } catch {
+        // storage unavailable: the section still toggles
+      }
+      return next;
+    });
+  const live = topics.map((t) => ({ ...t, open: t.open.filter((q) => !(q.uid in sent)) }));
+  const card = (t: Topic) => <TopicCard key={t.key} t={t} a={a} onOpen={onOpen} sent={sent} sentTo={sentTo} markSent={markSent} brief={briefs?.[t.key]} detail={details?.[t.key] ?? t.keys.map((k) => details?.[k]).find(Boolean)} />;
+  const nameOf = (t: Topic) => t.raisedBy ?? UNKNOWN;
+  const names = SECTION_ORDER.filter((n) => topics.some((t) => nameOf(t) === n));
   return (
     <div className="view convo">
       <p className="convo-summary" role="status">
         {summaryLine(live)}
       </p>
-      <section className="topic-group" aria-label="Needs you">
-        {mine.length === 0 ? <p className="panel-empty">Nothing needs you here.</p> : mine.map(card)}
-      </section>
-      {progress.length > 0 && (
-        <section className="topic-group" aria-label="In progress">
-          <button type="button" className="group-toggle" aria-expanded={showProgress} onClick={() => setShowProgress((s) => !s)}>
-            In progress ({progress.length})
-          </button>
-          {showProgress && progress.map(card)}
-        </section>
-      )}
-      {done.length > 0 && (
-        <section className="topic-group" aria-label="Done">
-          <button type="button" className="group-toggle" aria-expanded={showDone} onClick={() => setShowDone((s) => !s)}>
-            {showDone ? "Hide done" : `Show done (${done.length})`}
-          </button>
-          {showDone && done.map(card)}
-        </section>
-      )}
+      {names.length === 0 && <p className="panel-empty">Nothing needs you here.</p>}
+      {names.map((n) => (
+        <BotSection
+          key={n}
+          name={n}
+          open={live.filter((t) => nameOf(t) === n).reduce((c, t) => c + t.open.length, 0)}
+          collapsed={collapsed.includes(n)}
+          onToggle={() => toggle(n)}
+          topics={topics.filter((t) => nameOf(t) === n)}
+          card={card}
+        />
+      ))}
     </div>
   );
 }

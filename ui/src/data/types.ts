@@ -261,6 +261,8 @@ export type Ask = {
   status?: "sent" | "delivered" | "read";
   reply_to?: string;
   ref?: string;
+  // The bot this was sent to.
+  to_bot?: string;
 };
 
 export type ItemDetail = {
@@ -318,6 +320,8 @@ export type Board = {
   webhook_configured?: boolean;
   // Uncleared status notes from the bots (ab notify). Never mixed into Conversation and never part of the red-dot count.
   notifications?: BoardNotification[];
+  // Fetch status of the server's own GitHub / Linear pulls behind My tickets, My PRs and Others' PRs.
+  feed?: { fetched_at?: string; github?: { ok: boolean; login?: string | null; error?: string | null }; linear?: { ok: boolean; configured: boolean; error?: string | null } } | null;
   // ab wipe: when the board was emptied. Local history from before it is not shown or re-sent.
   reset_at?: string;
   // Short summaries of ticket keys, shown next to the first mention of a key in any board text (ab ticket-summaries).

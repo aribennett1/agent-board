@@ -34,9 +34,10 @@
 //     shows a highlighted diff of current_text against post_text, not two full copies. "what_happens_after"
 //     must say what actually happens on GitHub (edit, or delete and re-post), not that the answer only goes to ops.
 //     Recommendations are shown, never preselected. Dr. Assistant cards are not required to have triage fields.
-//   ab raise --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> '<json>'
-//                                                      optional. Stores raised_by on the card so the Conversation tab can
-//                                                      name who asked. Re-raise keeps it if --bot is left out.
+//   ab raise '<json>' [--bot <Planner|QA|Engineer|dr eggbot|Grok Bot>]
+//                                                      --bot is never needed: the Conversation tab works out who raised a
+//                                                      card from the card's id, its ticket or plan, and task notes. If it
+//                                                      is given it is stored as raised_by and takes priority.
 //   ab assistant '<json>' | ab assistant < finding.json
 //                                                      posts an assistant finding or proposed bot change on the Dr. Assistant tab
 //                                                      (#assistant). Same title/context/question rules as raise, plus required
@@ -700,7 +701,13 @@ function askPrKey(link, section) {
   return m ? `${section === "mine" ? "mypr" : "pr"}:${m[1]}/${m[2]}` : null;
 }
 const slugOf = (t) => (String(t).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80).replace(/-+$/, "") || "untitled");
+// The ask the board stores for a payload, plus who it was sent to when the person picked or the card named a bot (to_bot).
 function askOf(p, b) {
+  const a = askOfBase(p, b);
+  if (a && p && BOARD_BOTS.has(p.to_bot)) a.to_bot = p.to_bot;
+  return a;
+}
+function askOfBase(p, b) {
   if (!p || typeof p !== "object") return null;
   const short = (t) => String(t ?? "").trim();
   if (p.event === "item.message") {
