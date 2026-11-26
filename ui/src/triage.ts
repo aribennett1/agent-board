@@ -54,20 +54,6 @@ export function isActionable(d: Decision, ctx: StaleContext = {}, appAnswered: R
   return true;
 }
 
-export function waitingLabel(createdAt: string | undefined, now: Date = new Date()): string | null {
-  if (!createdAt) return null;
-  const t = Date.parse(createdAt);
-  if (Number.isNaN(t)) return null;
-  const ms = Math.max(0, now.getTime() - t);
-  const mins = Math.floor(ms / 60000);
-  if (mins < 1) return "waiting just now";
-  if (mins < 60) return `waiting ${mins} minute${mins === 1 ? "" : "s"}`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `waiting ${hours} hour${hours === 1 ? "" : "s"}`;
-  const days = Math.floor(hours / 24);
-  return `waiting ${days} day${days === 1 ? "" : "s"}`;
-}
-
 export function sortTriage<T extends Decision>(cards: readonly T[]): T[] {
   const rank = (t: Tier) => TIERS.indexOf(t);
   return [...cards].sort((a, b) => {

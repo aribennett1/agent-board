@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cardStamp, headerDate, stampOf } from "../src/stamp";
+import { cardStamp, formatPostedTime, headerDate, stampOf } from "../src/stamp";
 
 // Fri Nov 13 2026, 10:00 AM Eastern (EST, UTC-5).
 const now = new Date("2026-11-13T15:00:00.000Z");
@@ -78,5 +78,50 @@ describe("headerDate", () => {
     // EDT (UTC-4) in summer.
     expect(headerDate(new Date("2026-07-02T03:59:00.000Z"))).toBe("Wed 1 Jul");
     expect(headerDate(new Date("2026-07-02T04:00:00.000Z"))).toBe("Thu 2 Jul");
+  });
+});
+
+describe("formatPostedTime", () => {
+  // Wed Nov 25 2026, 3:20 PM Eastern (EST, UTC-5).
+  const now = new Date("2026-11-25T20:20:00.000Z");
+
+  it("shows the time only when the card was posted today in Eastern time", () => {
+    expect(formatPostedTime("2026-11-25T18:55:00.000Z", now)).toBe("1:55 PM ET");
+    expect(formatPostedTime("2026-11-25T05:00:00.000Z", now)).toBe("12:00 AM ET");
+    expect(formatPostedTime("2026-11-26T04:20:00.000Z", now)).toBe("11:20 PM ET");
+  });
+
+  it("includes the date, but not the year, when the card was posted on another day this year", () => {
+    expect(formatPostedTime("2026-11-24T18:55:00.000Z", now)).toBe("Nov 24, 1:55 PM ET");
+    // 4:20 UTC on Nov 25 is 11:20 PM on Nov 24 in New York.
+    expect(formatPostedTime("2026-11-25T04:20:00.000Z", now)).toBe("Nov 24, 11:20 PM ET");
+  });
+
+  it("adds the year only when it differs from now's Eastern year", () => {
+    expect(formatPostedTime("2025-11-25T18:55:00.000Z", now)).toBe("Nov 25, 2025, 1:55 PM ET");
+    expect(formatPostedTime("2026-01-02T15:05:00.000Z", now)).toBe("Jan 2, 10:05 AM ET");
+  });
+
+  it("follows daylight saving time, not a fixed UTC offset", () => {
+    // The same 16:55 UTC is 11:55 AM in January (EST) and 12:55 PM in July (EDT).
+    expect(formatPostedTime("2026-01-15T16:55:00.000Z", new Date("2026-01-15T20:00:00.000Z"))).toBe("11:55 AM ET");
+    expect(formatPostedTime("2026-07-15T16:55:00.000Z", new Date("2026-07-15T20:00:00.000Z"))).toBe("12:55 PM ET");
+    // Spring-forward 2026: 2:00 AM EST becomes 3:00 AM EDT on March 8.
+    expect(formatPostedTime("2026-03-08T06:30:00.000Z", new Date("2026-03-08T16:00:00.000Z"))).toBe("1:30 AM ET");
+    expect(formatPostedTime("2026-03-08T07:30:00.000Z", new Date("2026-03-08T16:00:00.000Z"))).toBe("3:30 AM ET");
+  });
+
+  it("rolls 'today' at midnight Eastern, not UTC or the browser's zone", () => {
+    const justAfterMidnightEt = new Date("2026-11-26T05:00:00.000Z");
+    expect(formatPostedTime("2026-11-26T04:55:00.000Z", justAfterMidnightEt)).toBe("Nov 25, 11:55 PM ET");
+    expect(formatPostedTime("2026-11-26T05:05:00.000Z", justAfterMidnightEt)).toBe("12:05 AM ET");
+  });
+
+  it("returns null when the stamp is missing or unusable, and uses plain spaces", () => {
+    expect(formatPostedTime(undefined, now)).toBeNull();
+    expect(formatPostedTime("", now)).toBeNull();
+    expect(formatPostedTime("  ", now)).toBeNull();
+    expect(formatPostedTime("not a date", now)).toBeNull();
+    expect(formatPostedTime("2026-11-25T18:55:00.000Z", now)).not.toMatch(/[  ]/);
   });
 });

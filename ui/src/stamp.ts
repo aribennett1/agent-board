@@ -51,3 +51,23 @@ export function cardStamp(d: { created_at?: string; updated_at?: string }, now?:
   const s = stampOf(d, now);
   return s && `${s.verb} ${s.when}`;
 }
+
+// Posted time on a card chip, always in America/New_York, regardless of the browser's zone.
+// Today: "1:55 PM ET". Another day this year: "Nov 25, 1:55 PM ET". Another year includes the year.
+const POSTED_ZONE = "America/New_York";
+const postedFmt = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-US", { timeZone: POSTED_ZONE, ...o });
+const POSTED_TIME = postedFmt({ hour: "numeric", minute: "2-digit" });
+const POSTED_DAY = postedFmt({ year: "numeric", month: "numeric", day: "numeric" });
+const POSTED_YEAR = postedFmt({ year: "numeric" });
+const POSTED_MONTH_DAY = postedFmt({ month: "short", day: "numeric" });
+const POSTED_MONTH_DAY_YEAR = postedFmt({ month: "short", day: "numeric", year: "numeric" });
+
+export function formatPostedTime(createdAt: string | undefined, now: Date = new Date()): string | null {
+  if (typeof createdAt !== "string" || !createdAt.trim()) return null;
+  const t = Date.parse(createdAt);
+  if (Number.isNaN(t)) return null;
+  const time = plain(POSTED_TIME.format(t));
+  if (POSTED_DAY.format(t) === POSTED_DAY.format(now)) return `${time} ET`;
+  const date = plain((POSTED_YEAR.format(t) === POSTED_YEAR.format(now) ? POSTED_MONTH_DAY : POSTED_MONTH_DAY_YEAR).format(t));
+  return `${date}, ${time} ET`;
+}

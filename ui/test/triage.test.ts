@@ -8,7 +8,6 @@ import {
   nextFiveMinutes,
   sameSha,
   sortTriage,
-  waitingLabel,
 } from "../src/triage";
 
 const at = (iso: string, extra: Partial<Decision> = {}): Decision => ({
@@ -66,15 +65,6 @@ describe("isActionable", () => {
   });
 });
 
-describe("waitingLabel", () => {
-  const now = new Date("2026-11-25T20:20:00.000Z");
-  it("uses minutes, hours, then days", () => {
-    expect(waitingLabel("2026-11-25T20:19:30.000Z", now)).toBe("waiting just now");
-    expect(waitingLabel("2026-11-25T20:00:00.000Z", now)).toBe("waiting 20 minutes");
-    expect(waitingLabel("2026-11-25T19:20:00.000Z", now)).toBe("waiting 1 hour");
-    expect(waitingLabel("2026-11-23T20:20:00.000Z", now)).toBe("waiting 2 days");
-  });
-});
 
 describe("sortTriage, groupByTicket, nextFiveMinutes", () => {
   const cards: Decision[] = [

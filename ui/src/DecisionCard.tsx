@@ -12,11 +12,11 @@ import { bareUrl, Link, linkify } from "./linkify";
 import { inline } from "./markdown";
 import { effectivePriority, PRIORITIES, PRIORITY_LABEL } from "./priority";
 import { sanitizeSvg } from "./sanitizeSvg";
-import { stampOf } from "./stamp";
+import { formatPostedTime, stampOf } from "./stamp";
 import { ContextBody } from "./contextBody";
 import { GlanceHeader, Recommendation, DraftToggle } from "./GlanceHeader";
 import { optionColorClass } from "./optionColor";
-import { cardStale, effectiveTier, TIER_LABEL, waitingLabel, type StaleContext } from "./triage";
+import { cardStale, effectiveTier, TIER_LABEL, type StaleContext } from "./triage";
 import { botPillClass, raisedByOf, type BoardBot } from "./raisedBy";
 import { DEFAULT_BOT, RecipientPicker } from "./sendTo";
 
@@ -182,7 +182,7 @@ export function DecisionCard({
   const stamp = stampOf(decision, now ?? new Date());
   const clock = now ?? new Date();
   const stale = cardStale(decision, staleCtx);
-  const waiting = waitingLabel(decision.created_at, clock);
+  const posted = formatPostedTime(decision.created_at, clock);
   const tier = effectiveTier(decision);
   const toggle = (id: string) =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -233,7 +233,7 @@ export function DecisionCard({
               Commit <code>{decision.sha}</code>
             </span>
           )}
-          {waiting && <span className="waiting-chip">{waiting}</span>}
+          {posted && <span className="waiting-chip">{posted}</span>}
         </div>
       )}
       {isCommentEdit(decision) && (decision.glance?.asking?.trim() || decision.question) && (
