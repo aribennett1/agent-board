@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { ConfigError, loadServerConfig, loadWebhookConfig, resolveAuthor } from '../src/config.ts';
 
 test('defaults apply when the env is empty', () => {
-  assert.deepEqual(loadServerConfig({}), { dbPath: './agent-board.db', port: 8787, githubWebhookSecret: null, webhook: null });
+  assert.deepEqual(loadServerConfig({}), { dbPath: './agent-board.db', port: 8787, githubWebhookSecret: null, webhook: null, timeZone: 'America/New_York' });
+  assert.throws(() => loadServerConfig({ AGENT_BOARD_TIMEZONE: 'Mars/Base' }), /AGENT_BOARD_TIMEZONE must be an IANA time zone/);
 });
 
 test('PORT must be an integer from 1 to 65535', () => {

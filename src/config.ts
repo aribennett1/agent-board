@@ -1,6 +1,6 @@
 import { AUTHORS, type Author } from './db.ts';
 
-export type ServerConfig = { dbPath: string; port: number; githubWebhookSecret: string | null; webhook: WebhookConfig | null };
+export type ServerConfig = { dbPath: string; port: number; githubWebhookSecret: string | null; webhook: WebhookConfig | null; timeZone: string };
 
 export class ConfigError extends Error {}
 
@@ -22,7 +22,13 @@ export function loadServerConfig(env: Env = process.env): ServerConfig {
   const secret = env.GITHUB_WEBHOOK_SECRET;
   if (secret !== undefined && secret.trim() === '') throw new ConfigError('GITHUB_WEBHOOK_SECRET is set but empty; unset it or give it a value');
 
-  return { dbPath, port, githubWebhookSecret: secret ?? null, webhook: loadWebhookConfig(env) };
+  const timeZone = env.AGENT_BOARD_TIMEZONE?.trim() || 'America/New_York';
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone });
+  } catch {
+    throw new ConfigError(`AGENT_BOARD_TIMEZONE must be an IANA time zone like America/New_York, got "${timeZone}"`);
+  }
+  return { dbPath, port, githubWebhookSecret: secret ?? null, webhook: loadWebhookConfig(env), timeZone };
 }
 
 /** The bot identity for CLI writes: --bot flag, else AGENT_BOT. */

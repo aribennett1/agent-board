@@ -3,12 +3,12 @@ import { fileURLToPath } from 'node:url';
 import type { DatabaseSync } from 'node:sqlite';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
-import { readFileSync } from 'node:fs';
 import { open } from './db.ts';
 import { loadServerConfig, ConfigError } from './config.ts';
 import { makeNotify, type Notify } from './webhook.ts';
 import { OWNERS, addNote, getTask, ingest, printSender, runWake, type Clock } from './board.ts';
 import { boardVersion } from './version.ts';
+import { mountUi, type UiOptions } from './ui-routes.ts';
 
 // shortcut: no auth here; run the board behind an auth proxy (e.g. Cloudflare Access) and never expose it directly. Linear signatures are not verified yet; add before exposing.
 
@@ -34,32 +34,30 @@ function normalizeGithub(event: string, b: Json): { pr: unknown; type: string; p
   return { pr: b.pull_request?.number ?? b.number ?? b.check_run?.pull_requests?.[0]?.number, type: `${event}:${b.action ?? ''}`, payload: {} };
 }
 
-const PUBLIC = new URL('../public/', import.meta.url);
-const FILES: Record<string, string> = {
-  '/': 'index.html', '/app.js': 'app.js', '/mic.js': 'mic.js', '/badge.js': 'badge.js', '/poll.js': 'poll.js', '/render.js': 'render.js', '/styles.css': 'styles.css',
-  '/favicon.svg': 'favicon.svg', '/favicon-needs.svg': 'favicon-needs.svg',
-};
-const TYPES: Record<string, string> = { html: 'text/html', js: 'text/javascript', css: 'text/css', svg: 'image/svg+xml' };
-
-export type AppOptions = { notify?: Notify; githubWebhookSecret?: string | null; assistantName?: string };
+export type AppOptions = { notify?: Notify; githubWebhookSecret?: string | null; assistantName?: string; ui?: UiOptions };
 
 export function createApp(db: DatabaseSync, clock: Clock, opts: AppOptions = {}): Hono {
   const app = new Hono();
   const notify = opts.notify ?? (async () => 'disabled' as const);
 
   // The board has no login of its own. Reject cross-site browser writes; real access control is the auth proxy in front.
-  app.use('/api/*', async (c, next) => {
+  const sameOrigin = async (c: any, next: () => Promise<void>) => {
     const origin = c.req.header('Origin');
-    if (c.req.method !== 'GET' && origin && new URL(origin).host !== c.req.header('Host')) return c.json({ error: 'cross-origin write refused' }, 403);
+    let host: string | null = null;
+    try {
+      host = origin ? new URL(origin).host : null;
+    } catch {
+      return c.json({ error: 'bad origin' }, 403);
+    }
+    if (c.req.method !== 'GET' && origin && host !== c.req.header('Host')) return c.json({ error: 'cross-origin write refused' }, 403);
     await next();
-  });
+  };
+  app.use('/api/*', sameOrigin);
+  app.use('/__ab/*', sameOrigin);
 
   app.get('/api/config', (c) => c.json({ assistantName: opts.assistantName ?? 'your assistant' }));
   app.get('/api/version', (c) => c.json({ version: boardVersion(db) }, 200, { 'Cache-Control': 'no-store' }));
 
-  for (const [path, file] of Object.entries(FILES)) {
-    app.get(path, (c) => c.body(readFileSync(new URL(file, PUBLIC)), 200, { 'Content-Type': `${TYPES[file.split('.').pop()!]}; charset=utf-8`, 'Cache-Control': 'no-cache' }));
-  }
 
   function readBody(raw: string): Json | null {
     try {
@@ -141,6 +139,7 @@ export function createApp(db: DatabaseSync, clock: Clock, opts: AppOptions = {})
     return c.json({ ok: webhook === 'sent', webhook }, webhook === 'sent' ? 200 : webhook === 'disabled' ? 503 : 502);
   });
 
+  mountUi(app, db, clock, { assistantName: opts.assistantName, ...opts.ui });
   return app;
 }
 
@@ -155,7 +154,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   const db = open(cfg.dbPath);
   const clock = { now: () => new Date() };
-  const app = createApp(db, clock, { notify: makeNotify(cfg.webhook), githubWebhookSecret: cfg.githubWebhookSecret, assistantName: process.env.AGENT_BOARD_ASSISTANT_NAME?.trim() || undefined });
+  const assistantName = process.env.AGENT_BOARD_ASSISTANT_NAME?.trim() || undefined;
+  const app = createApp(db, clock, {
+    notify: makeNotify(cfg.webhook), githubWebhookSecret: cfg.githubWebhookSecret, assistantName,
+    ui: { dbPath: cfg.dbPath, webhook: cfg.webhook, timeZone: cfg.timeZone, repliesDir: process.env.AGENT_BOARD_REPLIES_DIR?.trim() || undefined },
+  });
   serve({ fetch: app.fetch, port: cfg.port }, (i) => console.log(`agent-board on :${i.port}${cfg.webhook ? ', wake webhook on' : ', wake webhook off'}`));
   // the save script: settle batches every 10s (shadow mode sender: logs only)
   setInterval(() => runWake(db, { ...clock, send: printSender }), 10_000);

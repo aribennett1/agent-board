@@ -105,3 +105,40 @@ CREATE TABLE IF NOT EXISTS drift_checks (
   mismatch INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+
+-- Action board UI store. The board document (decisions, asks, glance, details, reviews, briefs) and the project tab
+-- are JSON documents written by bin/ab.mjs; tasks and cards above are merged in as decisions when served.
+CREATE TABLE IF NOT EXISTS ui_doc (
+  key TEXT PRIMARY KEY CHECK (key IN ('board','project')),
+  json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+-- "Not relevant anymore" and ab clear keep the card here so ab restore can bring it back. Append-only.
+CREATE TABLE IF NOT EXISTS ui_tombstones (
+  id INTEGER PRIMARY KEY,
+  card_id TEXT NOT NULL,
+  json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE TABLE IF NOT EXISTS ui_log (
+  id INTEGER PRIMARY KEY,
+  json TEXT NOT NULL
+);
+-- One row per webhook POST attempt the browser reports, without the URL, auth value or message text.
+CREATE TABLE IF NOT EXISTS ui_delivery_log (
+  id INTEGER PRIMARY KEY,
+  json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+-- Webhook message ids already delivered, so a retried "Message the assistant" is never sent twice.
+CREATE TABLE IF NOT EXISTS ui_delivered (
+  message_id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+-- Board-side state for decisions derived from tasks and cards (task:<id>:<note>, card:<id>).
+CREATE TABLE IF NOT EXISTS ui_derived_state (
+  decision_id TEXT PRIMARY KEY,
+  priority TEXT CHECK (priority IN ('high','medium','low')),
+  cleared_at TEXT,
+  answered_at TEXT
+);
