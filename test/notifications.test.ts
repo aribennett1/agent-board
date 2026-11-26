@@ -54,7 +54,7 @@ test('ab notify stores a short note and the board serves it newest first, never 
   assert.equal(a.code, 0);
   assert.equal(a.out.bot, 'Planner');
   assert.equal(a.out.next_update, '1:15 PM ET');
-  const b = ab(dbPath, 'notify', '--bot', 'QA', '--text', 'Approved PR #12 at `abc1234`.', '--link', 'https://example.test/12');
+  const b = ab(dbPath, 'notify', '--bot', 'QA', '--text', 'Approved [PR #12](https://github.com/ROWSHR/rows-backend/pull/12) at `abc1234`.', '--link', 'https://example.test/12');
   assert.equal(b.code, 0);
   const db = open(dbPath);
   const app = createApp(db, env().clock, { ui: { webhook: HOOK, fetchImpl: async () => ({ ok: true, status: 200 }) } });

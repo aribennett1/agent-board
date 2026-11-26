@@ -59,14 +59,28 @@
 //                                                      A re-post of the same id updates the open card in place.
 //                                                      -> {"ok","board":"live","card":{...,"section":"assistant","bot","rule",
 //                                                      "seen","proposed_fix","decision_id",...}}
+//   ab slack-draft --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> --id <id> --channel-id C… --channel "#name"
+//                                                      --text "..." --why "..." --group ROWS-1234 --card-ref <url>
+//                                                      [--thread ts] [--thread-link url] [--title "..."] [--priority high|medium|low]
+//                                                      [--text-file f]  or  ab slack-draft --bot QA '<json>'
+//                                                      raises a Slack draft card. Eric sees a preview, can edit the text, and
+//                                                      taps Send to Slack or Don't send. The answer payload is
+//                                                      {event:"decision.answered", action:"send"|"decline", text?, ...} and goes
+//                                                      to the raising bot, which posts that exact text once, and only after Send.
+//                                                      slack.text must start with "This is Eric's bot posting on his behalf."
+//                                                      A bot must never post to Slack without this card's Send answer.
+//                                                      Same group/card_ref/id-prefix rules as raise. -> {"ok","board":"live","card":{...}}
 //   ab notify --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> --text "..." [--next "1:15 PM ET"] [--link url]
 //                                                      posts a short Markdown status note to the Notifications tab (starting work, a next-update time, a QA approval).
+//                                                      Ticket and PR mentions in --text must be markdown links, same rule as raise.
 //                                                      Acknowledging one never wakes a bot. Storage mode only.
 //   ab read <id|item>                               marks the human's messages on that item as read by the assistant (blue checks on the board).
 //                                                      <id> is a decision id (task:T-1:4 too) or an item key (ticket:PROJ-1, decision:<id>).
 //                                                      ab answer and ab reply do this for their item too. Deterministic: no AI involved.
 //   ab answer <id> <opt[,opt]> --by chat|app [--at ISO]
 //   ab answer <id> --custom "text" --by chat|app [--at ISO]
+//   ab answer <id> --action send --text "final text" --by chat|app [--at ISO]
+//   ab answer <id> --action decline --by chat|app [--at ISO]
 //   ab clear <id> --reason "why"                    (tombstoned: raise refuses it later) -> {"ok","status":"cleared","id"}
 //                                                      the tombstone line in .ab-cleared.jsonl is {id, reason, at, card}: card is
 //                                                      the removed decision as it was (lines from before this have no card).
@@ -174,6 +188,8 @@ import { createRequire } from "node:module";
 import { approvalState, changesFacts, ciReport, myReviewComments, prData, reviewCommentExists } from "./gh-enrich.mjs";
 import { buildContext } from "../src/context.ts";
 import { applyPrune, boardAfter, countsOf, planPrune } from "../src/prune.ts";
+import { cardTicketLinkError, ticketLinkError } from "../src/ticket-links.ts";
+import { isSlackDraft, normalizeSlack, slackDraftError } from "../src/slack-draft.ts";
 
 // Storage: the agent-board SQLite file (AGENT_BOARD_DB, default ./agent-board.db) unless AB_FILE names a board.ts
 // file (the file mode is kept for the UI's own tests and for importing an old board.ts).
@@ -218,7 +234,7 @@ const A = "/* BOARD-JSON-START */", Z = "/* BOARD-JSON-END */";
 const PROJECT_FILE = process.env.AB_PROJECT_FILE || path.join(path.dirname(FILE), "project.ts");
 const PA = "/* PROJECT-JSON-START */", PZ = "/* PROJECT-JSON-END */";
 const BOARD_BOTS = new Set(["Planner", "QA", "Engineer", "dr eggbot", "Grok Bot"]);
-const ALLOWED = new Set(["id", "title", "card_ref", "context", "question", "what_happens_after", "details", "options", "multiSelect", "allowCustom", "priority", "pinned", "created_at", "section", "rule", "seen", "proposed_fix", "bot", "fixes", "svg", "tier", "estimate", "unblocks", "sha", "group", "glance", "joke", "recommendation", "draft", "superseded_by", "stale_reason", "severity", "answers_comment", "post_text", "current_text", "post_comments", "already_decided", "raised_by"]);
+const ALLOWED = new Set(["id", "title", "card_ref", "context", "question", "what_happens_after", "details", "options", "multiSelect", "allowCustom", "priority", "pinned", "created_at", "section", "rule", "seen", "proposed_fix", "bot", "fixes", "svg", "tier", "estimate", "unblocks", "sha", "group", "glance", "joke", "recommendation", "draft", "superseded_by", "stale_reason", "severity", "answers_comment", "post_text", "current_text", "post_comments", "already_decided", "raised_by", "kind", "slack"]);
 // Priority: missing (or anything else in a hand-edited file) means medium.
 const PRIORITIES = ["high", "medium", "low"];
 const isPriority = (v) => typeof v === "string" && PRIORITIES.includes(v);
@@ -284,7 +300,7 @@ function isReviewOrEditCard(d) {
   return Boolean(d.post_comments || d.answers_comment || d.current_text);
 }
 function diagramError(d) {
-  if (d.section === "assistant" || isReviewOrEditCard(d)) return null;
+  if (d.section === "assistant" || isReviewOrEditCard(d) || isSlackDraft(d)) return null;
   if (d.tier && d.tier !== "decision") return null;
   if (typeof d.svg === "string" && d.svg.trim()) return null;
   const t = [d.title, d.question, d.context].filter(Boolean).join(" ");
@@ -478,6 +494,7 @@ function perFindingReviewError(d) {
   return null;
 }
 function postApprovalError(d) {
+  if (isSlackDraft(d)) return null;
   if (d.answers_comment !== undefined) {
     const e = answersCommentError(d.answers_comment);
     if (e) return e;
@@ -754,7 +771,8 @@ function askOfBase(p, b) {
     if (p.event === "decision.not_relevant") return { id: `${p.decision_id}:not-relevant`, at: p.cleared_at, ...base, kind: "click", text: "Not relevant anymore" };
     const custom = p.answer === "custom";
     const label = Array.isArray(p.answer_label) ? p.answer_label.join(", ") : short(p.answer_label);
-    return { id: `${p.decision_id}:answer`, at: p.answered_at, ...base, kind: custom ? "custom" : "answer", text: custom ? short(p.custom_text ?? label) : label };
+    const text = p.action === "send" ? short(p.text ?? p.custom_text ?? label) : p.action === "decline" ? (label || "Don't send") : custom ? short(p.custom_text ?? label) : label;
+    return { id: `${p.decision_id}:answer`, at: p.answered_at, ...base, kind: custom ? "custom" : "answer", text };
   }
   if (p.event === "review.answer") {
     if (!nonBlank(p.repo) || !Number.isInteger(p.pr) || !nonBlank(p.comment_id)) return null;
@@ -1020,6 +1038,7 @@ function afterError(t) {
   return null;
 }
 function optionsShapeError(d) {
+  if (isSlackDraft(d)) return Array.isArray(d.options) && d.options.length ? "slack_draft cards use Send to Slack / Don't send, not options" : null;
   const freeText = d.allowCustom === true && (!Array.isArray(d.options) || d.options.length === 0);
   if (freeText) return null;
   if (isPerFindingReviewCard(d) && (!Array.isArray(d.options) || d.options.length === 0)) return null;
@@ -1032,6 +1051,8 @@ function raiseShapeError(d, cmd) {
   if (!BOARD_BOTS.has(d.raised_by)) return cmd + ": --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> is required (or set raised_by in the JSON). A re-raise may omit it only when the card already has a stored author.";
   const prefixes = prefixesFor(d.raised_by);
   if (!prefixes.some((p) => String(d.id || "").startsWith(p))) return cmd + ": id must start with " + BOT_ID_PREFIX[d.raised_by] + " when the author is " + d.raised_by;
+  const slack = slackDraftError(d);
+  if (slack) return cmd + ": " + slack;
   const after = afterError(d.what_happens_after);
   if (after) return cmd + ": " + after;
   const opts = optionsShapeError(d);
@@ -1042,23 +1063,65 @@ function raiseShapeError(d, cmd) {
   return null;
 }
 
-if (cmd === "raise" || cmd === "assistant") {
+function slackDraftFromFlags(rest, bot) {
+  const usage = "usage: ab slack-draft --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> --id <id> --channel-id C… --channel \"#name\" --text \"...\" --why \"...\" --group ROWS-1234 --card-ref <url> [--thread ts] [--thread-link url] [--title \"...\"] [--priority high|medium|low] [--text-file f]";
+  const take = (name) => flag(rest, name);
+  bot = bot ?? take("--bot");
+  const id = take("--id");
+  const channelId = take("--channel-id");
+  const channel = take("--channel");
+  const textFile = take("--text-file");
+  let text = take("--text");
+  const why = take("--why");
+  const group = take("--group");
+  const cardRef = take("--card-ref") ?? take("--link");
+  const thread = take("--thread");
+  const threadLink = take("--thread-link");
+  const title = take("--title");
+  const priority = take("--priority");
+  if (textFile !== undefined) {
+    if (text !== undefined) die(2, "slack-draft: use --text or --text-file, not both");
+    try { text = fs.readFileSync(textFile, "utf8"); } catch { die(2, "slack-draft: cannot read --text-file " + textFile); }
+  }
+  if (!BOARD_BOTS.has(bot) || !id || !channelId || !channel || !text || !why || !group || !cardRef) die(2, "slack-draft: " + usage);
+  const name = String(channel).trim();
+  const d = {
+    id, raised_by: bot, kind: "slack_draft",
+    title: title?.trim() || ("Slack message to " + name).slice(0, 60),
+    context: why,
+    question: "Send this message to " + name + "?",
+    what_happens_after: "If you send, " + bot + " posts this exact text to Slack once. If you don't, nothing is posted.",
+    priority: priority ?? "medium",
+    group, card_ref: cardRef, options: [],
+    slack: { channel_id: channelId, channel: name, text, ...(thread !== undefined ? { thread_ts: thread } : {}), ...(threadLink !== undefined ? { permalink: threadLink } : {}) },
+  };
+  return d;
+}
+
+if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   const asAssistant = cmd === "assistant";
+  const asSlack = cmd === "slack-draft";
+  const cmdName = asAssistant ? "assistant" : asSlack ? "slack-draft" : "raise";
   const raisedByFlag = flag(args, "--bot");
-  if (raisedByFlag !== undefined && !BOARD_BOTS.has(raisedByFlag)) die(2, (asAssistant ? "assistant" : "raise") + ": --bot must be Planner, QA, Engineer, dr eggbot or Grok Bot");
-  const d = parseInput(input());
-  if (!d || typeof d !== "object" || Array.isArray(d)) die(2, (asAssistant ? "assistant" : "raise") + ": input must be a JSON object");
+  if (raisedByFlag !== undefined && !BOARD_BOTS.has(raisedByFlag)) die(2, cmdName + ": --bot must be Planner, QA, Engineer, dr eggbot or Grok Bot");
+  const jsonInput = args[0] && String(args[0]).trim().startsWith("{");
+  const d = asSlack && !jsonInput ? slackDraftFromFlags(args, raisedByFlag) : parseInput(input());
+  if (!d || typeof d !== "object" || Array.isArray(d)) die(2, cmdName + ": input must be a JSON object");
   const link = d.link; delete d.link;                 // card-only field, not board schema
   if (link && !d.card_ref) d.card_ref = link;
   if (asAssistant) {
     if (d.section !== undefined && d.section !== "assistant") die(2, 'assistant: section must be "assistant"');
     d.section = "assistant";
   } else if (d.section !== undefined || d.rule !== undefined || d.seen !== undefined || d.proposed_fix !== undefined || d.bot !== undefined || d.fixes !== undefined) {
-    die(2, "raise: Dr. Assistant findings use ab assistant '<json>', not raise");
+    die(2, cmdName + ": Dr. Assistant findings use ab assistant '<json>', not raise");
   }
   for (const k of Object.keys(d)) if (!ALLOWED.has(k)) die(2, "unknown field " + k + " (allowed: " + [...ALLOWED].join(", ") + ", link)");
+  if (isSlackDraft(d) || asSlack) {
+    d.kind = "slack_draft";
+    if (d.slack && typeof d.slack === "object" && !Array.isArray(d.slack)) d.slack = normalizeSlack(d.slack);
+  }
   if (raisedByFlag) d.raised_by = raisedByFlag;
-  if (d.raised_by !== undefined && !BOARD_BOTS.has(d.raised_by)) die(2, (asAssistant ? "assistant" : "raise") + ": --bot / raised_by must be Planner, QA, Engineer, dr eggbot or Grok Bot");
+  if (d.raised_by !== undefined && !BOARD_BOTS.has(d.raised_by)) die(2, cmdName + ": --bot / raised_by must be Planner, QA, Engineer, dr eggbot or Grok Bot");
   if (!/^[a-z0-9][a-z0-9-]{2,80}$/.test(d.id || "")) die(2, "id must be lowercase-kebab, 3-81 chars");
   if (d.options !== undefined && !Array.isArray(d.options)) die(2, "options must be an array when set");
   d.options = Array.isArray(d.options) ? d.options : [];
@@ -1077,6 +1140,8 @@ if (cmd === "raise" || cmd === "assistant") {
   }
   const problems = storedProblems(d);
   if (problems.length) die(2, problems.join("\nab: "));
+  const links = cardTicketLinkError(d);
+  if (links) die(2, links);
   d.context = d.context.trim();
   const title = d.title.trim();
   lock();
@@ -1089,7 +1154,7 @@ if (cmd === "raise" || cmd === "assistant") {
   d.card_ref = d.card_ref ?? null;
   if (typeof d.svg === "string") d.svg = sanitizeSvg(d.svg);
   if (!("raised_by" in d) && k >= 0 && f.b.decisions[k].raised_by) d.raised_by = f.b.decisions[k].raised_by;
-  const shape = raiseShapeError(d, asAssistant ? "assistant" : "raise");
+  const shape = raiseShapeError(d, cmdName);
   if (shape) die(2, shape);
   // created_at and updated_at go last, side by side. New: updated_at = created_at. Re-raise: updated_at = now,
   // and the stored created_at wins over a passed one (a passed one only fills a card that has none).
@@ -1111,24 +1176,35 @@ if (cmd === "raise" || cmd === "assistant") {
   }
   save(f, f.b);
   const live = await waitServed((b) => b.decisions.some((x) => x.id === d.id && !x.answer && x.question === d.question));
-  log({ op: asAssistant ? "assistant" : "raise", id: d.id, live });
+  log({ op: asSlack ? "slack-draft" : asAssistant ? "assistant" : "raise", id: d.id, live });
   if (!live) die(3, "written to the board but the live board at " + URL_ + " does not serve it. Is the board server running (npm start)? Do NOT send the chat card until this passes.");
   console.log(JSON.stringify({ ok: true, board: "live", card: {
     title, context: d.context, question: d.question, ...(d.details ? { details: detailsText(d.details) } : {}), what_happens_after: d.what_happens_after,
     options: d.options.map((o) => o.label), multiSelect: !!d.multiSelect, allowCustom: d.allowCustom !== false,
     link: d.card_ref, decision_id: d.id, priority: priorityOf(d),
+    ...(isSlackDraft(d) ? { kind: "slack_draft", slack: d.slack } : {}),
     ...(asAssistant ? { section: "assistant", bot: d.bot, rule: d.rule, ...(d.seen ? { seen: d.seen } : {}), ...(d.proposed_fix ? { proposed_fix: d.proposed_fix } : {}), ...(d.fixes ? { fixes: d.fixes } : {}) } : {}),
     footer: "Also on your Action Board: http://" + HOST + ":" + PORT + (asAssistant ? "/#assistant" : "") + " (" + d.id + ")" } }, null, 2));
 } else if (cmd === "answer") {
   const by = flag(args, "--by"), at = flag(args, "--at") || new Date().toISOString(), custom = flag(args, "--custom");
+  const action = flag(args, "--action");
+  const sendText = flag(args, "--text");
   const id = args[0];
-  if (!id || !["chat", "app"].includes(by)) die(2, "usage: ab answer <id> <opt[,opt]>|--custom text --by chat|app [--at ISO]");
+  if (!id || !["chat", "app"].includes(by)) die(2, "usage: ab answer <id> <opt[,opt]>|--custom text|--action send --text \"...\"|--action decline --by chat|app [--at ISO]");
   markRead("decision:" + id);
   lock(); const f = load(); const d = f.b.decisions.find((x) => x.id === id);
   if (!d) die(5, "no decision " + id + " on the board");
   if (d.answer) { console.log(JSON.stringify({ ok: true, status: "already-answered", answer: d.answer })); process.exit(0); }
   let a;
-  if (custom !== undefined) { const t = custom.trim(); if (!t) die(2, "blank custom text"); a = { answer: "custom", answer_label: t, answered_by: by, answered_at: at, custom_text: t }; }
+  if (action !== undefined) {
+    if (action !== "send" && action !== "decline") die(2, "answer: --action must be send or decline");
+    if (action === "send") {
+      const t = (sendText ?? "").trim(); if (!t) die(2, "answer: --action send needs --text with the final message");
+      a = { answer: "send", answer_label: "Send to Slack", answered_by: by, answered_at: at, action: "send", text: t };
+    } else {
+      a = { answer: "decline", answer_label: "Don't send", answered_by: by, answered_at: at, action: "decline" };
+    }
+  } else if (custom !== undefined) { const t = custom.trim(); if (!t) die(2, "blank custom text"); a = { answer: "custom", answer_label: t, answered_by: by, answered_at: at, custom_text: t }; }
   else {
     const pick = (args[1] || "").split(",").filter(Boolean); if (!pick.length) die(2, "need an option id");
     for (const x of pick) if (!d.options.some((o) => o.id === x)) die(2, "unknown option " + x);
@@ -1532,6 +1608,8 @@ if (cmd === "raise" || cmd === "assistant") {
   const body = typeof text === "string" ? text.trim() : "";
   if (!body) die(2, "notify: --text is required");
   if (body.length > 800) die(2, "notify: --text is too long (800 characters or fewer)");
+  const notifyLinks = ticketLinkError(body, "notify");
+  if (notifyLinks) die(2, notifyLinks);
   if (next !== undefined && !nonBlank(next)) die(2, "notify: --next, if given, cannot be blank");
   if (link !== undefined && !isHttp(link)) die(2, "notify: --link must be an http(s) URL");
   if (!SQL) die(2, "notify: needs the SQLite board (unset AB_FILE)");
@@ -1892,5 +1970,5 @@ if (cmd === "raise" || cmd === "assistant") {
   log({ op: "project-refresh", milestones: r.milestones.length });
   console.log(JSON.stringify({ ok: true, milestones: r.milestones.length, totals, updated_at: updated }));
 } else {
-  die(2, "usage: ab raise|assistant|answer|read|context|prune|notify|clear|restore|priority|glance|mypr|reviews|review-status|gh-refresh|detail|ticket|ticket-summaries|plan|reply|supersede|already-answered|wipe|drop-bulk-options|ask|open|check|lint|backfill-stamps|backfill-titles|project-refresh (see header of " + process.argv[1] + ")");
+  die(2, "usage: ab raise|assistant|slack-draft|answer|read|context|prune|notify|clear|restore|priority|glance|mypr|reviews|review-status|gh-refresh|detail|ticket|ticket-summaries|plan|reply|supersede|already-answered|wipe|drop-bulk-options|ask|open|check|lint|backfill-stamps|backfill-titles|project-refresh (see header of " + process.argv[1] + ")");
 }

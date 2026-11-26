@@ -120,7 +120,7 @@ export function buildContext(board: Json, o: ContextOptions): BotContext {
 // What a bot's wake webhook carries: the answer and the card it is about, never a whole thread. The bot reads the rest
 // with `ab context --bot <name>`. Unknown events and fields pass through untouched in shape, only clipped.
 const KEEP: Record<string, string[]> = {
-  'decision.answered': ['event', 'decision_id', 'card_ref', 'question', 'answer', 'answer_label', 'custom_text', 'answered_at', 'to_bot'],
+  'decision.answered': ['event', 'decision_id', 'card_ref', 'question', 'answer', 'answer_label', 'custom_text', 'action', 'text', 'answered_at', 'to_bot'],
   'item.message': ['event', 'message_id', 'item_id', 'item_section', 'item_title', 'item_link', 'text', 'sent_at', 'to_bot'],
   'decision.clarify': ['event', 'decision_id', 'question', 'clicked_at', 'to_bot'],
   'decision.not_relevant': ['event', 'decision_id', 'question', 'cleared_at', 'to_bot'],

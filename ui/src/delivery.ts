@@ -36,6 +36,9 @@ export type WebhookPayload = {
   answered_at: string;
   // The bot the answer is sent to (the card's author, or the one picked beside the send button).
   to_bot?: string;
+  // Slack draft cards: "send" posts this exact text once; "decline" means do not post.
+  action?: "send" | "decline";
+  text?: string;
 };
 
 // "Explain this better" on a card: asks the assistant to reword the decision. Never stored and never answers it.
@@ -83,14 +86,26 @@ export type ReviewPayload = {
   answered_at: string;
 };
 
-// What the user picked in the app: one option id, several option ids (multiSelect), or their own text.
-export type AppChoice = string | string[] | { custom: string };
+// What the user picked in the app: one option id, several option ids (multiSelect), their own text,
+// or Send / Don't send on a Slack draft (the text is whatever they left in the preview).
+export type SlackChoice = { action: "send"; text: string } | { action: "decline" };
+export type AppChoice = string | string[] | { custom: string } | SlackChoice;
+
+export function isSlackChoice(pick: AppChoice): pick is SlackChoice {
+  return typeof pick === "object" && !Array.isArray(pick) && "action" in pick;
+}
 
 // Every card takes a free-form answer now (the owner, Nov 24); allowCustom is kept in the type only for old files.
 const customAllowed = (_d: Decision) => true;
 
 // Turns an app pick into the answer fields, validated against the decision. Throws on anything invalid.
 export function toChoice(decision: Decision, pick: AppChoice): Choice {
+  if (isSlackChoice(pick)) {
+    if (pick.action === "decline") return { answer: "decline", answer_label: "Don't send" };
+    const text = pick.text.trim();
+    if (!text) throw new Error("Slack message is blank");
+    return { answer: "send", answer_label: "Send to Slack" };
+  }
   if (typeof pick === "object" && !Array.isArray(pick)) {
     if (!customAllowed(decision)) throw new Error(`Custom answers are off for ${decision.id}`);
     const text = pick.custom.trim();
@@ -215,6 +230,7 @@ export function buildPayload(decision: Decision, pick: AppChoice, now: Date, toB
     answered_by: "app",
     answered_at: now.toISOString(),
     ...("custom_text" in choice ? { custom_text: choice.custom_text } : {}),
+    ...(isSlackChoice(pick) ? { action: pick.action, ...(pick.action === "send" ? { text: pick.text.trim() } : {}) } : {}),
     ...(toBot ? { to_bot: toBot } : {}),
   } as WebhookPayload;
 }

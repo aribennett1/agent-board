@@ -7,6 +7,7 @@ import { ReviewFindingsBlock, type OnAnswerFinding } from "./ReviewFindingsBlock
 import type { FindingAnswerMap } from "./reviewFindings";
 import { isPerFindingReview } from "./reviewFindings";
 import type { AppChoice } from "./delivery";
+import { isSlackDraft, SlackDraftBlock } from "./SlackDraft";
 import { ASSISTANT_NAME } from "./config";
 import { bareUrl, Link, linkify } from "./linkify";
 import { inline } from "./markdown";
@@ -356,6 +357,8 @@ export function DecisionCard({
           answered={findingAnswered ?? new Map()}
           onAnswer={onAnswerFinding ?? (async () => false)}
         />
+      ) : isSlackDraft(decision) ? (
+        <SlackDraftBlock decision={decision} onAnswer={callAnswer} />
       ) : (
         <>
       {!isCommentEdit(decision) && (

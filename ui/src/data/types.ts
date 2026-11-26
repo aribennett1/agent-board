@@ -110,8 +110,20 @@ export type Answer = Choice & {
   answered_at: string;
 };
 
+// A Slack message waiting for Eric to send or decline. A bot must not post it until he taps Send.
+export type SlackDraft = {
+  channel_id: string;
+  channel: string;
+  text: string;
+  thread_ts?: string;
+  permalink?: string;
+};
+
 export type Decision = {
   id: string;
+  // slack_draft: a Slack message preview with Send to Slack / Don't send. Missing means an ordinary decision.
+  kind?: "slack_draft";
+  slack?: SlackDraft;
   // Short bold topic shown at the top of the card. ab raise requires it; answered and older cards lack it.
   title?: string;
   card_ref: string | null;

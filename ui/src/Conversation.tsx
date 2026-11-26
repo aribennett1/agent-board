@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import type { Decision, ItemDetail, Priority, ReplyQuestion, TicketBrief as Brief } from "./data/types";
 import { TicketBrief } from "./TicketBrief";
-import type { AppChoice } from "./delivery";
+import { isSlackChoice, type AppChoice } from "./delivery";
 import type { AnsweredQuestion, Topic, TopicQuestion } from "./topics";
 import { summaryLine } from "./topics";
 import { clockTime, NoteBox } from "./ItemExpand";
@@ -301,6 +301,7 @@ function HomeDecision({ d, a, chrome, onDone, index }: { d: Decision; a: Answere
   const said = (pick: AppChoice) => {
     if (typeof pick === "string") return d.options.find((o) => o.id === pick)?.label ?? pick;
     if (Array.isArray(pick)) return pick.map((id) => d.options.find((o) => o.id === id)?.label ?? id).join(", ");
+    if (isSlackChoice(pick)) return pick.action === "send" ? pick.text : "Don't send";
     return pick.custom;
   };
   const extras = chrome.extras?.(d) ?? {};

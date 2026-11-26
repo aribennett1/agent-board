@@ -159,7 +159,10 @@ export function deliveryLogEntry(body: unknown): Json | null {
 
 /** The text a person typed or picked, from any board payload. */
 export function payloadText(p: Json): string {
-  if (p.event === 'decision.answered') return isStr(p.custom_text) ? p.custom_text : Array.isArray(p.answer_label) ? p.answer_label.join(', ') : String(p.answer_label ?? '');
+  if (p.event === 'decision.answered') {
+    if (p.action === 'send' && isStr(p.text)) return p.text;
+    return isStr(p.custom_text) ? p.custom_text : Array.isArray(p.answer_label) ? p.answer_label.join(', ') : String(p.answer_label ?? '');
+  }
   if (p.event === 'decision.clarify') return 'Please explain this better.';
   if (p.event === 'decision.not_relevant') return 'Not relevant anymore.';
   return String(p.text ?? '');

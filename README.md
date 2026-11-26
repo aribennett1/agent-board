@@ -100,11 +100,37 @@ node --env-file=.env bin/ab.mjs raise --bot <Planner|QA|Engineer|dr eggbot|Grok 
 
 `svg` is optional. Unknown fields are rejected. A failed raise exits 2 and leaves the board untouched.
 
+Ticket and PR mentions in user-visible fields must be markdown links, not bare ids. Write `[ROWS-1234](https://linear.app/rows/issue/ROWS-1234)` and `[#2019](https://github.com/ROWSHR/<repo>/pull/2019)` (or `[PR 2019](…)`). The card's own ticket or PR (its `group` / `card_ref`) may be named without a second link in the title or body. Mentions of any other ticket or PR, the Slack message text, and `ab notify --text` must be links. Existing stored cards are not rewritten; only new writes are checked.
+
+### `ab slack-draft`
+
+```sh
+node --env-file=.env bin/ab.mjs slack-draft --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> \
+  --id <id> --channel-id C01234567 --channel "#name" \
+  --text "This is Eric's bot posting on his behalf.\n\nThe message." \
+  --why "Short explanation of why this is being sent." \
+  --group ROWS-1234 --card-ref https://linear.app/rows/issue/ROWS-1234 \
+  [--thread 1732650000.123456] [--thread-link https://workspace.slack.com/archives/C01234567/p…] \
+  [--title "…"] [--priority medium] [--text-file f]
+```
+
+Or pass the same shape as JSON: `ab slack-draft --bot QA '<json>'`, including `kind: "slack_draft"` and a `slack` object (`channel_id`, `channel`, `text`, optional `thread_ts` and `permalink`). `ab raise` accepts that shape too.
+
+The card shows a Slack preview. The message is editable. **Send to Slack** delivers `decision.answered` to the raising bot (`to_bot` or the author) with `{ action: "send", text: "<final text, including edits>" }`. **Don't send** delivers `{ action: "decline" }`. The bot posts that exact text once, and only after Send. The text must start with `This is Eric's bot posting on his behalf.`
+
+You can also record the answer from the CLI:
+
+```sh
+node --env-file=.env bin/ab.mjs answer <id> --action send --text "This is Eric's bot posting on his behalf.\n\nThe final text." --by app
+node --env-file=.env bin/ab.mjs answer <id> --action decline --by app
+```
+
 ### Other commands
 
 | command | what it does |
 | --- | --- |
-| `notify --bot <name> --text "..." [--next "1:15 PM ET"] [--link url]` | Post a short Markdown status note to the sidebar notifications feed. Clearing one never wakes a bot. |
+| `slack-draft` | Raise a Slack message draft for Eric to send or decline. |
+| `notify --bot <name> --text "..." [--next "1:15 PM ET"] [--link url]` | Post a short Markdown status note to the sidebar notifications feed. Ticket and PR mentions must be links. Clearing one never wakes a bot. |
 | `answer`, `reply`, `read` | Record an answer or reply, or mark the human's messages on an item as read. |
 | `clear`, `restore`, `priority` | Tombstone a card, put it back, or set high/medium/low. |
 | `project-refresh` | Fill the Project tab. |

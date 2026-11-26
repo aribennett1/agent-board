@@ -2888,6 +2888,18 @@ mark { background: #fff1a8; padding: 0 2px; border-radius: 3px; }
 .severity-chip.severity-medium { background: #fef3c7; color: #92400e; }
 .severity-chip.severity-low { background: #f3f4f6; color: #4b5563; }
 .already-decided-banner { margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: #eef4ff; border-left: 3px solid #3b6fd8; font-size: 13.5px; font-weight: 600; color: #1e3a8a; }
+
+/* Slack draft: a message preview with an editable body and Send / Don't send. */
+.slack-draft { display: grid; gap: 12px; margin: 10px 0 12px; }
+.slack-preview { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.slack-preview-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; background: #4a154b; color: #fff; }
+.slack-kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.8; }
+.slack-channel { font-size: 14px; font-weight: 700; }
+.slack-thread-link { margin-left: auto; font-size: 12.5px; color: #fff; text-decoration: underline; }
+.slack-thread-link:hover { color: #f3e8ff; }
+.slack-text-label { display: block; padding: 8px 12px 0; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.slack-text { display: block; width: 100%; border: 0; padding: 8px 12px 12px; font-family: inherit; font-size: 14.5px; line-height: 1.45; resize: vertical; background: #fff; color: var(--text); outline: none; }
+.slack-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .sha-chip { display: inline-block; margin-right: 0.4rem; padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.75rem; background: #eef2f7; color: #334155; }
 .sha-chip code { font-family: var(--code); }
 
