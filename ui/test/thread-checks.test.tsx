@@ -19,7 +19,7 @@ function view(asks: Ask[], thread: object[] = []) {
   // Topics with nothing open sit behind the In progress / Done toggles.
   for (const b of document.querySelectorAll(".group-toggle")) fireEvent.click(b);
   // Finished threads are folded; open every thread.
-  for (const b of screen.queryAllByRole("button", { name: /Show history/ })) fireEvent.click(b);
+  for (const b of screen.queryAllByRole("button", { name: /Show (history|the thread)/ })) fireEvent.click(b);
 }
 afterEach(cleanup);
 
@@ -55,7 +55,8 @@ describe("answered cards collapse", () => {
     expect(row.textContent).toContain("The service needs storage.");
     // The card is not repeated as a separate full message.
     expect(document.querySelectorAll("[data-thread-card]").length).toBe(1);
-    expect(screen.getByRole("link", { name: "Home" }).getAttribute("href")).toBe("#home");
+    // Decision topics already live on Home, so there is no tab link pointing back at it.
+    expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
   });
 });
 

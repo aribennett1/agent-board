@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Markdown } from "./markdown";
 import { TIME_ZONE } from "./config";
 import { prRef } from "./others";
-import { ago, groupMine, groupOthers, groupTickets, isReviewRequested, linesChanged, priorityName, readyToApprove, type FeedLabel, type FeedMeta, type FeedPr, type FeedTicket, type Group } from "./liveLists";
+import { ago, groupMine, groupOthers, groupTickets, isReviewRequested, linesChanged, mineOpenReasons, priorityName, readyToApprove, type FeedLabel, type FeedMeta, type FeedPr, type FeedTicket, type Group } from "./liveLists";
 
 // My tickets, My PRs and Others' PRs: compact rows grouped under plain headings, filled by the server's own timer.
 // A row shows the facts on two lines; the chevron opens the description and anything left to address.
@@ -52,7 +52,7 @@ function Groups<T>({ groups, empty, row }: { groups: Group<T>[]; empty: string; 
   );
 }
 
-type PrExtras = { badge?: (p: FeedPr) => ReactNode; extra?: (p: FeedPr) => ReactNode };
+type PrExtras = { badge?: (p: FeedPr) => ReactNode; extra?: (p: FeedPr) => ReactNode; needsYou?: (p: FeedPr) => boolean };
 
 // A row from an older feed may carry only title, author, who and link: fill the repo and number from the link.
 const withRef = (p: FeedPr): FeedPr => {
@@ -78,6 +78,10 @@ function PrRow({ p: raw, others, x }: { p: FeedPr; others: boolean; x: PrExtras 
           <a className="live-title" href={p.link} target="_blank" rel="noopener noreferrer">{p.title}</a>
           <span className="live-chips">
             {ready && <span className="approval-chip ready">Ready to approve</span>}
+            {!others && x.needsYou?.(p) && <span className="reason-chip needs-you">Needs you</span>}
+            {!others && mineOpenReasons(p).map((r) => (
+              <span key={r} className="reason-chip">{r}</span>
+            ))}
             {x.badge?.(p)}
             <span className={`state-chip state-${String(p.state ?? "ready").replace(/ /g, "-")}`}>{p.state}</span>
             <span className={`ci-chip ci-${p.ci}`} title={failing.length ? `Failing: ${failing.join(", ")}` : undefined}>

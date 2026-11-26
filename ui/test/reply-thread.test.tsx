@@ -100,7 +100,7 @@ afterEach(() => {
 const rowOf = (title: string | RegExp) => screen.getByText(title).closest("li")!;
 
 describe("reply thread", () => {
-  it("lists the PR on Others' PRs and puts its open reply question on Conversation, never in the tab", async () => {
+  it("lists the PR on Others' PRs and puts its open reply question on Home, never in the tab", async () => {
     const { default: Tabs } = await import("../src/Tabs");
     render(<Tabs />);
     expect(screen.getByRole("region", { name: "Your review requested" })).toBeTruthy();
@@ -117,7 +117,7 @@ describe("reply thread", () => {
     window.location.hash = "";
     const { default: Tabs } = await import("../src/Tabs");
     render(<Tabs />);
-    const q = screen.getAllByText("What do you want to do?")[0].closest("li")!;
+    const q = screen.getAllByText("What do you want to do?").map((el) => el.closest("li.tq")).find(Boolean) as HTMLElement;
     const box = within(q).getByLabelText("Or answer in your own words") as HTMLTextAreaElement;
     expect(within(box.closest(".mic-wrap") as HTMLElement).getByRole("button", { name: "Voice typing" })).toBeTruthy();
     fireEvent.change(box, { target: { value: "Approve, but ping Sam first" } });

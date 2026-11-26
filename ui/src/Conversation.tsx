@@ -1,11 +1,11 @@
 import { useRef, useState, type ReactNode } from "react";
-import type { Decision, ItemDetail, ReplyQuestion, TicketBrief as Brief } from "./data/types";
+import type { Decision, ItemDetail, Priority, ReplyQuestion, TicketBrief as Brief } from "./data/types";
 import { TicketBrief } from "./TicketBrief";
 import type { AppChoice } from "./delivery";
 import type { AnsweredQuestion, Topic, TopicQuestion } from "./topics";
 import { summaryLine } from "./topics";
 import { clockTime, NoteBox } from "./ItemExpand";
-import { CardSvg, AssistantFacts, AssistantTable } from "./DecisionCard";
+import { CardSvg, AssistantFacts, AssistantTable, DecisionCard, type ClarifyState, type NotRelevantState } from "./DecisionCard";
 import { optionColorClass } from "./optionColor";
 import { AlreadyDecidedBanner, PostApprovalBlock } from "./PostApprovalBlock";
 import { FindingDraft, FindingStatusLine, type OnAnswerFinding } from "./ReviewFindingsBlock";
@@ -13,11 +13,12 @@ import { isFindingSettled } from "./reviewFindings";
 import { Markdown } from "./markdown";
 import { Checks } from "./Checks";
 import { botPillClass, type BoardBot } from "./raisedBy";
+import { DEFAULT_BOT, RecipientPicker } from "./sendTo";
 import type { HistoryMsg } from "./topics";
 
 // The landing view (t102u): one card per topic (ticket, PR or plan). Each card says what it is, what's happening and
 // who has the ball, then "Your turn" with only the open questions (context inline, options, own words + mic), answered
-// ones as one line, and the whole back-and-forth folded under "Show history", oldest first. Cards that need the owner come
+// ones as one line, and the whole back-and-forth folded under "Show the thread", oldest first. Cards that need the owner come
 // first; in-progress cards are folded; done cards hide behind a toggle. Every question renders once.
 
 const when = (iso: string) => {
@@ -32,6 +33,21 @@ export type Answerers = {
   onAnswerPlan: (itemKey: string, label: string, text: string, toBot?: string) => Promise<boolean>;
   onAnswerDecision: (d: Decision, pick: AppChoice, toBot?: string) => void;
   onAnswerFinding?: OnAnswerFinding;
+};
+
+/** Home keeps DecisionCard actions (priority, explain, not relevant) on decision questions. */
+export type DecisionChrome = {
+  onClarify?: (d: Decision) => void;
+  clarify?: Record<string, ClarifyState>;
+  now?: Date;
+  onPriority?: (d: Decision, level: Priority) => void;
+  priorityError?: Record<string, boolean>;
+  onNotRelevant?: (d: Decision) => void;
+  notRelevant?: Record<string, NotRelevantState>;
+  staleCtx?: import("./triage").StaleContext;
+  priorDecision?: (d: Decision) => Decision["already_decided"];
+  findingAnswered?: (d: Decision) => import("./reviewFindings").FindingAnswerMap;
+  extras?: (d: Decision) => { onFocus?: () => void; extra?: ReactNode; expanded?: boolean; onToggle?: () => void };
 };
 
 function Context({ text }: { text: string }) {
@@ -49,24 +65,7 @@ function Context({ text }: { text: string }) {
   );
 }
 
-// The bots a card can be sent to. Grok Bot is only offered when it is the card's default (no known author).
-const PICKABLE: BoardBot[] = ["Planner", "QA", "Engineer", "dr eggbot"];
-
-// Split send button: the send button beside it reads "Send to <bot>" for the default; this picker sends to another bot.
-export function RecipientPicker({ value, onChange }: { value: BoardBot; onChange: (b: BoardBot) => void }) {
-  const options = PICKABLE.includes(value) ? PICKABLE : [...PICKABLE, value];
-  return (
-    <select className="recipient-picker" aria-label="Send to a different bot" value={value} onChange={(e) => onChange(e.target.value as BoardBot)}>
-      {options.map((b) => (
-        <option key={b} value={b}>
-          {b}
-        </option>
-      ))}
-    </select>
-  );
-}
-const DEFAULT_BOT: BoardBot = "Grok Bot";
-
+export { RecipientPicker } from "./sendTo";
 
 function OpenQuestionBox({ q, a, onDone }: { q: TopicQuestion; a: Answerers; onDone: (text: string, to?: string) => void }) {
   const [recipient, setRecipient] = useState<BoardBot | undefined>();
@@ -292,12 +291,45 @@ function ThreadMessage({ m }: { m: HistoryMsg }) {
 }
 
 // The read-only view of the same record in its own tab (same board payload, filtered there).
-const TAB_OF: Record<string, [string, string]> = { ticket: ["conversation", "Conversation"], waiting: ["conversation", "Conversation"], mypr: ["mine", "My PRs"], pr: ["others", "Others' PRs"], decision: ["home", "Home"] };
+const TAB_OF: Record<string, [string, string]> = { ticket: ["home", "Home"], waiting: ["home", "Home"], mypr: ["mine", "My PRs"], pr: ["others", "Others' PRs"], decision: ["home", "Home"] };
 const tabOf = (key: string) => TAB_OF[key.split(":")[0]] ?? TAB_OF.decision;
 
 const BALL_CLASS = (ball: string) => (ball === "You" ? "you" : ball === "Done" ? "done" : ball === "Assistant" ? "bot" : "others");
 
-function TopicCard({ t, a, onOpen, sent, sentTo, markSent, brief, detail }: { t: Topic; a: Answerers; onOpen: (key: string) => void; sent: Record<string, string>; sentTo: Record<string, string>; markSent: (uid: string, text: string, to?: string) => void; brief?: Brief; detail?: ItemDetail }) {
+
+function HomeDecision({ d, a, chrome, onDone, index }: { d: Decision; a: Answerers; chrome: DecisionChrome; onDone: (text: string, to?: string) => void; index: number }) {
+  const said = (pick: AppChoice) => {
+    if (typeof pick === "string") return d.options.find((o) => o.id === pick)?.label ?? pick;
+    if (Array.isArray(pick)) return pick.map((id) => d.options.find((o) => o.id === id)?.label ?? id).join(", ");
+    return pick.custom;
+  };
+  const extras = chrome.extras?.(d) ?? {};
+  return (
+    <DecisionCard
+      decision={d}
+      index={index}
+      enableSendTo
+      onAnswer={(card, pick, toBot) => {
+        a.onAnswerDecision(card, pick, toBot);
+        onDone(said(pick), toBot);
+      }}
+      onClarify={chrome.onClarify}
+      clarify={chrome.clarify?.[d.id]}
+      now={chrome.now}
+      onPriority={chrome.onPriority}
+      priorityError={Boolean(chrome.priorityError?.[d.id])}
+      onNotRelevant={chrome.onNotRelevant}
+      notRelevant={chrome.notRelevant?.[d.id]}
+      staleCtx={chrome.staleCtx}
+      priorDecision={chrome.priorDecision?.(d)}
+      onAnswerFinding={a.onAnswerFinding}
+      findingAnswered={chrome.findingAnswered?.(d)}
+      {...extras}
+    />
+  );
+}
+
+function TopicCard({ t, a, onOpen, sent, sentTo, markSent, brief, detail, chrome }: { t: Topic; a: Answerers; onOpen: (key: string) => void; sent: Record<string, string>; sentTo: Record<string, string>; markSent: (uid: string, text: string, to?: string) => void; brief?: Brief; detail?: ItemDetail; chrome?: DecisionChrome }) {
   const [history, setHistory] = useState(t.group !== "done");
   const open = t.open.filter((q) => !(q.uid in sent));
   const justSent: AnsweredQuestion[] = t.open.filter((q) => q.uid in sent).map((q) => ({
@@ -312,6 +344,7 @@ function TopicCard({ t, a, onOpen, sent, sentTo, markSent, brief, detail }: { t:
   }));
   const answered = [...t.answered, ...justSent];
   const ids = open.map((q) => q.label).filter(Boolean);
+  const latestBot = [...t.history].reverse().find((m) => m.who !== "You" && m.text?.trim());
   return (
     <article className={`topic topic-${t.group}`} data-topic={t.key}>
       <header className="topic-head">
@@ -321,9 +354,11 @@ function TopicCard({ t, a, onOpen, sent, sentTo, markSent, brief, detail }: { t:
             {t.label}
           </button>
         </div>
-        <a className="topic-tab-link" href={`#${tabOf(t.key)[0]}`}>
-          {tabOf(t.key)[1]}
-        </a>
+        {tabOf(t.key)[0] !== "home" && (
+          <a className="topic-tab-link" href={`#${tabOf(t.key)[0]}`}>
+            {tabOf(t.key)[1]}
+          </a>
+        )}
         <span className={`ball ball-${BALL_CLASS(open.length ? "You" : t.ball === "You" ? "Assistant" : t.ball)}`}>
           {open.length ? "Your turn" : t.ball === "Done" ? "Done" : t.ball === "You" ? "Assistant" : t.ball}
         </span>
@@ -342,6 +377,12 @@ function TopicCard({ t, a, onOpen, sent, sentTo, markSent, brief, detail }: { t:
           <Markdown text={detail.ticket} className="md ticket-md" />
         </details>
       )}
+      {latestBot && (
+        <div className="topic-explain" data-bot-explain>
+          <p className="msg-who">{latestBot.who}{latestBot.at ? <span className="msg-at"> {when(latestBot.at)}</span> : null}</p>
+          <Markdown text={latestBot.text} className="md msg-text" />
+        </div>
+      )}
       {open.length === 0 && <p className="topic-status">{t.ball === "You" ? "Assistant has your answers." : t.statusLine}</p>}
       {open.length > 0 && (
         <section className="your-turn" aria-label={`Your turn on ${t.label}`}>
@@ -349,9 +390,15 @@ function TopicCard({ t, a, onOpen, sent, sentTo, markSent, brief, detail }: { t:
             Your turn: {open.length} open{ids.length ? `: ${ids.join(", ")}` : ""}
           </h4>
           <ol className="tq-list">
-            {open.map((q) => (
-              <OpenQuestionBox key={q.uid} q={q} a={a} onDone={(text, to) => markSent(q.uid, text, to)} />
-            ))}
+            {open.map((q) =>
+              chrome && q.kind === "decision" && q.decision ? (
+                <li key={q.uid} className="tq tq-decision" data-question-uid={q.uid}>
+                  <HomeDecision d={q.decision} a={a} chrome={chrome} onDone={(text, to) => markSent(q.uid, text, to)} index={Math.max(1, t.open.indexOf(q) + 1)} />
+                </li>
+              ) : (
+                <OpenQuestionBox key={q.uid} q={q} a={a} onDone={(text, to) => markSent(q.uid, text, to)} />
+              ),
+            )}
           </ol>
           <DontPostAny open={open} a={a} onDone={(uid, text) => markSent(uid, text)} />
         </section>
@@ -370,7 +417,7 @@ function TopicCard({ t, a, onOpen, sent, sentTo, markSent, brief, detail }: { t:
       {t.history.length > 0 && (
         <>
           <button type="button" className="link-btn" aria-expanded={history} onClick={() => setHistory((h) => !h)}>
-            {history ? "Hide history" : `Show history (${t.history.length})`}
+            {history ? "Hide the thread" : `Show the thread (${t.history.length})`}
           </button>
           {history && (
             <ol className="history">
@@ -447,7 +494,7 @@ function BotSection({ name, open, collapsed, onToggle, topics, card }: { name: s
   );
 }
 
-export function Conversation({ topics, onOpen, briefs, details, ...a }: { topics: Topic[]; onOpen: (itemKey: string) => void; briefs?: Record<string, Brief>; details?: Record<string, ItemDetail> } & Answerers) {
+export function Conversation({ topics, onOpen, briefs, details, chrome, ...a }: { topics: Topic[]; onOpen: (itemKey: string) => void; briefs?: Record<string, Brief>; details?: Record<string, ItemDetail>; chrome?: DecisionChrome } & Answerers) {
   const [sent, setSent] = useState<Record<string, string>>({});
   const [sentTo, setSentTo] = useState<Record<string, string>>({});
   const [collapsed, setCollapsed] = useState<string[]>(loadCollapsed);
@@ -467,7 +514,7 @@ export function Conversation({ topics, onOpen, briefs, details, ...a }: { topics
       return next;
     });
   const live = topics.map((t) => ({ ...t, open: t.open.filter((q) => !(q.uid in sent)) }));
-  const card = (t: Topic) => <TopicCard key={t.key} t={t} a={a} onOpen={onOpen} sent={sent} sentTo={sentTo} markSent={markSent} brief={briefs?.[t.key]} detail={details?.[t.key] ?? t.keys.map((k) => details?.[k]).find(Boolean)} />;
+  const card = (t: Topic) => <TopicCard key={t.key} t={t} a={a} onOpen={onOpen} sent={sent} sentTo={sentTo} markSent={markSent} brief={briefs?.[t.key]} detail={details?.[t.key] ?? t.keys.map((k) => details?.[k]).find(Boolean)} chrome={chrome} />;
   const nameOf = (t: Topic) => t.raisedBy ?? UNKNOWN;
   const names = SECTION_ORDER.filter((n) => topics.some((t) => nameOf(t) === n));
   return (

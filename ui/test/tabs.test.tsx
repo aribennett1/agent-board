@@ -55,14 +55,14 @@ const openInProgress = () => {
 };
 
 describe("Left nav", () => {
-  it("opens on Conversation, and Home has every section in the nav and counts", async () => {
+  it("opens on Home, with every remaining section in the nav and counts", async () => {
     await renderTabs();
-    expect(current()).toEqual(["conversation"]);
+    expect(current()).toEqual(["home"]);
     expect(screen.getByRole("status").textContent).toMatch(/to answer|Nothing to answer/);
+    expect(window.location.hash).toBe("");
     fireEvent.click(item("home"));
     expect(window.location.hash).toBe("#home");
     expect([...nav().querySelectorAll(".nav-item")].map((b) => b.getAttribute("data-view"))).toEqual([
-      "conversation",
       "home",
       "mine",
       "others",
@@ -70,9 +70,9 @@ describe("Left nav", () => {
     expect(item("notifications")).toBeNull();
     expect(item("reviews")).toBeNull();
     expect(item("tickets")).toBeNull();
+    expect(item("conversation")).toBeNull();
     expect(item("project")).toBeNull();
     expect(item("home").querySelector(".nav-count")?.textContent).toBe("1");
-    expect(item("conversation").querySelector(".nav-count")?.textContent).toBe("1");
     // Sidebar badges and tab headers show only the Needs-you count; none when it's 0.
     // Others' PRs badges the review requests waiting on the owner (one here); the rest show none.
     expect(item("others").querySelector(".nav-count")?.textContent).toBe("1");
@@ -81,7 +81,6 @@ describe("Left nav", () => {
     expect(item("assistant")).toBeNull();
     expect(item("waiting")).toBeNull();
     expect(current()).toEqual(["home"]);
-    expect(screen.getByRole("heading", { name: /Needs you\s*1/ })).toBeTruthy();
     expect(document.querySelector('[data-decision-id="single"]')).not.toBeNull();
     // Home also lists the PRs waiting on a review. None of them need the owner, so the header has no count.
     expect(screen.getByRole("heading", { name: "Reviews waiting for your yes" })).toBeTruthy();
@@ -94,7 +93,7 @@ describe("Left nav", () => {
     expect(screen.queryByText("Docs pass")).toBeNull();
   });
 
-  it("shows only the picked section, keeps it in the hash, and goes back to Conversation", async () => {
+  it("shows only the picked section, keeps it in the hash, and goes back to Home", async () => {
     await renderTabs();
     fireEvent.click(item("mine"));
     expect(current()).toEqual(["mine"]);
@@ -106,25 +105,31 @@ describe("Left nav", () => {
     expect(window.location.hash).toBe("#others");
     expect(screen.getByText("Docs pass")).toBeTruthy();
 
-    fireEvent.click(item("conversation"));
-    expect(window.location.hash).toBe("");
+    fireEvent.click(item("home"));
+    expect(window.location.hash).toBe("#home");
     expect(window.location.pathname).toBe("/");
     expect(screen.queryByText("Docs pass")).toBeNull();
   });
 
-  it("keeps old #assistant links working, and #tickets or #waiting (retired My tickets) open Conversation", async () => {
+  it("keeps old #assistant, #conversation, #tickets and #waiting links opening Home", async () => {
     window.history.replaceState(null, "", "/#assistant");
     await renderTabs();
     expect(current()).toEqual(["home"]);
     cleanup();
     window.history.replaceState(null, "", "/#tickets");
     await renderTabs();
-    expect(current()).toEqual(["conversation"]);
+    expect(current()).toEqual(["home"]);
     expect(item("tickets")).toBeNull();
+    expect(window.location.hash).toBe("#home");
     cleanup();
     window.history.replaceState(null, "", "/#waiting");
     await renderTabs();
-    expect(current()).toEqual(["conversation"]);
+    expect(current()).toEqual(["home"]);
+    cleanup();
+    window.history.replaceState(null, "", "/#conversation");
+    await renderTabs();
+    expect(current()).toEqual(["home"]);
+    expect(window.location.hash).toBe("#home");
   });
 
   it("opens the section named in the hash on load", async () => {
@@ -134,19 +139,19 @@ describe("Left nav", () => {
     expect(screen.getByText("Docs pass")).toBeTruthy();
   });
 
-  it("follows a hash change, and an unknown hash means Conversation", async () => {
+  it("follows a hash change, and an unknown hash means Home", async () => {
     await renderTabs();
     await act(async () => {
       window.location.hash = "#project";
       window.dispatchEvent(new HashChangeEvent("hashchange"));
     });
     // No real project is configured, so #project is treated like an unknown hash.
-    expect(current()).toEqual(["conversation"]);
+    expect(current()).toEqual(["home"]);
     await act(async () => {
       window.location.hash = "#other";
       window.dispatchEvent(new HashChangeEvent("hashchange"));
     });
-    expect(current()).toEqual(["conversation"]);
+    expect(current()).toEqual(["home"]);
   });
 
   it("Reviews and Others' PRs are one tab: Others' PRs, with the review requests grouped first", async () => {

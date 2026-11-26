@@ -189,18 +189,16 @@ afterEach(() => {
 });
 
 describe("Dr. Assistant findings", () => {
-  it("sit on Home (no tab of their own), count in Home and Conversation, and take answers", async () => {
+  it("sit on Home (no tab of their own), count in the Home badge, and take answers", async () => {
     const { default: Tabs } = await import("../src/Tabs");
     render(<Tabs />);
     const nav = screen.getByRole("navigation", { name: "Views" });
     const item = (view: string) => nav.querySelector<HTMLButtonElement>(`[data-view="${view}"]`)!;
     expect(item("assistant")).toBeNull();
-    expect(item("conversation").querySelector(".nav-count")?.textContent).toBe("2");
+    expect(item("conversation")).toBeNull();
     expect(item("home").querySelector(".nav-count")?.textContent).toBe("2");
 
-    fireEvent.click(item("home"));
     expect(document.querySelector('[data-decision-id="single"]')).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Dr. Assistant findings" })).toBeTruthy();
     const card = document.querySelector<HTMLElement>('[data-decision-id="assistant-audit-assistant"]')!;
     expect(card.getAttribute("data-section")).toBe("assistant");
     expect(within(card).getByText("Assistant")).toBeTruthy();
@@ -216,7 +214,7 @@ describe("Dr. Assistant findings", () => {
     fireEvent.click(e1);
     fireEvent.click(within(card).getByRole("button", { name: "E2" }));
     expect(e1.getAttribute("aria-pressed")).toBe("true");
-    const send = within(card).getAllByRole("button", { name: "Send to assistant" }).find((b) => b.getAttribute("type") !== "submit")!;
+    const send = within(card).getAllByRole("button", { name: /^Send to / }).find((b) => b.getAttribute("type") !== "submit")!;
     fireEvent.click(send);
     await act(async () => {});
     expect(posted.at(-1)).toMatchObject({ event: "decision.answered", decision_id: "assistant-audit-assistant", answer: ["e1", "e2"] });

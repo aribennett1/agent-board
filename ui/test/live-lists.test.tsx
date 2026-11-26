@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { MyPrs, MyTickets, OthersPrs } from "../src/LiveLists";
-import { counts, groupMine, groupOthers, groupTickets, linesChanged, mineNeedsAttention, readyToApprove, type FeedPr, type FeedTicket } from "../src/liveLists";
+import { counts, groupMine, groupOthers, groupTickets, linesChanged, mineHasOpenItems, mineOpenReasons, readyToApprove, type FeedPr, type FeedTicket } from "../src/liveLists";
 
 afterEach(cleanup);
 
@@ -16,11 +16,14 @@ const ticket = (id: string, status: string, extra: Partial<FeedTicket> = {}): Fe
 const ok = { fetched_at: "2026-11-26T17:41:00.000Z", github: { ok: true }, linear: { ok: true, configured: true } };
 
 describe("grouping", () => {
-  it("My PRs: needs attention (changes requested, failing checks, comments for you), then in review, then drafts", () => {
+  it("My PRs: has open items (changes requested, failing checks, comments for you), then in review, then drafts", () => {
     const items = [pr(1), pr(2, { state: "changes requested" }), pr(3, { ci: "failing" }), pr(4, { unresolved_count: 2 }), pr(5, { state: "draft", ci: "failing" })];
-    expect(groupMine(items).map((g) => [g.key, g.items.map((p) => p.number)])).toEqual([["needs", [2, 3, 4]], ["review", [1]], ["draft", [5]]]);
-    expect(mineNeedsAttention(pr(5, { state: "draft", ci: "failing" }))).toBe(false);
+    expect(groupMine(items).map((g) => [g.key, g.title, g.items.map((p) => p.number)])).toEqual([["open", "Has open items", [2, 3, 4]], ["review", "In review", [1]], ["draft", "Drafts", [5]]]);
+    expect(mineHasOpenItems(pr(5, { state: "draft", ci: "failing" }))).toBe(false);
     expect(counts({ tickets: [], mine: items, others: [] }).mineNeeds).toBe(3);
+    expect(mineOpenReasons(pr(2, { state: "changes requested" }))).toEqual(["changes requested"]);
+    expect(mineOpenReasons(pr(3, { ci: "failing", checks: { passed: 13, failed: 2, pending: 0, failing: ["test", "lint"] } }))).toEqual(["2 failing checks"]);
+    expect(mineOpenReasons(pr(4, { unresolved_count: 3 }))).toEqual(["3 unresolved comments"]);
   });
 
   it("Others' PRs: review requests first, then the rest, then drafts, with Ready to approve only when it is safe", () => {
@@ -63,13 +66,23 @@ describe("rows", () => {
 
   it("My PRs lists failing checks and the comments left for him", () => {
     render(<MyPrs items={[pr(3, { ci: "failing", checks: { passed: 13, failed: 1, pending: 0, failing: ["test"] }, unresolved_count: 1, unresolved: [{ author: "bo", path: "b.php", body: "Fix the null case", url: "" }] })]} meta={ok} />);
-    expect(screen.getByRole("region", { name: "Needs your attention" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Has open items" })).toBeTruthy();
     const row = document.querySelector<HTMLElement>('[data-pr="rows-backend/3"]')!;
+    expect(within(row).getByText("1 failing check")).toBeTruthy();
+    expect(within(row).getByText("1 unresolved comment")).toBeTruthy();
+    expect(within(row).queryByText("Needs you")).toBeNull();
     expect(within(row).getByText("1 failing")).toBeTruthy();
     fireEvent.click(within(row).getByRole("button", { name: "Expand" }));
     expect(within(row).getByText(/Failing checks: test/)).toBeTruthy();
     expect(within(row).getByText("Comments left for you to address (1)")).toBeTruthy();
     expect(within(row).getByText("Fix the null case")).toBeTruthy();
+  });
+
+  it("reserves Needs you for a My PR that has an open board card", () => {
+    render(<MyPrs items={[pr(3, { ci: "failing", checks: { passed: 13, failed: 1, pending: 0, failing: ["test"] } })]} meta={ok} x={{ needsYou: (p) => p.number === 3 }} />);
+    const row = document.querySelector<HTMLElement>('[data-pr="rows-backend/3"]')!;
+    expect(within(row).getByText("Needs you")).toBeTruthy();
+    expect(within(row).getByText("1 failing check")).toBeTruthy();
   });
 
   it("a ticket row shows its Linear status, priority, project, labels and linked PRs under a status heading", () => {

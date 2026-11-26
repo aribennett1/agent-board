@@ -31,7 +31,7 @@ import { hasUnread, loadMyNotes, loadSeen, rememberMyNote, saveSeen } from "./Th
 import { Conversation } from "./Conversation";
 import { Notifications } from "./Notifications";
 import { MyPrs, MyTickets, OthersPrs } from "./LiveLists";
-import { counts as feedCounts, type FeedPr, type FeedTicket } from "./liveLists";
+import { counts as feedCounts, prIdentity, type FeedPr, type FeedTicket } from "./liveLists";
 import { buildTopics, openCount } from "./topics";
 import type { Ask, ReplyQuestion } from "./data/types";
 import {
@@ -104,10 +104,10 @@ const loadReviewLocals = (): ReviewLocals => {
 type Kind = "ticket" | "mypr" | "pr" | "waiting" | "decision";
 const KIND_LABEL: Record<Kind, string> = { ticket: "Ticket", mypr: "My PR", pr: "Pull request", waiting: "Waiting on others", decision: "Decision" };
 const KIND_BACK: Record<Kind, { view: View; label: string }> = {
-  ticket: { view: "conversation", label: "Conversation" },
+  ticket: { view: "home", label: "Home" },
   mypr: { view: "mine", label: "My PRs" },
   pr: { view: "others", label: "Others' PRs" },
-  waiting: { view: "conversation", label: "Conversation" },
+  waiting: { view: "home", label: "Home" },
   decision: { view: "home", label: "Home" },
 };
 // Quick actions when the item's detail names none. Each sends its label to the assistant as a message on the item.
@@ -451,7 +451,6 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
       .map((d) => (priorityOverride[d.id] ? { ...d, priority: priorityOverride[d.id] } : d))
       .filter((d) => !isPerFindingReview(d) || !allFindingsAnswered(d, board.asks, answersForCard(d.id, findingLocals))),
   );
-  const urgent = openDecisions.some((d) => effectivePriority(d) === "high");
   const queue = openDecisions.filter((d) => d.section !== "assistant");
   const assistantQueue = openDecisions.filter((d) => d.section === "assistant");
   // Without a webhook, pending messages also explain the "not set up" marker.
@@ -462,7 +461,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   const [reviewLocals, setReviewLocals] = useState<ReviewLocals>(loadReviewLocals);
 
   // When the owner last opened each item (detail key -> ISO time), so a new Assistant reply shows an unread dot.
-  // Once per load: send this browser's delivered notes and answers to the board, so the Conversation view has
+  // Once per load: send this browser's delivered notes and answers to the board, so Home has
   // the owner's side from any browser (the server skips ones it already has).
   useEffect(() => {
     // ab ask also drops anything older than board.reset_at (ab wipe), so a wiped board stays empty.
@@ -899,7 +898,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
       );
   };
 
-  // Conversation: names and refs of every item by detail key, the exchanges, and the open questions.
+  // Home (formerly Conversation too): names and refs of every item by detail key, the exchanges, and the open questions.
   const itemIndex: Record<string, { label: string; link?: string; ref: BoardItem }> = {};
   for (const e of [...ticketEntries, ...myEntries, ...waitingEntries, ...otherEntries])
     itemIndex[detailKey(e.kind, e.id)] = { label: e.kind === "ticket" ? `${e.id} ${e.title}` : e.sub ? `${e.sub} ${e.title}` : e.title, link: e.link, ref: e.ref };
@@ -940,6 +939,24 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   };
   const topics = buildTopics(convoBoard, itemIndex, (d) => openDecisions.some((x) => x.id === d.id));
   const openQs = openCount(topics);
+  const needsYouPrs = new Set<string>();
+  const addPr = (s?: string | null) => { const k = prIdentity(s); if (k) needsYouPrs.add(k); };
+  for (const t of topics) {
+    if (!t.open.length) continue;
+    for (const k of t.keys) addPr(k);
+    for (const q of t.open) {
+      addPr(q.decision?.card_ref);
+      addPr(q.decision?.group);
+      addPr(q.decision?.glance?.pr?.link);
+      if (q.decision?.glance?.pr?.number) addPr(`${q.decision.glance.pr.repo ?? ""}#${q.decision.glance.pr.number}`);
+    }
+  }
+  for (const d of openDecisions) {
+    addPr(d.card_ref);
+    addPr(d.group);
+    addPr(d.glance?.pr?.link);
+    if (d.glance?.pr?.number) addPr(`${d.glance.pr.repo ?? ""}#${d.glance.pr.number}`);
+  }
   const needsHuman = openQs > 0 || queue.length > 0 || assistantQueue.length > 0;
   useNeedsYouBadge(needsHuman);
   const openItem = (key: string) => {
@@ -988,8 +1005,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   const needsCount = (entries: Entry[]) => entries.filter((e) => statusOf(e).needs).length;
   const live = feedCounts({ tickets: board.glance.tickets, mine: board.glance.mine as unknown as FeedPr[] ?? [], others: board.glance.others as unknown as FeedPr[] ?? [] });
   const nav: { id: View; label: ReactNode; count?: number; urgent?: boolean }[] = [
-    { id: "conversation", label: "Conversation", count: openQs, urgent: openQs > 0 },
-    { id: "home", label: "Home", count: queue.length + assistantQueue.length, urgent },
+    { id: "home", label: "Home", count: openQs, urgent: openQs > 0 },
     { id: "mine", label: "My PRs", count: live.mineNeeds },
     { id: "others", label: "Others' PRs", count: live.othersAsked },
     ...(project ? [{ id: "project" as const, label: projectLabel ?? "Project" }] : []),
@@ -1064,7 +1080,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
       );
     }
   }
-  const navCurrent: View = view === "focus" ? (KIND_BACK[(focus ?? "").split("/")[0] as Kind]?.view ?? "home") : (view ?? "conversation");
+  const navCurrent: View = view === "focus" ? (KIND_BACK[(focus ?? "").split("/")[0] as Kind]?.view ?? "home") : (view === "conversation" ? "home" : (view ?? "home"));
 
   return (
     <div className="layout">
@@ -1096,54 +1112,35 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
       <div className="content">
         {markerEl && <div className="content-marker">{markerEl}</div>}
         {view === "focus" && focusView}
-        {view === "conversation" && (
-          <Conversation topics={topics} briefs={board.briefs} details={details} onOpen={openItem} onAnswerThread={answerThread} onAnswerPlan={answerPlan} onAnswerDecision={choose} onAnswerFinding={answerFinding} />
-        )}
-        {view === "home" && (
+        {(view === "home" || view === "conversation") && (
           <div className="view">
             <header className="view-head">
               <h1>Home</h1>
-              <p>What needs you now, most urgent first.</p>
+              <p>What needs you now, with each bot's questions, replies and explanations in one place.</p>
             </header>
-            {renderNeeds(true)}
-            <section className="needs-you" aria-label="Dr. Assistant">
-              <h2 className="kicker">Dr. Assistant findings</h2>
-              {assistantQueue.length === 0 ? (
-                <p className="empty">No findings to review.</p>
-              ) : (
-                <>
-                  <div className="queue">
-                    {groupByPriority(assistantQueue).map(({ level, items }) => (
-                      <section key={level} className="priority-section" data-level={level} aria-labelledby={`assistant-level-${level}`}>
-                        <h3 className="priority-heading" id={`assistant-level-${level}`}>
-                          {PRIORITY_LABEL[level]} <span className="n">{items.length}</span>
-                        </h3>
-                        <div className="queue-group">
-                          {items.map((d) => (
-                            <DecisionCard
-                              key={d.id}
-                              decision={d}
-                              index={assistantQueue.indexOf(d) + 1}
-                              onAnswer={choose}
-                              onClarify={requestClarify}
-                              clarify={clarifying[d.id]}
-                              now={now}
-                              onPriority={changePriority}
-                              priorityError={Boolean(priorityFailed[d.id])}
-                              onNotRelevant={markNotRelevant}
-                              notRelevant={notRelevant[d.id]}
-                              staleCtx={staleContext(board)}
-                              priorDecision={priorDecisionOf(d)}
-                              {...decisionExtras(d)}
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    ))}
-                  </div>
-                </>
-              )}
-            </section>
+            <Conversation
+              topics={topics}
+              briefs={board.briefs}
+              details={details}
+              onOpen={openItem}
+              onAnswerThread={answerThread}
+              onAnswerPlan={answerPlan}
+              onAnswerDecision={choose}
+              onAnswerFinding={answerFinding}
+              chrome={{
+                onClarify: requestClarify,
+                clarify: clarifying,
+                now,
+                onPriority: changePriority,
+                priorityError: priorityFailed,
+                onNotRelevant: markNotRelevant,
+                notRelevant,
+                staleCtx: staleContext(board),
+                priorDecision: priorDecisionOf,
+                findingAnswered: findingAnswersOf,
+                extras: decisionExtras,
+              }}
+            />
             <PrTable title="Reviews waiting for your yes" count={needsCount(reviewEntries)} total={reviewEntries.length}>
               {rows(reviewEntries)}
             </PrTable>
@@ -1151,7 +1148,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
         )}
         {/* My tickets is hidden for now. Re-enable: add it back to the nav and BOARD_VIEWS, and set LINEAR_FEED_ENABLED. */}
         {view === "tickets" && <MyTickets items={(board.glance.tickets ?? []) as unknown as FeedTicket[]} meta={board.feed ?? undefined} />}
-        {view === "mine" && <MyPrs items={(board.glance.mine ?? []) as unknown as FeedPr[]} meta={board.feed ?? undefined} />}
+        {view === "mine" && <MyPrs items={(board.glance.mine ?? []) as unknown as FeedPr[]} meta={board.feed ?? undefined} x={{ needsYou: (p) => needsYouPrs.has(`${p.repo}/${p.number}`.toLowerCase()) }} />}
         {view === "others" && <OthersPrs
             items={(board.glance.others ?? []) as unknown as FeedPr[]}
             meta={board.feed ?? undefined}

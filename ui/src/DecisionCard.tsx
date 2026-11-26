@@ -17,6 +17,8 @@ import { ContextBody } from "./contextBody";
 import { GlanceHeader, Recommendation, DraftToggle } from "./GlanceHeader";
 import { optionColorClass } from "./optionColor";
 import { cardStale, effectiveTier, TIER_LABEL, waitingLabel, type StaleContext } from "./triage";
+import { botPillClass, raisedByOf, type BoardBot } from "./raisedBy";
+import { DEFAULT_BOT, RecipientPicker } from "./sendTo";
 
 // "Explain this better" for one card: sending, sent and waiting for the assistant to reword it, or the last send failed.
 export type ClarifyState =
@@ -34,7 +36,9 @@ export type NotRelevantState =
 type Props = {
   decision: Decision;
   index: number;
-  onAnswer: (d: Decision, pick: AppChoice) => void;
+  onAnswer: (d: Decision, pick: AppChoice, toBot?: string) => void;
+  // When true (Home), the send button is "Send to <bot>" with a picker. Unit tests keep the older label.
+  enableSendTo?: boolean;
   onClarify?: (d: Decision) => void;
   clarify?: ClarifyState;
   // The board's shared clock (useNow); the current time when absent.
@@ -148,6 +152,7 @@ export function DecisionCard({
   decision,
   index,
   onAnswer,
+  enableSendTo,
   onClarify,
   clarify,
   now,
@@ -182,6 +187,12 @@ export function DecisionCard({
   const toggle = (id: string) =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const priority = effectivePriority(decision);
+  const author = raisedByOf(decision);
+  const [recipient, setRecipient] = useState<BoardBot | undefined>();
+  const to: BoardBot = recipient ?? author ?? DEFAULT_BOT;
+  const toBot = enableSendTo ? (recipient ?? author) : undefined;
+  const sendLabel = enableSendTo ? `Send to ${to}` : "Send to assistant";
+  const callAnswer = (pick: AppChoice) => (enableSendTo ? onAnswer(decision, pick, toBot) : onAnswer(decision, pick));
 
   return (
     <article
@@ -200,6 +211,8 @@ export function DecisionCard({
       )}
       {title && (
         <h3 className="card-title" id={tid}>
+          {author && <span className={botPillClass(author)}>{author}</span>}
+          {author ? " " : ""}
           {onFocus ? (
             <button type="button" className="title-link" onClick={onFocus}>
               {title}
@@ -367,7 +380,7 @@ export function DecisionCard({
               key={o.id}
               type="button"
               className={["btn", "ghost", optionColorClass(o.id)].filter(Boolean).join(" ")}
-              onClick={() => onAnswer(decision, o.id)}
+              onClick={() => callAnswer(o.id)}
             >
               {o.label}
             </button>
@@ -381,10 +394,11 @@ export function DecisionCard({
             type="button"
             className="btn"
             disabled={picked.length === 0}
-            onClick={() => onAnswer(decision, picked)}
+            onClick={() => callAnswer(picked)}
           >
-            Send to assistant
+            {sendLabel}
           </button>
+          {enableSendTo && <RecipientPicker value={to} onChange={setRecipient} />}
           <span className="hint">
             {picked.length === 0
               ? "Pick one or more"
@@ -399,7 +413,7 @@ export function DecisionCard({
           className="custom"
           onSubmit={(e) => {
             e.preventDefault();
-            if (custom) onAnswer(decision, { custom });
+            if (custom) callAnswer({ custom });
           }}
         >
           <span className="mic-wrap inline">
@@ -428,8 +442,9 @@ export function DecisionCard({
             <MicButton field={customField} value={text} onChange={setText} />
           </span>
           <button type="submit" className="btn" disabled={!custom}>
-            Send to assistant
+            {sendLabel}
           </button>
+          {enableSendTo && <RecipientPicker value={to} onChange={setRecipient} />}
         </form>
       )}
         </>
