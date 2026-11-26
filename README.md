@@ -144,6 +144,8 @@ The board usually runs on the machine where your agents work, not on your laptop
 1. Install Tailscale on your laptop (and phone, if you like) and sign in. That creates your private network (tailnet).
 2. On the board's host, install Tailscale and join the same tailnet: `sudo tailscale up` and open the sign-in link it prints.
 3. Start the board (`npm start`, which listens on `PORT`, 8787 by default), then serve it on the tailnet: `sudo tailscale serve --bg 8787`.
+
+On the Grok Bot box, `scripts/start-box.sh` (live copy: `/workspace/agent-board-ops/start.sh`) does this and restarts the board if it crashes. Do not use `tailscale funnel`.
 4. Open `https://<host-name>.<your-tailnet>.ts.net` on any of your signed-in devices.
 
 Only devices signed in to your tailnet can reach it. Don't use `tailscale funnel`, because that makes the board public.

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# agent-board-boot-hook
+# The box is a container: PID 1 is pod-daemon, systemd is offline, and there
+# is no cron. start-desktop launches xfce4-panel via PATH on every boot, and
+# /home/box persists across box replacements, so this wrapper is the boot hook.
+if [ -x /workspace/agent-board-ops/start.sh ]; then
+  /workspace/agent-board-ops/start.sh >/dev/null 2>&1 &
+fi
+exec /usr/bin/xfce4-panel "$@"
