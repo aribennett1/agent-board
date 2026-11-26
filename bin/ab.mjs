@@ -81,6 +81,7 @@
 //   ab answer <id> --custom "text" --by chat|app [--at ISO]
 //   ab answer <id> --action send --text "final text" --by chat|app [--at ISO]
 //   ab answer <id> --action decline --by chat|app [--at ISO]
+//   ab heal-answers                                      closes cards he answered that the board never marked answered
 //   ab clear <id> --reason "why"                    (tombstoned: raise refuses it later) -> {"ok","status":"cleared","id"}
 //                                                      the tombstone line in .ab-cleared.jsonl is {id, reason, at, card}: card is
 //                                                      the removed decision as it was (lines from before this have no card).
@@ -193,6 +194,7 @@ import { applyCodeFences, fenceBareCode } from "../src/code-fences.ts";
 import { isSlackDraft, normalizeSlack, slackDraftError } from "../src/slack-draft.ts";
 import { applyQuietSwap, quietSwapText } from "../src/quiet-swap.ts";
 import { carryDeclined, declinedForPr, declinedOf } from "../src/declined.ts";
+import { healAnswers, settleDecision } from "../src/answered.ts";
 
 // Storage: the agent-board SQLite file (AGENT_BOARD_DB, default ./agent-board.db) unless AB_FILE names a board.ts
 // file (the file mode is kept for the UI's own tests and for importing an old board.ts).
@@ -1157,6 +1159,7 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   const prGroup = /^pr:([^/]+)\/(\d+)$/.exec(d.group || "");
   if (prGroup && Array.isArray(d.post_comments)) d.post_comments = carryDeclined(declinedForPr(f.b, prGroup[1], Number(prGroup[2])), d.post_comments).comments;
   const k = f.b.decisions.findIndex((x) => x.id === d.id);
+  if (k < 0 && SQL && sql().prepare("SELECT 1 FROM archive_cards WHERE card_id = ?").get(d.id)) die(4, "refusing: " + d.id + " was answered and archived; use a new id only for a genuinely new decision");
   if (k >= 0 && f.b.decisions[k].answer) die(4, "refusing: " + d.id + " is already answered; never restore an answered decision");
   if (k >= 0 && !asAssistant && f.b.decisions[k].section === "assistant") die(2, "raise: " + d.id + " is a Dr. Assistant card; use ab assistant");
   if (k >= 0 && asAssistant && f.b.decisions[k].section !== "assistant") die(2, "assistant: " + d.id + " is already a Home decision; use a new id");
@@ -1480,13 +1483,28 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   lock(); const f = load();
   const a = askOf(p, f.b); if (!a || !nonBlank(a.at)) die(2, "ask: not an ask or a known webhook payload");
   const asks = Array.isArray(f.b.asks) ? f.b.asks : [];
-  if (asks.some((x) => x.id === a.id)) { console.log(JSON.stringify({ ok: true, live: false, id: a.id, duplicate: true })); process.exit(0); }
+  // A card answer is stored on the card here, in the same write that records the ask, so the answer survives a refresh,
+  // another browser and a bot re-raise. A browser re-sending an answer the board already has heals a card that missed it.
+  const settled = settleDecision(f.b.decisions?.find((x) => x.id === p.decision_id), p);
+  if (asks.some((x) => x.id === a.id)) {
+    if (settled) { save(f, f.b); log({ op: "answer", id: p.decision_id, by: "app", healed: true }); }
+    console.log(JSON.stringify({ ok: true, live: false, id: a.id, duplicate: true, settled })); process.exit(0);
+  }
   // After ab wipe, a browser re-sending its old local history must not bring it back.
   if (f.b.reset_at && a.at <= f.b.reset_at) { console.log(JSON.stringify({ ok: true, live: false, id: a.id, before_reset: true })); process.exit(0); }
+  if (settled) { const d = f.b.decisions.find((x) => x.id === p.decision_id); d.updated_at = new Date().toISOString(); }
   f.b.asks = [...asks, a].sort((x, y) => (x.at < y.at ? -1 : x.at > y.at ? 1 : 0)).slice(-1000);
   const u = save(f, f.b); const live = await waitServed((b) => b.updated_at === u);
-  log({ op: "ask", id: a.id, key: a.item_key, kind: a.kind });
-  console.log(JSON.stringify({ ok: true, live, id: a.id, key: a.item_key, kind: a.kind }));
+  log({ op: "ask", id: a.id, key: a.item_key, kind: a.kind, settled });
+  console.log(JSON.stringify({ ok: true, live, id: a.id, key: a.item_key, kind: a.kind, settled }));
+} else if (cmd === "heal-answers") {
+  // ab heal-answers: closes every card he answered that the board never marked answered (an answer ask exists, the card
+  // has no answer, and the answer came after the card's latest revision). Safe to rerun. -> {"ok","healed":[ids]}
+  lock(); const f = load();
+  const healed = healAnswers(f.b);
+  if (healed.length) save(f, f.b);
+  log({ op: "heal-answers", count: healed.length });
+  console.log(JSON.stringify({ ok: true, healed }));
 } else if (cmd === "reply") {
   // ab reply <item> "text" [--image path] [--alt "text"] [--question "q" --option "Label" ...]: appends a Assistant reply
   // (Markdown, links) to the item's thread with a timestamp. This is how to answer the owner on the board. The image is copied
@@ -1989,5 +2007,5 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   log({ op: "project-refresh", milestones: r.milestones.length });
   console.log(JSON.stringify({ ok: true, milestones: r.milestones.length, totals, updated_at: updated }));
 } else {
-  die(2, "usage: ab raise|assistant|slack-draft|answer|read|context|prune|notify|clear|restore|priority|glance|mypr|reviews|review-status|gh-refresh|detail|ticket|ticket-summaries|plan|reply|supersede|already-answered|wipe|drop-bulk-options|ask|open|check|lint|backfill-stamps|backfill-titles|project-refresh (see header of " + process.argv[1] + ")");
+  die(2, "usage: ab raise|assistant|slack-draft|answer|heal-answers|read|context|prune|notify|clear|restore|priority|glance|mypr|reviews|review-status|gh-refresh|detail|ticket|ticket-summaries|plan|reply|supersede|already-answered|wipe|drop-bulk-options|ask|open|check|lint|backfill-stamps|backfill-titles|project-refresh (see header of " + process.argv[1] + ")");
 }

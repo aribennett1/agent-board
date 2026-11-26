@@ -264,15 +264,14 @@ export function mountUi(app: Hono, db: DatabaseSync, clock: Clock, o: UiOptions 
       local = true;
     }
 
+    // The board keeps what he said the moment it arrives, whether or not the wake webhook is up: an answer sitting only in
+    // the browser would show as open again in another browser, after a refresh, or after a bot re-raises the card.
+    // For a card answer this also stores the answer on the card (ab ask). Same id twice is a no-op.
+    await recordAsk(raw);
+
     const route = routeWebhook(db, p, () => derivedDecisions(db), o.webhook ?? null, o.envFile);
     const hook = route.webhook;
-    if (!hook) {
-      if (local) {
-        void recordAsk(raw);
-        return reply(200, 200);
-      }
-      return reply(503, null);
-    }
+    if (!hook) return local ? reply(200, 200) : reply(503, null);
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (hook.auth) headers.Authorization = hook.auth;
     let status: number | null = null;
@@ -286,15 +285,11 @@ export function mountUi(app: Hono, db: DatabaseSync, clock: Clock, o: UiOptions 
         const askId = askIdOf(p);
         if (askId) db.prepare('INSERT OR IGNORE INTO ui_ask_delivered (ask_id, delivered_at) VALUES (?, ?)').run(askId, clock.now().toISOString());
         if (msgId) db.prepare('INSERT OR IGNORE INTO ui_delivered (message_id) VALUES (?)').run(msgId);
-        void recordAsk(raw);
       }
     } catch {
       status = null;
     }
-    if (local && (status === null || status >= 400)) {
-      void recordAsk(raw);
-      return reply(200, 200); // the board already took it; the assistant copy failed
-    }
+    if (local && (status === null || status >= 400)) return reply(200, 200); // the board already took it; the assistant copy failed
     return status === null ? reply(502, null) : reply(200, status);
   });
 

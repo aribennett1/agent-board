@@ -172,3 +172,7 @@ An hourly dump of the live database is committed to the private `aribennett1/eri
 ## License
 
 MIT
+
+## Answers are stored on the board
+
+When Eric answers a card in the browser, the server records the ask and stores the answer on the card in the same write (`ab ask`). It does this whether or not the wake webhook is up, so an answered card stays answered after a refresh, in another browser, and after a bot re-raises it (`ab raise` refuses an answered or archived id; a bot that wants to ask again uses a new id). Nothing depends on browser local storage or on a bot following up. `ab heal-answers` closes any card that has his answer recorded but no stored answer, and is safe to rerun.
