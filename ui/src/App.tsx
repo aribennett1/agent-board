@@ -934,8 +934,8 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   };
   const topics = buildTopics(convoBoard, itemIndex, (d) => openDecisions.some((x) => x.id === d.id));
   const openQs = openCount(topics);
-  const needsEric = openQs > 0 || queue.length > 0 || auditQueue.length > 0;
-  useNeedsYouBadge(needsEric);
+  const needsHuman = openQs > 0 || queue.length > 0 || auditQueue.length > 0;
+  useNeedsYouBadge(needsHuman);
   const openItem = (key: string) => {
     const i = key.indexOf(":");
     markSeen(key);

@@ -156,7 +156,7 @@ export type Decision = {
   // Ticket or PR grouping key, e.g. "pr:example-repo/206" or "ticket:PROJ-5267".
   group?: string;
   glance?: Glance;
-  // Optional one-line light joke, shown muted. Never the word "bro".
+  // Optional one-line light joke, shown muted.
   joke?: string;
   // Shown as a recommendation with its reason; never preselected.
   recommendation?: Recommendation;

@@ -27,7 +27,7 @@ const seed = (b: Partial<Board>) =>
 const finding = {
   id: "assistant-sample-finding",
   title: "Assistant skipped the context paragraph",
-  context: "Dr. Assistant audited Assistant against the question format rules. One finding is ready for you to accept or change.",
+  context: "The ops bot audited Assistant against the question format rules. One finding is ready for you to accept or change.",
   bot: "Assistant",
   rule: "Every question needs a short context paragraph.",
   seen: "On a ticket question, Assistant posted with no context paragraph.",
@@ -59,13 +59,10 @@ describe("ab assistant", () => {
     expect(ab(["lint"]).status).toBe(0);
   });
 
-  it("refuses a missing bot, a bro word, an apply-all option, and ab raise of an assistant field", () => {
+  it("refuses a missing bot, an apply-all option, and ab raise of an assistant field", () => {
     seed({});
     const { bot: _b, ...noBot } = finding;
     expect(ab(["assistant", JSON.stringify(noBot)]).status).toBe(2);
-    const bro = ab(["assistant", JSON.stringify({ ...finding, id: "assistant-bro-word", rule: "Talk to the human, bro, in plain words." })]);
-    expect(bro.status).toBe(2);
-    expect(bro.stderr).toMatch(/bro/i);
     expect(ab(["assistant", JSON.stringify({ ...finding, options: [...finding.options, { id: "all", label: "Apply all" }] })]).stderr).toMatch(/bulk accept/);
     expect(ab(["raise", JSON.stringify({ ...finding, context: finding.context, id: "home-card-x" })]).stderr).toMatch(/ab assistant/);
   });
@@ -75,7 +72,7 @@ describe("ab assistant", () => {
     const grouped = {
       id: "assistant-audit-root-causes",
       title: "Root causes R1-R5 from today's audit",
-      context: "Dr. Assistant audited Assistant and ops against your rules today. Five root causes sat underneath the repeated questions.",
+      context: "The ops bot audited Assistant and ops against your rules today. Five root causes sat underneath the repeated questions.",
       bot: "Assistant and ops",
       rule: "Root causes behind today's board and profile drift",
       question: "Which of these root-cause fixes should be applied?",

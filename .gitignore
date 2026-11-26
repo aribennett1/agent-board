@@ -1,8 +1,10 @@
-node_modules/
 *.db
 *.db-*
 *.sqlite*
 .env
 .env.*
-ui/dist/
+node_modules
+node_modules/
 replies/
+ui/dist/
+ui/node_modules
