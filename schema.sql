@@ -152,3 +152,14 @@ CREATE TABLE IF NOT EXISTS ui_item_read (
   item_key TEXT PRIMARY KEY,
   read_at TEXT NOT NULL
 );
+
+-- Status notes from the bots (ab notify). Acknowledging one never wakes a bot.
+CREATE TABLE IF NOT EXISTS ui_notifications (
+  id INTEGER PRIMARY KEY,
+  bot TEXT NOT NULL,
+  text TEXT NOT NULL,
+  next_update TEXT,
+  link TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  read_at TEXT
+);

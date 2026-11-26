@@ -30,6 +30,7 @@ import { ExpandableRow, FocusView, ItemDetails } from "./ItemExpand";
 import { Markdown } from "./markdown";
 import { hasUnread, loadMyNotes, loadSeen, rememberMyNote, saveSeen } from "./Thread";
 import { Conversation } from "./Conversation";
+import { Notifications } from "./Notifications";
 import { buildTopics, openCount } from "./topics";
 import type { Ask, ReplyQuestion } from "./data/types";
 import {
@@ -75,7 +76,7 @@ const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(r
 const withoutPriority = ({ priority: _priority, ...rest }: Decision) => JSON.stringify(rest);
 
 // The left nav's destinations. #project is the project tab; the rest are board sections.
-export type View = "conversation" | "home" | "tickets" | "mine" | "reviews" | "others" | "project" | "focus";
+export type View = "conversation" | "notifications" | "home" | "tickets" | "mine" | "reviews" | "others" | "project" | "focus";
 
 type AppProps = {
   // Which section the main area shows. Missing: the classic one-page board with every section (used by tests).
@@ -986,6 +987,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   const needsCount = (entries: Entry[]) => entries.filter((e) => statusOf(e).needs).length;
   const nav: { id: View; label: ReactNode; count?: number; urgent?: boolean }[] = [
     { id: "conversation", label: "Conversation", count: openQs, urgent: openQs > 0 },
+    { id: "notifications", label: "Notifications", count: (board.notifications ?? []).filter((n) => !n.read_at).length },
     { id: "home", label: "Home", count: queue.length + assistantQueue.length, urgent },
     { id: "tickets", label: "My tickets", count: needsCount(ticketEntries) + needsCount(waitingEntries) },
     { id: "mine", label: "My PRs", count: needsCount(myEntries) },
@@ -1097,6 +1099,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
         {view === "conversation" && (
           <Conversation topics={topics} briefs={board.briefs} details={details} onOpen={openItem} onAnswerThread={answerThread} onAnswerPlan={answerPlan} onAnswerDecision={choose} onAnswerFinding={answerFinding} />
         )}
+        {view === "notifications" && <Notifications items={board.notifications ?? []} />}
         {view === "home" && (
           <div className="view">
             <header className="view-head">

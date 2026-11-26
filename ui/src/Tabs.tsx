@@ -5,7 +5,7 @@ import { ProjectTab, ProjectTabLabel } from "./ProjectTab";
 import { useLiveProject } from "./useLiveBoard";
 import type { Project } from "./data/types";
 
-const BOARD_VIEWS: View[] = ["conversation", "home", "tickets", "mine", "reviews", "others"];
+const BOARD_VIEWS: View[] = ["conversation", "notifications", "home", "tickets", "mine", "reviews", "others"];
 const views = (project: Project | null): View[] => (project && hasProject(project) ? [...BOARD_VIEWS, "project"] : BOARD_VIEWS);
 const FOCUS_KINDS = ["ticket", "mypr", "pr", "waiting", "decision"];
 

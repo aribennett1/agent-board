@@ -63,6 +63,7 @@ describe("Left nav", () => {
     expect(window.location.hash).toBe("#home");
     expect([...nav().querySelectorAll(".nav-item")].map((b) => b.getAttribute("data-view"))).toEqual([
       "conversation",
+      "notifications",
       "home",
       "tickets",
       "mine",

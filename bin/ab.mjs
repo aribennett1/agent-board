@@ -48,6 +48,9 @@
 //                                                      A re-post of the same id updates the open card in place.
 //                                                      -> {"ok","board":"live","card":{...,"section":"assistant","bot","rule",
 //                                                      "seen","proposed_fix","decision_id",...}}
+//   ab notify --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> --text "..." [--next "1:15 PM ET"] [--link url]
+//                                                      posts a short Markdown status note to the Notifications tab (starting work, a next-update time, a QA approval).
+//                                                      Acknowledging one never wakes a bot. Storage mode only.
 //   ab read <id|item>                               marks the human's messages on that item as read by the assistant (blue checks on the board).
 //                                                      <id> is a decision id (task:T-1:4 too) or an item key (ticket:PROJ-1, decision:<id>).
 //                                                      ab answer and ab reply do this for their item too. Deterministic: no AI involved.
@@ -1417,6 +1420,24 @@ if (cmd === "raise" || cmd === "assistant") {
   log({ op: "reply", key, image: entry.image, question: entry.question?.id });
   console.log(JSON.stringify({ ok: true, live, key, at, replies: all[key].thread.length, image: entry.image, question: entry.question?.id }));
   }
+} else if (cmd === "notify") {
+  // ab notify --bot <name> --text "..." [--next "1:15 PM ET"] [--link url]: a status note on the Notifications tab.
+  // Acknowledging it never wakes a bot. Short Markdown. Storage mode only.
+  const NOTIFY_BOTS = new Set(["Planner", "QA", "Engineer", "dr eggbot", "Grok Bot"]);
+  const bot = flag(args, "--bot");
+  const text = flag(args, "--text");
+  const next = flag(args, "--next");
+  const link = flag(args, "--link");
+  if (!NOTIFY_BOTS.has(bot)) die(2, "notify: usage: ab notify --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> --text \"...\" [--next \"1:15 PM ET\"] [--link url]");
+  const body = typeof text === "string" ? text.trim() : "";
+  if (!body) die(2, "notify: --text is required");
+  if (body.length > 800) die(2, "notify: --text is too long (800 characters or fewer)");
+  if (next !== undefined && !nonBlank(next)) die(2, "notify: --next, if given, cannot be blank");
+  if (link !== undefined && !isHttp(link)) die(2, "notify: --link must be an http(s) URL");
+  if (!SQL) die(2, "notify: needs the SQLite board (unset AB_FILE)");
+  const at = new Date().toISOString();
+  const r = sql().prepare("INSERT INTO ui_notifications (bot, text, next_update, link, created_at) VALUES (?, ?, ?, ?, ?)").run(bot, body, next === undefined ? null : next.trim(), link ?? null, at);
+  console.log(JSON.stringify({ ok: true, id: Number(r.lastInsertRowid), bot, text: body, next_update: next === undefined ? null : next.trim(), link: link ?? null, created_at: at }));
 } else if (cmd === "read") {
   if (!nonBlank(args[0]) || /\s/.test(args[0])) die(2, "usage: ab read <decision id | item key>");
   const key = detailKeyOf(args[0]) ?? "decision:" + args[0];
@@ -1735,5 +1756,5 @@ if (cmd === "raise" || cmd === "assistant") {
   log({ op: "project-refresh", milestones: r.milestones.length });
   console.log(JSON.stringify({ ok: true, milestones: r.milestones.length, totals, updated_at: updated }));
 } else {
-  die(2, "usage: ab raise|assistant|answer|read|clear|restore|priority|glance|mypr|reviews|review-status|gh-refresh|detail|ticket|ticket-summaries|plan|reply|supersede|already-answered|wipe|drop-bulk-options|ask|open|check|lint|backfill-stamps|backfill-titles|project-refresh (see header of " + process.argv[1] + ")");
+  die(2, "usage: ab raise|assistant|answer|read|notify|clear|restore|priority|glance|mypr|reviews|review-status|gh-refresh|detail|ticket|ticket-summaries|plan|reply|supersede|already-answered|wipe|drop-bulk-options|ask|open|check|lint|backfill-stamps|backfill-titles|project-refresh (see header of " + process.argv[1] + ")");
 }

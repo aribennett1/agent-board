@@ -292,6 +292,16 @@ export type ItemDetail = {
   updated_at?: string;
 };
 
+export type BoardNotification = {
+  id: number;
+  bot: string;
+  text: string;
+  next_update?: string | null;
+  link?: string | null;
+  created_at: string;
+  read_at?: string | null;
+};
+
 export type Board = {
   updated_at: string;
   decisions: Decision[];
@@ -302,6 +312,8 @@ export type Board = {
   asks?: Ask[];
   // Whether the server has a wake webhook right now; re-read on every live refresh (the page-load value can be stale).
   webhook_configured?: boolean;
+  // Status notes from the bots (ab notify). Never mixed into Conversation and never part of the red-dot count.
+  notifications?: BoardNotification[];
   // ab wipe: when the board was emptied. Local history from before it is not shown or re-sent.
   reset_at?: string;
   // Short summaries of ticket keys, shown next to the first mention of a key in any board text (ab ticket-summaries).
