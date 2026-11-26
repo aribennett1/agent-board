@@ -32,7 +32,7 @@
 //     Optional: unblocks, sha, joke, recommendation:{id,reason,who?}, draft, severity, superseded_by, stale_reason.
 //     Cards that edit an already-posted comment also need "current_text" (the text on GitHub now). The board
 //     shows a highlighted diff of current_text against post_text, not two full copies. "what_happens_after"
-//     must say what actually happens on GitHub (edit, or delete and re-post), not that the answer only goes to QA.
+//     must say what actually happens on GitHub (edit, or delete and re-post), not that the answer only goes to ops.
 //     Recommendations are shown, never preselected. Audit cards are not required to have triage fields.
 //   ab audit '<json>' | ab audit < finding.json
 //                                                      posts an audit finding or proposed bot change on the Audit tab
@@ -76,8 +76,8 @@
 //                                                      "body","status":"pending|posted|skipped"}]}] -> {"ok","live","set","total"}
 //   ab review-status <repo>#<pr> <comment-id> <pending|posted|skipped> [--url <posted comment>] [--note "why"]
 //                                                      [--answer-to-question "text"] [--body "revised will-post text"]
-//                                                      Marks a drafted-review comment, or a finding on a per-comment QA
-//                                                      review card (pr1935-qa-review and the like), as posted or not.
+//                                                      Marks a drafted-review comment, or a finding on a per-comment ops
+//                                                      review card (pr201-ops-review and the like), as posted or not.
 //                                                      <comment-id> is the draft id (c1) or the finding number (1, #1, f1).
 //                                                      posted needs --url (the GitHub comment or review link) so the board
 //                                                      can show it. If a finding could not be posted, use skipped --note
@@ -91,10 +91,10 @@
 //   ab detail <key> [json|-] | ab detail <key> --clear
 //                                                      merges {"summary"?,"plan"?,"discussion"?:[{"author","body","at"?,"link"?}],"actions"?:[...],
 //                                                      "questions"?:[{"id","question","body"?,"recommendation"?}]} into the item's chevron.
-//                                                      key: ticket:PROJ-2512, pr:example-repo/1982, mypr:example-repo/1982, waiting:<slug>,
+//                                                      key: ticket:PROJ-2512, pr:example-repo/209, mypr:example-repo/209, waiting:<slug>,
 //                                                      decision:<id>, page:tickets (shown above My tickets)
 //   ab ticket <key> <ticket.md> --plain "text" | --plain-file <f.md>
-//                                                      attaches the full Linear ticket (Markdown) and an "In plain words" summary.
+//                                                      attaches the full ticket (Markdown) and an "In plain words" summary.
 //                                                      Shown in this order on the item and its focus page: ticket, plain words,
 //                                                      then questions and plan. Bare ABC-123 = ticket:ABC-123. Both are required.
 //   ab plan <key> <file.md> [--no-questions]        attaches a plan file in full (rendered Markdown) plus its section 6 open questions
@@ -278,10 +278,10 @@ function titleError(t) {
   return "title: \"" + s + "\" is only an id. Add plain words saying what it is, for example \"ABC-1234 Checkout button color\".";
 }
 // The stored-field rules, shared by raise and lint.
-// Standing rule (t103u): the owner answers every Engineer question himself. No option may accept several picks at once
-// ("Accept all 7 of Engineer's picks", "take the recommendations"), and no label is marked "(pick)": the pick is a hint.
-const BULK_RE = /\b(?:accept|take|go with|approve|use|apply)\s+(?:all|every|both)\b|\ball\s+(?:\d+\s+)?(?:of\s+)?(?:engineer'?s\s+|the\s+)?(?:picks|recommendations|suggestions)\b|\btake\s+the\s+(?:picks|recommendations|suggestions)\b|\(pick\)/i;
-const bulkProblems = (opts) => (Array.isArray(opts) ? opts : []).filter((o) => BULK_RE.test(String(o?.label ?? ""))).map((o) => `option "${o.label}" is a bulk accept or marks a pick; each question is answered on its own (show the pick as "Engineer suggests: ..." instead)`);
+// Standing rule (t103u): the owner answers every Assistant question himself. No option may accept several picks at once
+// ("Accept all 7 of Assistant's picks", "take the recommendations"), and no label is marked "(pick)": the pick is a hint.
+const BULK_RE = /\b(?:accept|take|go with|approve|use|apply)\s+(?:all|every|both)\b|\ball\s+(?:\d+\s+)?(?:of\s+)?(?:assistant'?s\s+|the\s+)?(?:picks|recommendations|suggestions)\b|\btake\s+the\s+(?:picks|recommendations|suggestions)\b|\(pick\)/i;
+const bulkProblems = (opts) => (Array.isArray(opts) ? opts : []).filter((o) => BULK_RE.test(String(o?.label ?? ""))).map((o) => `option "${o.label}" is a bulk accept or marks a pick; each question is answered on its own (show the pick as "Assistant suggests: ..." instead)`);
 // t111u/t112u: every question the owner gets carries a short plain-words context paragraph (what the ticket is for, what
 // this part does, what exactly is asked and why). Short: at most 700 chars, so no walls of text.
 function contextParaError(c) {
@@ -381,7 +381,7 @@ function answersCommentError(c) {
 const RAW_TICKET_RE = /^#{1,3}\s+[A-Z]+-\d+:|^\s*-\s*\*\*Ticket:\*\*|^\s*\*\*Priority:\*\*|^\s*\*\*Labels:\*\*|^\s*#{1,3}\s+Description\b/m;
 function rawTicketError(v, where) {
   if (typeof v !== "string") return null;
-  if (RAW_TICKET_RE.test(v)) return where + " contains raw Linear ticket markdown inline (put raw ticket in details.ticket behind Full ticket toggle, use a plain summary instead)";
+  if (RAW_TICKET_RE.test(v)) return where + " contains raw ticket markdown inline (put raw ticket in details.ticket behind Full ticket toggle, use a plain summary instead)";
   return null;
 }
 function isSkipOption(o) {
@@ -417,7 +417,7 @@ function isPerFindingReviewCard(d) {
   const text = [d.id, d.title, d.question, d.context].filter(Boolean).join(" ");
   if (!/\breview\b/i.test(text)) return false;
   const commentOpts = (d.options || []).filter((o) => !isBlank(o?.post_text) || !isBlank(o?.path));
-  return commentOpts.length > 0 || /\b(?:which comments|qa post|post(?:s|ing)? (?:these |the )?comments)\b/i.test(text);
+  return commentOpts.length > 0 || /\b(?:which comments|ops post|post(?:s|ing)? (?:these |the )?comments)\b/i.test(text);
 }
 function perFindingReviewError(d) {
   if (!isPerFindingReviewCard(d)) return null;
@@ -531,7 +531,7 @@ function editCardError(d) {
     return /^(edit|repost|replace|swap)$/i.test(id) || /\b(edit|swap|re-?post|replace|delete and)\b/i.test(label);
   });
   if (!mutatesGithub) return null;
-  const claimsNoGithub = /nothing changes on github|nothing (?:on github )?changes until|goes to qa(?:\s+word for word)?(?:,|\s+and)\s+nothing changes/i.test(after);
+  const claimsNoGithub = /nothing changes on github|nothing (?:on github )?changes until|goes to ops(?:\s+word for word)?(?:,|\s+and)\s+nothing changes/i.test(after);
   const mentionsGithubEdit = /\b(edit|update|replace|swap|delete|re-?post)\b[\s\S]{0,80}\b(github|comment)\b|\b(github|comment)\b[\s\S]{0,80}\b(edit|update|replace|swap|delete|re-?post)\b/i.test(after);
   if (claimsNoGithub || !mentionsGithubEdit) {
     return "what_happens_after must say what actually happens on GitHub (edit, or delete and re-post) and must not say nothing changes on GitHub";
@@ -679,7 +679,7 @@ function detailError(d) {
 }
 // the owner's side of the conversation (board.asks): one entry per note, answer, click or custom text he sent.
 // askOf turns a webhook payload (or a ready ask) into {id, at, item_key, label, link?, kind, text, reply_to?, ref?}.
-const STATUS_RE = /^(working|done|passed:(Engineer|QA)|waiting:\S.{0,39})$/;
+const STATUS_RE = /^(working|done|passed:(Assistant|ops)|waiting:\S.{0,39})$/;
 function askPrKey(link, section) {
   const m = /github\.com\/[^/]+\/([\w.-]+)\/pull\/(\d+)/.exec(link ?? "");
   return m ? `${section === "mine" ? "mypr" : "pr"}:${m[1]}/${m[2]}` : null;
@@ -752,8 +752,8 @@ function askOf(p, b) {
 function planQuestions(md) {
   const lines = md.replace(/\r\n?/g, "\n").split("\n");
   let start = lines.findIndex((l) => /^#{2,3}\s*(\d+[.)]?\s+)?Questions for the owner\b/i.test(l));
-  const forEric = start >= 0;
-  if (!forEric) start = lines.findIndex((l) => /^#{2,3}\s*6[.)]?\s/.test(l));
+  const forHuman = start >= 0;
+  if (!forHuman) start = lines.findIndex((l) => /^#{2,3}\s*6[.)]?\s/.test(l));
   if (start < 0) return [];
   const items = [];
   for (let i = start + 1; i < lines.length; i++) {
@@ -765,8 +765,8 @@ function planQuestions(md) {
   return items.map((body, n) => {
     const bold = body.match(/\*\*([^*]+?)\*\*/);
     let question;
-    if (forEric && bold && body.trimStart().startsWith("**")) question = bold[1].trim().replace(/\*+/g, "");
-    else if (forEric) {
+    if (forHuman && bold && body.trimStart().startsWith("**")) question = bold[1].trim().replace(/\*+/g, "");
+    else if (forHuman) {
       const head = [];
       for (const l of body.split("\n")) { if (/^[-*]\s/.test(l)) break; head.push(l.trim()); }
       question = head.join(" ").replace(/\*+/g, "").trim();
@@ -774,7 +774,7 @@ function planQuestions(md) {
     const qid = question.match(/^(Q\d+)\s*[—–:-]\s*/);
     const id = qid ? qid[1] : "Q" + (n + 1);
     if (qid) question = question.slice(qid[0].length);
-    const rec = (forEric && body.match(/^[-*]\s+\**My pick\**\s*:?\**\s*([\s\S]+?)(?=\n[-*]\s|$)/im)) ||
+    const rec = (forHuman && body.match(/^[-*]\s+\**My pick\**\s*:?\**\s*([\s\S]+?)(?=\n[-*]\s|$)/im)) ||
       body.match(/Recommend(?:ation|ed)?(?:\s+for now)?\s*:?\**\s*:?\s*([\s\S]+)$/i);
     const recommendation = rec ? rec[1].replace(/\*+/g, "").replace(/\s+/g, " ").trim() : undefined;
     const ctx = body.match(/^[-*]?\s*\**Context\**\s*:\**\s*([\s\S]+?)(?=\n[-*]\s|$)/im);
@@ -1168,7 +1168,7 @@ if (cmd === "raise" || cmd === "audit") {
   //   [--answer-to-question "text"] [--body "revised will-post text"]
   //   or   ab review-status <repo>#<pr> <comment-id> --answer-to-question "text" [--body "text"]
   //   or   ab review-status <repo>#<pr> --done [--undone]
-  // comment-id is a drafted-review id (c1) or a per-comment QA card finding number (1, #1, f1).
+  // comment-id is a drafted-review id (c1) or a per-comment ops card finding number (1, #1, f1).
   const urlFlag = flag(args, "--url"), noteFlag = flag(args, "--note");
   const answerQFlag = flag(args, "--answer-to-question"), bodyFlag = flag(args, "--body");
   if (urlFlag !== undefined && !isHttp(urlFlag)) die(2, "review-status: --url must start with http:// or https://");
@@ -1235,7 +1235,7 @@ if (cmd === "raise" || cmd === "audit") {
   // ab detail <key> '<json>' | ab detail <key> [-] < detail.json   merges {summary?, plan?, discussion?, actions?, questions?}
   // ab detail <key> --clear                                          removes the item's detail
   const key = detailKeyOf(args[0]);
-  if (!key) die(2, "detail: usage: ab detail <key> [json|-] | ab detail <key> --clear (key like ticket:PROJ-2512, pr:example-repo/1982, mypr:example-repo/1982, waiting:<slug>, decision:<id>, page:tickets)");
+  if (!key) die(2, "detail: usage: ab detail <key> [json|-] | ab detail <key> --clear (key like ticket:PROJ-2512, pr:example-repo/209, mypr:example-repo/209, waiting:<slug>, decision:<id>, page:tickets)");
   lock(); const f = load(); const all = f.b.details && typeof f.b.details === "object" ? f.b.details : {};
   if (args[1] === "--clear") { delete all[key]; }
   else {
@@ -1249,7 +1249,7 @@ if (cmd === "raise" || cmd === "audit") {
   log({ op: "detail", key, cleared: args[1] === "--clear" });
   console.log(JSON.stringify({ ok: true, live, key, fields: all[key] ? Object.keys(all[key]) : [] }));
 } else if (cmd === "ticket") {
-  // ab ticket <key> <ticket.md> --plain "text" | --plain-file <f.md>: the full Linear ticket plus a short plain-words
+  // ab ticket <key> <ticket.md> --plain "text" | --plain-file <f.md>: the full ticket plus a short plain-words
   // summary, shown above the questions and plan. Every ticket or plan-question item that asks the user something needs it.
   const plainText = flag(args, "--plain"); const plainFile = flag(args, "--plain-file");
   const rest = args.filter((a, i) => !["--plain", "--plain-file"].includes(a) && !["--plain", "--plain-file"].includes(args[i - 1]));
@@ -1287,8 +1287,8 @@ if (cmd === "raise" || cmd === "audit") {
   // ab reply <item> "text" [--image path] [--alt "text"] [--question "q" --option "Label" ...]: appends a Assistant reply
   // (Markdown, links) to the item's thread with a timestamp. This is how to answer the owner on the board. The image is copied
   // into app/public/replies/. A question shows its options as one-click answers that go to the webhook as item.message.
-  // The item moves to Needs you with an unread dot until the owner opens it. <item> is a detail key (pr:example-repo/1955,
-  // mypr:example-repo/1982, ticket:PROJ-2512, decision:<id>), a bare ticket key, or repo#N / #N for a PR.
+  // The item moves to Needs you with an unread dot until the owner opens it. <item> is a detail key (pr:example-repo/203,
+  // mypr:example-repo/209, ticket:PROJ-2512, decision:<id>), a bare ticket key, or repo#N / #N for a PR.
   // ab reply <item> --at <iso> "text": replaces the text of the existing reply with that timestamp (other fields stay).
   const image = flag(args, "--image"); const alt = flag(args, "--alt"); const question = flag(args, "--question"); const status = flag(args, "--status");
   const qContext = flag(args, "--context"); const svg = flag(args, "--svg"); const suggestion = flag(args, "--suggestion");
@@ -1297,10 +1297,10 @@ if (cmd === "raise" || cmd === "audit") {
   if (noPostTextFlag) args.splice(args.indexOf("--no-post-text"), 1);
   if (postTextFlag !== undefined && noPostTextFlag) die(2, "reply: use --post-text or --no-post-text, not both");
   const atFlag = flag(args, "--at");
-  if (status !== undefined && !STATUS_RE.test(status)) die(2, "reply: --status must be working, done, passed:Engineer, passed:QA or waiting:<who>");
+  if (status !== undefined && !STATUS_RE.test(status)) die(2, "reply: --status must be working, done, passed:assistant, passed:ops or waiting:<who>");
   const options = []; for (let o; (o = flag(args, "--option")) !== undefined; ) options.push(o);
   const [target, text] = args;
-  if (!nonBlank(target) || (!nonBlank(text) && status === undefined && atFlag === undefined)) die(2, 'reply: usage: ab reply <item> "text" [--image path] [--alt "text"] [--svg file.svg] [--question "q" --context "short paragraph" --option "Label" ...] [--supersedes id,...] [--status working|done|passed:Engineer|passed:QA|waiting:<who>] (text is optional with --status); or ab reply <item> --at <iso> "text" to replace an existing reply\'s text');
+  if (!nonBlank(target) || (!nonBlank(text) && status === undefined && atFlag === undefined)) die(2, 'reply: usage: ab reply <item> "text" [--image path] [--alt "text"] [--svg file.svg] [--question "q" --context "short paragraph" --option "Label" ...] [--supersedes id,...] [--status working|done|passed:assistant|passed:ops|waiting:<who>] (text is optional with --status); or ab reply <item> --at <iso> "text" to replace an existing reply\'s text');
   if (question !== undefined && (!nonBlank(question) || options.length < 2 || !options.every(nonBlank))) die(2, "reply: --question needs text and at least two --option values");
   if (question === undefined && options.length) die(2, "reply: --option needs --question");
   if (question !== undefined) { const e = contextParaError(qContext); if (e) die(2, "reply: --question " + e); }

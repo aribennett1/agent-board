@@ -139,7 +139,7 @@ export function Thread({
                     <strong>{x.t.question.text}</strong>
                   </p>
                   {x.t.question.context && <Markdown text={x.t.question.context} className="md q-context" />}
-                  {x.t.question.suggestion && <p className="tq-hint"><span className="tq-hint-label">Engineer suggests:</span> {x.t.question.suggestion}</p>}
+                  {x.t.question.suggestion && <p className="tq-hint"><span className="tq-hint-label">Assistant suggests:</span> {x.t.question.suggestion}</p>}
                   {answered.has(x.t.question.id) ? (
                     <p className="review-flag ok">Answered: {answered.get(x.t.question.id)}</p>
                   ) : !open.has(x.t.question.id) ? (

@@ -27,8 +27,8 @@ vi.mock("../src/data/board", () => ({
     decisions: [decision("s1"), decision("s2"), decision("m1", { multiSelect: true }), decision("m2", { multiSelect: true })],
     glance: {
       waiting: [
-        { title: "Item A", who: "QA" },
-        { title: "Item B", who: "QA" },
+        { title: "Item A", who: "ops" },
+        { title: "Item B", who: "ops" },
       ],
       tickets: [],
     },

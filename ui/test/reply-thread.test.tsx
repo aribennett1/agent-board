@@ -48,7 +48,7 @@ vi.mock("../src/data/board", () => ({
             from: "bot",
             text: "Ready to approve: [#1955](https://github.com/acme/example-repo/pull/1955).",
             image: "/replies/x.png",
-            question: { id: "q1", text: "What do you want to do?", options: [{ id: "o1", label: "Approve with LGTM now" }, { id: "o2", label: "Wait for Alex" }] },
+            question: { id: "q1", text: "What do you want to do?", options: [{ id: "o1", label: "Approve with LGTM now" }, { id: "o2", label: "Wait for Sam" }] },
           },
         ],
       },
@@ -134,8 +134,8 @@ describe("reply thread", () => {
     fireEvent.click(within(thread).getByRole("button", { name: "Send to assistant" }));
     await act(async () => {});
     const m = posted.filter((p) => p.event === "item.message").at(-1)!;
-    expect(m.text).toBe('Answer to "What do you want to do?": Approve, but ping Alex first');
-    expect(within(thread).getByText("Answered: Approve, but ping Alex first", { selector: ".review-flag" })).toBeTruthy();
+    expect(m.text).toBe('Answer to "What do you want to do?": Approve, but ping Sam first');
+    expect(within(thread).getByText("Answered: Approve, but ping Sam first", { selector: ".review-flag" })).toBeTruthy();
     expect(within(thread).queryByRole("button", { name: "Approve with LGTM now" })).toBeNull();
   });
 });
@@ -183,16 +183,16 @@ describe("status", () => {
   });
 
   it("an ack or FYI reply never puts an item in Needs you; only something to act on does", () => {
-    const ack = { at: REPLY_AT, from: "bot" as const, text: "Got it. Holding on #1955 until Alex answers the bot." };
+    const ack = { at: REPLY_AT, from: "bot" as const, text: "Got it. Holding on #203 until Sam answers the bot." };
     expect(itemStatus({ kind: "pr", detail: { thread: [ack] } })).toEqual({ needs: false, reason: "New reply (FYI)" });
     const q = { at: "2026-11-24T21:00:00.000Z", from: "bot" as const, text: "Ready.", question: { id: "q1", text: "Approve?", options: [{ id: "o1", label: "Yes" }, { id: "o2", label: "No" }] } };
     expect(itemStatus({ kind: "pr", detail: { thread: [q, ack] } })).toEqual({ needs: true, reason: "Question for you" });
     expect(itemStatus({ kind: "pr", detail: { thread: [q, ack] }, answered: new Set(["q1"]) }).needs).toBe(false);
     // A status never closes unanswered questions; once questions are answered, the status describes who has the ball.
-    const parked = { at: "2026-11-24T21:20:00.000Z", from: "bot" as const, text: "", status: "waiting:Alex" };
+    const parked = { at: "2026-11-24T21:20:00.000Z", from: "bot" as const, text: "", status: "waiting:Sam" };
     expect(itemStatus({ kind: "pr", detail: { thread: [q, ack, parked], approval: "ready" }, pendingDrafts: 3 })).toEqual({ needs: true, reason: "Question for you" });
-    expect(itemStatus({ kind: "pr", detail: { thread: [q, ack, parked], approval: "ready" }, answered: new Set(["q1"]), pendingDrafts: 3 })).toEqual({ needs: false, reason: "Waiting on Alex" });
-    expect(itemStatus({ kind: "mypr", detail: { thread: [{ ...parked, status: "passed:Engineer" }] } }).reason).toBe("Passed to Engineer");
+    expect(itemStatus({ kind: "pr", detail: { thread: [q, ack, parked], approval: "ready" }, answered: new Set(["q1"]), pendingDrafts: 3 })).toEqual({ needs: false, reason: "Waiting on Sam" });
+    expect(itemStatus({ kind: "mypr", detail: { thread: [{ ...parked, status: "passed:assistant" }] } }).reason).toBe("Passed to assistant");
   });
 
   it("does not call a review request Ready to approve just because checks are green", () => {
@@ -233,7 +233,7 @@ describe("ab reply", () => {
     );
     const png = join(dir, "shot.png");
     writeFileSync(png, "png");
-    expect(ab(["reply", "#1955"]).status).toBe(2);
+    expect(ab(["reply", "#203"]).status).toBe(2);
     expect(ab(["reply", "#4040", "hi"]).status).toBe(2);
     expect(ab(["reply", "#1955", "hi", "--question", "Q?", "--option", "only one"]).status).toBe(2);
     expect(ab(["reply", "#1955", "Ready: **yes**", "--question", "Do it?", "--option", "Yes", "--option", "No"]).status).toBe(2);

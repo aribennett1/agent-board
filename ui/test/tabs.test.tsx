@@ -21,7 +21,7 @@ vi.mock("../src/data/board", () => ({
       waiting: [{ title: "Signed NDA", who: "Legal" }],
       tickets: [],
       others: [
-        { title: "Fix rounding", author: "alex", who: "Your review requested", link: "https://github.com/acme/api/pull/12" },
+        { title: "Fix rounding", author: "sam", who: "Your review requested", link: "https://github.com/acme/api/pull/12" },
         { title: "Docs pass", author: "sam", who: "Waiting on the author", link: "https://github.com/acme/api/pull/13" },
       ],
     },

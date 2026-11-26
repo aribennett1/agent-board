@@ -21,7 +21,7 @@ vi.mock("../src/data/board", () => {
     board: {
       updated_at: t(0),
       decisions: [
-        { id: "plan", title: "Plan questions", question: "Ship the plan?", context: "Engineer wrote the time off plan and needs answers.", what_happens_after: "w", card_ref: null, options: [{ id: "y", label: "Ship it" }, { id: "n", label: "Hold" }], created_at: t(30) },
+        { id: "plan", title: "Plan questions", question: "Ship the plan?", context: "Assistant wrote the time off plan and needs answers.", what_happens_after: "w", card_ref: null, options: [{ id: "y", label: "Ship it" }, { id: "n", label: "Hold" }], created_at: t(30) },
       ],
       glance: {
         waiting: [],
@@ -38,8 +38,8 @@ vi.mock("../src/data/board", () => {
       details: {
         "pr:example-repo/1955": {
           thread: [
-            { at: t(19), from: "bot", text: "Got it. Holding on #1955 until Alex answers the bot." },
-            { at: t(18), from: "bot", text: "", status: "waiting:Alex" },
+            { at: t(19), from: "bot", text: "Got it. Holding on #203 until Sam answers the bot." },
+            { at: t(18), from: "bot", text: "", status: "waiting:Sam" },
           ],
         },
         "pr:example-repo/7": {
@@ -101,7 +101,7 @@ describe("Conversation view", () => {
     // Answered questions collapse to one line with his words.
     const answered = [...plan.querySelectorAll("[data-answered-uid]")].map((e) => e.textContent);
     expect(answered).toEqual(['✓ Q1: One PR? you said "one PR is the way to go"', '✓ Q3: Old question you said "Use the constants" (your note)']);
-    // Context shows inline (no hidden toggle), and the #1955 topic sits folded under In progress.
+    // Context shows inline (no hidden toggle), and the #203 topic sits folded under In progress.
     expect(within(plan).getByText("Re-explained: the hard stop.")).toBeTruthy();
     expect(document.querySelector('[data-topic="pr:example-repo/1955"]')).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "In progress (1)" }));
@@ -197,29 +197,29 @@ describe("buildTopics", () => {
     expect(nine.open.map((o) => o.label)).toEqual(["Q1"]);
     expect(nine.answered.map((o) => [o.label, o.answer])).toEqual([["Q2", "go for it"]]);
     const pr = ts.find((x) => x.key === "mypr:r/1")!;
-    expect([pr.group, pr.ball]).toEqual(["progress", "Engineer"]);
+    expect([pr.group, pr.ball]).toEqual(["progress", "assistant"]);
   });
 
-  it("never closes unanswered questions when a later reply sets status (e.g. passed:Engineer)", () => {
+  it("never closes unanswered questions when a later reply sets status (e.g. passed:assistant)", () => {
     const ts = buildTopics(
       {
         decisions: [],
         details: {
-          "mypr:r/1838": {
+          "mypr:r/208": {
             thread: [
               { at: t(15), from: "bot", text: "Bug 1", question: q("q1", "Bug 1 fix?") },
               { at: t(14), from: "bot", text: "Bug 2", question: q("q2", "Bug 2 fix?") },
               { at: t(13), from: "bot", text: "Bug 3", question: q("q3", "Bug 3 fix?") },
-              { at: t(10), from: "bot", text: "Passed Bug 1 to Engineer.", status: "passed:Engineer" },
+              { at: t(10), from: "bot", text: "Passed Bug 1 to Assistant.", status: "passed:assistant" },
             ],
           },
         },
-        asks: [{ id: "a1", at: t(12), item_key: "mypr:r/1838", label: "r #1838", kind: "answer", text: "Yes", reply_to: "q1" }],
+        asks: [{ id: "a1", at: t(12), item_key: "mypr:r/208", label: "r #208", kind: "answer", text: "Yes", reply_to: "q1" }],
       },
-      { "mypr:r/1838": { label: "r #1838" } },
+      { "mypr:r/208": { label: "r #208" } },
       () => false,
     );
-    const pr = ts.find((x) => x.key === "mypr:r/1838")!;
+    const pr = ts.find((x) => x.key === "mypr:r/208")!;
     expect(pr.group).toBe("you");
     expect(pr.ball).toBe("You");
     expect(pr.open.map((o) => o.thread?.id)).toEqual(["q3", "q2"]);

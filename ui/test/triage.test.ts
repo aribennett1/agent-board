@@ -46,9 +46,9 @@ describe("sameSha and cardStale", () => {
       sha: "fc39d5f2b83ae3c313b4c5146e3027e8a60b5020",
       tier: "quick",
     });
-    expect(cardStale({ ...push, superseded_by: "pr2015-waiting-stamp" })).toEqual({
+    expect(cardStale({ ...push, superseded_by: "pr206-waiting-stamp" })).toEqual({
       stale: true,
-      reason: "Superseded by pr2015-waiting-stamp",
+      reason: "Superseded by pr206-waiting-stamp",
     });
     expect(cardStale(push, { stamps: { "pr:example-repo/2015": "aaa1111bbbb" } }).stale).toBe(true);
     expect(cardStale(push, { heads: { "pr:example-repo/2015": "834f5f3c8215" } }).stale).toBe(true);
@@ -91,9 +91,9 @@ describe("sortTriage, groupByTicket, nextFiveMinutes", () => {
     expect(sortTriage(cards).map((d) => d.id)).toEqual([
       "land-2027",
       "old-push",
-      "pr2016-push",
-      "pr2015-push",
-      "pr2016-thumbs",
+      "pr207-push",
+      "pr206-push",
+      "pr207-thumbs",
       "plan-a",
       "fyi-1917",
     ]);
@@ -116,7 +116,7 @@ describe("sortTriage, groupByTicket, nextFiveMinutes", () => {
   });
 
   it("picks the few quick taps that unblock the most work", () => {
-    expect(nextFiveMinutes(cards).map((d) => d.id)).toEqual(["pr2016-push", "pr2015-push", "pr2016-thumbs"]);
+    expect(nextFiveMinutes(cards).map((d) => d.id)).toEqual(["pr207-push", "pr206-push", "pr207-thumbs"]);
     expect(nextFiveMinutes(cards).every((d) => d.tier === "quick")).toBe(true);
     expect(nextFiveMinutes(cards).some((d) => d.id === "old-push")).toBe(false);
   });

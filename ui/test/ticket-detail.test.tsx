@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// The 3-part order for anything that asks the user about a ticket: the full Linear ticket, then "In plain words",
+// The 3-part order for anything that asks the user about a ticket: the full ticket, then "In plain words",
 // then the questions (and the plan). ab ticket stores the first two and refuses a ticket without a summary.
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

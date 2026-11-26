@@ -89,13 +89,13 @@ describe("Post/approve/thumb-up cards show comment and exact reply", () => {
 
   it("renders 'No text gets posted — only a 👍 reaction.' when post_text is null", () => {
     const card: Decision = {
-      id: "pr2016-thumbs-up",
-      card_ref: "PR #2016",
-      question: "Put a 👍 on Bugbot's #2016 comment?",
+      id: "pr207-thumbs-up",
+      card_ref: "PR #207",
+      question: "Put a 👍 on Bugbot's #207 comment?",
       what_happens_after: "Adds 👍.",
       answers_comment: {
         author: "cursor[bot]",
-        pr: 2016,
+        pr: 207,
         path: "app/Services/PayrollService.php",
         line: 42,
         url: "https://github.com/acme/example-repo/pull/2016#discussion_r123",
@@ -119,7 +119,7 @@ describe("Post/approve/thumb-up cards show comment and exact reply", () => {
       glance: { waiting: [], tickets: [], others: [], mine: [] },
       decisions: [],
       details: {
-        "decision:pr2014-null-shift-distinct": {
+        "decision:pr205-null-shift-distinct": {
           thread: [
             {
               at: "2026-11-25T15:50:00.000Z",
@@ -127,7 +127,7 @@ describe("Post/approve/thumb-up cards show comment and exact reply", () => {
               text: "Draft reply",
               question: {
                 id: "q-null-shift",
-                text: "Post this exact reply on Bugbot's thread on #2014?",
+                text: "Post this exact reply on Bugbot's thread on #205?",
                 context: "Check before posting.",
                 answers_comment: {
                   author: "cursor[bot]",
@@ -151,13 +151,13 @@ describe("Post/approve/thumb-up cards show comment and exact reply", () => {
     const topics = buildTopics(
       board,
       {
-        "decision:pr2014-null-shift-distinct": {
-          label: "Bugbot pushback on 2014: null shift IDs",
+        "decision:pr205-null-shift-distinct": {
+          label: "Bugbot pushback on 205: null shift IDs",
         },
       },
       () => false,
     );
-    const topic = topics.find((t) => t.key === "decision:pr2014-null-shift-distinct");
+    const topic = topics.find((t) => t.key === "decision:pr205-null-shift-distinct");
     expect(topic).toBeTruthy();
     expect(topic!.open.length).toBeGreaterThan(0);
 
@@ -181,7 +181,7 @@ describe("Already decided banner and exact SHA on push cards", () => {
   it("renders You already decided X banner when priorDecision is set", () => {
     const card: Decision = {
       id: "repeat-q",
-      card_ref: "PR #2014",
+      card_ref: "PR #205",
       question: "Check shift again?",
       what_happens_after: "Sends answer.",
       options: [
@@ -204,10 +204,10 @@ describe("Already decided banner and exact SHA on push cards", () => {
   it("renders exact commit SHA on push cards", () => {
     const sha = "cc8d1e0884241ee04eca28db2c414888cf082c9a";
     const card: Decision = {
-      id: "push-1838",
-      card_ref: "PR #1838",
-      title: "Push #1838?",
-      question: "Push #1838 now?",
+      id: "push-208",
+      card_ref: "PR #208",
+      title: "Push #208?",
+      question: "Push #208 now?",
       what_happens_after: "Pushes branch.",
       sha,
       options: [
@@ -469,7 +469,7 @@ describe("Review card options post_text and raw ticket inline lint rules", () =>
     expect(screen.queryByText("Post none")).toBeNull();
   });
 
-  it("rejects old multi-select review cards and inline raw Linear ticket markdown", () => {
+  it("rejects old multi-select review cards and inline raw ticket markdown", () => {
     const { dir, boardFile } = makeTempBoard();
     try {
       const missingOptPostText = runAb(boardFile, [
@@ -506,7 +506,7 @@ describe("Review card options post_text and raw ticket inline lint rules", () =>
         }),
       ]);
       expect(rawInline.code).toBe(2);
-      expect(rawInline.err).toMatch(/raw Linear ticket markdown/i);
+      expect(rawInline.err).toMatch(/raw ticket markdown/i);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

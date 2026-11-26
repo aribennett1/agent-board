@@ -68,7 +68,7 @@ export function Recommendation({ decision }: { decision: Decision }) {
   const rec = decision.recommendation;
   if (!rec?.id || !rec.reason) return null;
   const label = decision.options.find((o) => o.id === rec.id)?.label ?? rec.id;
-  const who = rec.who?.trim() || "Engineer";
+  const who = rec.who?.trim() || "Assistant";
   const letter = (label.match(/^[A-Za-z](?=:)/) || [rec.id])[0];
   return (
     <div className="recommendation" data-rec-id={rec.id} data-rec-who={who}>

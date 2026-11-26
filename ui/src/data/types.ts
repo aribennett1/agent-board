@@ -28,7 +28,7 @@ export type AnswersComment = {
 };
 
 export type PostCommentDraft = {
-  // Finding number on a per-comment QA review card (#1, #2, ...).
+  // Finding number on a per-comment ops review card (#1, #2, ...).
   n?: number;
   id?: string;
   label: string;
@@ -153,7 +153,7 @@ export type Decision = {
   unblocks?: number;
   // Stamped SHA this card is about (push OKs). Stale when it no longer matches board.stamps / board.heads.
   sha?: string;
-  // Ticket or PR grouping key, e.g. "pr:example-repo/2015" or "ticket:PROJ-5267".
+  // Ticket or PR grouping key, e.g. "pr:example-repo/206" or "ticket:PROJ-5267".
   group?: string;
   glance?: Glance;
   // Optional one-line light joke, shown muted. Never the word "bro".
@@ -216,8 +216,8 @@ export type ReviewDraft = {
   comments: ReviewComment[];
 };
 
-// What an item's chevron (and its focus page) shows beyond the row: a summary, Engineer's full plan, discussion,
-// and quick actions. Keyed by item key: ticket:PROJ-2512, pr:example-repo/1982, mypr:example-repo/1982,
+// What an item's chevron (and its focus page) shows beyond the row: a summary, Assistant's full plan, discussion,
+// and quick actions. Keyed by item key: ticket:PROJ-2512, pr:example-repo/209, mypr:example-repo/209,
 // waiting:<slug of title>, decision:<decision id>. Set by ab detail and ab plan.
 // answered (ab already-answered): the owner's own earlier words and where they came from; superseded_by: what replaced it.
 // Either one means the question is never asked again.
@@ -239,7 +239,7 @@ export type ReplyQuestion = {
   post_comments?: PostCommentDraft[];
   already_decided?: AlreadyDecided;
 };
-// status (ab reply --status): what happens next. working | done | passed:Engineer | passed:QA | waiting:<who>.
+// status (ab reply --status): what happens next. working | done | passed:assistant | passed:ops | waiting:<who>.
 // A reply with no question is never something the owner must act on; a status never closes unanswered questions.
 export type ThreadEntry = { at: string; from: "bot"; text: string; image?: string; image_alt?: string; question?: ReplyQuestion; status?: string };
 
@@ -260,7 +260,7 @@ export type Ask = {
 export type ItemDetail = {
   // Assistant's replies on this item, oldest first.
   thread?: ThreadEntry[];
-  // The full Linear ticket as Markdown (title, description, acceptance criteria, key comments, links, parent and
+  // The full ticket as Markdown (title, description, acceptance criteria, key comments, links, parent and
   // related), shown first; then the plain-words summary; then questions and the plan. ab ticket fills both.
   ticket?: string;
   ticket_file?: string;
@@ -308,7 +308,7 @@ export type Board = {
   // Extra detail per item, by item key (see ItemDetail). Optional; missing means none.
   details?: Record<string, ItemDetail>;
 
-  // Latest Engineer-stamped SHA, and last known GitHub head, per group key. Used to mark push cards stale.
+  // Latest Assistant-stamped SHA, and last known GitHub head, per group key. Used to mark push cards stale.
   stamps?: Record<string, string>;
   heads?: Record<string, string>;
   // Concise ticket briefs (never a raw ticket dump), keyed by group.

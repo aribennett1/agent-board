@@ -110,12 +110,12 @@ function OpenQuestionBox({ q, a, onDone }: { q: TopicQuestion; a: Answerers; onD
       {q.image && <img className="thread-image" src={q.image} alt={q.image_alt ?? "Diagram"} />}
       {q.suggestion && (
         <p className="tq-hint">
-          <span className="tq-hint-label">Engineer suggests:</span> {q.suggestion}
+          <span className="tq-hint-label">Assistant suggests:</span> {q.suggestion}
         </p>
       )}
       {q.decision?.recommendation && (
         <p className="tq-hint" data-rec-id={q.decision.recommendation.id}>
-          <span className="tq-hint-label">{q.decision.recommendation.who ?? "Engineer"} recommends:</span>{" "}
+          <span className="tq-hint-label">{q.decision.recommendation.who ?? "Assistant"} recommends:</span>{" "}
           {q.decision.recommendation.reason}
         </p>
       )}

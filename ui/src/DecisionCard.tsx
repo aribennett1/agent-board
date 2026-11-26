@@ -54,7 +54,7 @@ type Props = {
   onToggle?: () => void;
   staleCtx?: StaleContext;
   priorDecision?: AlreadyDecided;
-  // Per-finding answers on a QA review card. Absent on ordinary cards.
+  // Per-finding answers on an ops review card. Absent on ordinary cards.
   onAnswerFinding?: OnAnswerFinding;
   findingAnswered?: FindingAnswerMap;
 };

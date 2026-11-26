@@ -76,8 +76,8 @@ function reviewCard(over: Partial<Decision> = {}): Decision {
       pr: { number: 1935, link: "https://github.com/acme/example-repo/pull/1935" },
       asking: "For each comment, Post, Don't post, or write your own words.",
       outcomes: [
-        { id: "post", happens: "QA posts that comment as written." },
-        { id: "skip", happens: "QA does not post that comment." },
+        { id: "post", happens: "ops posts that comment as written." },
+        { id: "skip", happens: "ops does not post that comment." },
       ],
     },
     created_at: "2026-11-25T16:00:00.000Z",
@@ -106,7 +106,7 @@ describe("per-finding review helpers", () => {
       line: 101,
     });
     const skipAll = buildFindingPayload(d, "all", "skip", undefined, new Date("2026-11-25T21:13:00.000Z"));
-    expect(skipAll).toMatchObject({ event: "review.answer", card_id: "pr1935-test", comment_id: "all", action: "skip", pr: 1935 });
+    expect(skipAll).toMatchObject({ event: "review.answer", card_id: "pr201-test", comment_id: "all", action: "skip", pr: 201 });
   });
 
   it("treats each finding as answered from asks, including Don't post any", () => {
@@ -115,17 +115,17 @@ describe("per-finding review helpers", () => {
       {
         id: "a1",
         at: "2026-11-25T21:14:00.000Z",
-        item_key: "decision:pr1935-test",
-        label: "QA review of #1935",
+        item_key: "decision:pr201-test",
+        label: "ops review of #201",
         kind: "review",
         text: "Finding #1 (app/Services/Foo.php:101): Post",
-        ref: "pr1935-test:1",
+        ref: "pr201-test:1",
       },
     ];
     expect(answersFromAsks(asks, d.id).get("1")).toBe("Post");
     expect(allFindingsAnswered(d, asks)).toBe(false);
     const all: Ask[] = [
-      { ...asks[0], id: "a2", text: "Don't post any", ref: "pr1935-test:all" },
+      { ...asks[0], id: "a2", text: "Don't post any", ref: "pr201-test:all" },
     ];
     expect(allFindingsAnswered(d, all)).toBe(true);
   });
@@ -136,18 +136,18 @@ describe("per-finding review helpers", () => {
       {
         id: "a1",
         at: "2026-11-25T21:14:00.000Z",
-        item_key: "decision:pr1935-test",
-        label: "QA review of #1935",
+        item_key: "decision:pr201-test",
+        label: "ops review of #201",
         kind: "review",
         text: "Finding #1 (app/Services/Foo.php:101): How many times is that used",
-        ref: "pr1935-test:1",
+        ref: "pr201-test:1",
       },
     ];
     expect(isFindingSettled(d.post_comments![0] as never, "How many times is that used")).toBe(false);
     expect(allFindingsAnswered(d, note)).toBe(false);
     const postedAsk: Ask[] = [
       { ...note[0], text: "Finding #1 (app/Services/Foo.php:101): Post" },
-      { ...note[0], id: "a2", text: "Finding #2 (app/Services/Foo.php:102): Post", ref: "pr1935-test:2" },
+      { ...note[0], id: "a2", text: "Finding #2 (app/Services/Foo.php:102): Post", ref: "pr201-test:2" },
     ];
     expect(allFindingsAnswered(d, postedAsk)).toBe(true);
     expect(isFindingSettled({ status: "pending" }, "Post")).toBe(true);
@@ -166,20 +166,20 @@ describe("per-finding review helpers", () => {
       {
         id: "a1",
         at: "2026-11-25T22:25:56.333Z",
-        item_key: "decision:pr1935-test",
-        label: "QA review of #1935",
+        item_key: "decision:pr201-test",
+        label: "ops review of #201",
         kind: "review",
         text: "Finding #1 (app/Services/Foo.php:101): Don't post",
-        ref: "pr1935-test:1",
+        ref: "pr201-test:1",
       },
       {
         id: "a2",
         at: "2026-11-25T22:00:00.000Z",
-        item_key: "decision:pr1935-test",
-        label: "QA review of #1935",
+        item_key: "decision:pr201-test",
+        label: "ops review of #201",
         kind: "review",
         text: "Finding #2 (app/Services/Foo.php:102): Post",
-        ref: "pr1935-test:2",
+        ref: "pr201-test:2",
       },
     ];
     expect(answersFromAsks(asks, d.id, reviewFindings(d)).get("1")).toBe("Don't post");
@@ -216,7 +216,7 @@ describe("per-finding review card UI", () => {
     fireEvent.click(post[0]);
     await waitFor(() => expect(onAnswerFinding).toHaveBeenCalled());
     const call = onAnswerFinding.mock.calls[0]!;
-    expect(call[0].id).toBe("pr1935-test");
+    expect(call[0].id).toBe("pr201-test");
     expect(call[1]).toBe(1);
     expect(call[2]).toBe("post");
   });
@@ -325,10 +325,10 @@ describe("per-finding review card UI", () => {
   it("lists each finding as its own open question and collapses it once answered", () => {
     const d = reviewCard();
     const board = { decisions: [d], details: {}, asks: [] as Ask[], ticket_summaries: {} } as unknown as Board;
-    const labels = { "decision:pr1935-test": { label: "QA review of #1935" } };
+    const labels = { "decision:pr201-test": { label: "ops review of #201" } };
     const open = buildTopics(board, labels, () => true);
-    const topic = open.find((t) => t.key === "decision:pr1935-test");
-    expect(topic?.open.map((q) => q.uid)).toEqual(["decision:pr1935-test#f1", "decision:pr1935-test#f2"]);
+    const topic = open.find((t) => t.key === "decision:pr201-test");
+    expect(topic?.open.map((q) => q.uid)).toEqual(["decision:pr201-test#f1", "decision:pr201-test#f2"]);
     expect(topic?.open.every((q) => q.kind === "finding")).toBe(true);
 
     const answeredBoard = {
@@ -337,19 +337,19 @@ describe("per-finding review card UI", () => {
         {
           id: "a1",
           at: "2026-11-25T21:14:00.000Z",
-          item_key: "decision:pr1935-test",
-          label: "QA review of #1935",
+          item_key: "decision:pr201-test",
+          label: "ops review of #201",
           kind: "review",
           text: "Finding #1 (app/Services/Foo.php:101): Post",
-          ref: "pr1935-test:1",
+          ref: "pr201-test:1",
         },
       ] as Ask[],
     } as unknown as Board;
     const after = buildTopics(answeredBoard, labels, () => true);
-    const t2 = after.find((x) => x.key === "decision:pr1935-test");
-    expect(t2?.open.map((q) => q.uid)).toEqual(["decision:pr1935-test#f2"]);
+    const t2 = after.find((x) => x.key === "decision:pr201-test");
+    expect(t2?.open.map((q) => q.uid)).toEqual(["decision:pr201-test#f2"]);
     expect(t2?.answered).toEqual([
-      expect.objectContaining({ uid: "decision:pr1935-test#f1", answer: "Post" }),
+      expect.objectContaining({ uid: "decision:pr201-test#f1", answer: "Post" }),
     ]);
 
     const onAnswerFinding = vi.fn<FindingFn>(async () => true);
@@ -371,13 +371,13 @@ describe("per-finding review card UI", () => {
     const posted = finding(1, { status: "posted", posted_url: "https://github.com/acme/example-repo/pull/1935#discussion_r1" });
     const pending = finding(2, { status: "pending", note: "The file and line are in the diff, so this comment can still be posted." });
     const { rerender } = render(
-      <FindingDraft cardId="pr1935-test" finding={posted} answered="Post" onAnswer={async () => true} />,
+      <FindingDraft cardId="pr201-test" finding={posted} answered="Post" onAnswer={async () => true} />,
     );
     expect(screen.getByText(/Posted/)).toBeTruthy();
     const view = screen.getByRole("link", { name: "view" });
     expect(view.getAttribute("href")).toContain("discussion_r1");
     rerender(
-      <FindingDraft cardId="pr1935-test" finding={pending} answered="Post" onAnswer={async () => true} />,
+      <FindingDraft cardId="pr201-test" finding={pending} answered="Post" onAnswer={async () => true} />,
     );
     expect(screen.getByText(/can still be posted/)).toBeTruthy();
   });
@@ -396,8 +396,8 @@ describe("ab raise and lint require the per-finding review shape", () => {
       pr: { number: 9997, link: "https://github.com/acme/example-repo/pull/9997" },
       asking: "For each comment, Post, Don't post, or write your own words.",
       outcomes: [
-        { id: "post", happens: "QA posts that comment as written." },
-        { id: "skip", happens: "QA does not post that comment." },
+        { id: "post", happens: "ops posts that comment as written." },
+        { id: "skip", happens: "ops does not post that comment." },
       ],
     },
   };

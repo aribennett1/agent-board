@@ -25,8 +25,8 @@ vi.mock("../src/data/board", () => ({
     decisions: [decision("one"), decision("two")],
     glance: {
       waiting: [
-        { title: "Error, not success, on failed checkout actions (#1461)", who: "Riley's rescoring", link: PR },
-        { title: "QA pass on the banner", who: "QA" },
+        { title: "Error, not success, on failed checkout actions (#210)", who: "Riley's rescoring", link: PR },
+        { title: "ops pass on the banner", who: "ops" },
       ],
       // The first ticket has no id and the same link as the first waiting item: same item_id, different section.
       tickets: [
@@ -92,7 +92,7 @@ describe("Message your assistant", () => {
     const roots = [...document.querySelectorAll<HTMLElement>("[data-item-id]")];
     expect(roots.map((r) => [r.dataset.itemSection, r.dataset.itemId])).toEqual([
       ["waiting", PR],
-      ["waiting", "waiting:qa-pass-on-the-banner"],
+      ["waiting", "waiting:ops-pass-on-the-banner"],
       ["tickets", PR],
       ["tickets", "PROJ-5067"],
     ]);
@@ -148,7 +148,7 @@ describe("Message your assistant", () => {
       event: "item.message",
       item_id: PR,
       item_section: "waiting",
-      item_title: "Error, not success, on failed checkout actions (#1461)",
+      item_title: "Error, not success, on failed checkout actions (#210)",
       item_who: "Riley's rescoring",
       item_link: PR,
       text: "Ping Riley about the rescoring",
@@ -219,8 +219,8 @@ describe("Message your assistant", () => {
   it("with the webhook not configured: Not sent yet, retrying, the header marker, and nothing posted", async () => {
     vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "");
     await renderApp();
-    const item = root("waiting:qa-pass-on-the-banner", "waiting");
-    await send(item, "Who is on QA?");
+    const item = root("waiting:ops-pass-on-the-banner", "waiting");
+    await send(item, "Who is on ops?");
     expect(posted).toHaveLength(0);
     expect(item.querySelector(".msg-status")!.textContent).toBe("Not sent yet, retrying");
     expect(screen.getByRole("status").textContent).toBe("Webhook not set up (AGENT_BOARD_WEBHOOK_URL)");

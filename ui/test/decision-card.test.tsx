@@ -279,7 +279,7 @@ describe("DecisionCard: Explain this better", () => {
 });
 
 describe("DecisionCard: links", () => {
-  const pr = "https://github.com/acme/example/pull/1800";
+  const pr = "https://github.com/acme/example/pull/212";
   const card = (decision: Decision) => render(<DecisionCard decision={decision} index={1} onAnswer={vi.fn()} />).container;
   const expectNewTab = (a: Element | null | undefined, href: string) => {
     expect(a?.tagName).toBe("A");

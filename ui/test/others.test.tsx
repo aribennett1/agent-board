@@ -49,7 +49,7 @@ describe("sortOthers", () => {
   });
 
   it("leaves a list with no review requests as it is, and does not change its input", () => {
-    const list = [pr("A", "Blake's fixes"), pr("B", "Waiting on QA")];
+    const list = [pr("A", "Blake's fixes"), pr("B", "Waiting on ops")];
     const copy = [...list];
     expect(sortOthers(list)).toEqual(copy);
     expect(sortOthers([])).toEqual([]);

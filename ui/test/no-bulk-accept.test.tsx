@@ -29,21 +29,21 @@ const seed = (b: Partial<Board>) =>
 const card = (options: { id: string; label: string }[]) => ({
   id: "plan-x",
   title: "Missing PTO entry plan",
-  context: "Engineer wrote the missing PTO entry plan and has nine questions for you to answer.",
+  context: "Assistant wrote the missing PTO entry plan and has nine questions for you to answer.",
   question: "How do you want to answer the missing PTO entry plan questions?",
-  what_happens_after: "I pass your answers to Engineer.",
+  what_happens_after: "I pass your answers to Assistant.",
   options,
 });
 
 describe("no bulk accept (t103u)", () => {
   it("ab raise refuses a bulk-accept option or a (pick) label", () => {
     seed({});
-    for (const label of ["Accept all 9 of Engineer's picks", "Take the recommendations", "Accept all recommendations", "Yes, do it (pick)"]) {
+    for (const label of ["Accept all 9 of Assistant's picks", "Take the recommendations", "Accept all recommendations", "Yes, do it (pick)"]) {
       const r = ab(["raise", JSON.stringify(card([{ id: "a", label }, { id: "b", label: "I'll answer each one under Details" }]))]);
       expect(r.status, label).not.toBe(0);
       expect(r.stdout + r.stderr).toMatch(/bulk accept or marks a pick/);
     }
-    expect(ab(["raise", JSON.stringify(card([{ id: "b", label: "I'll answer each one under Details" }, { id: "c", label: "Have Engineer rework the plan" }]))]).status).toBe(0);
+    expect(ab(["raise", JSON.stringify(card([{ id: "b", label: "I'll answer each one under Details" }, { id: "c", label: "Have Assistant rework the plan" }]))]).status).toBe(0);
   });
 
   it("ab reply refuses them; ab lint flags old ones; drop-bulk-options cleans them up", () => {
@@ -86,7 +86,7 @@ describe("no bulk accept (t103u)", () => {
         onSend={async () => true}
       />,
     );
-    expect(screen.getByText("Engineer suggests:")).toBeTruthy();
+    expect(screen.getByText("Assistant suggests:")).toBeTruthy();
     expect(screen.getByText(/You already answered this: "use constants"/)).toBeTruthy();
     const labels = screen.getAllByRole("button").map((b) => b.textContent ?? "");
     expect(labels.filter((l) => /accept all|all .*picks|recommendations|\(pick\)/i.test(l))).toEqual([]);
@@ -97,7 +97,7 @@ describe("no bulk accept (t103u)", () => {
     const src = join(process.cwd(), "src");
     const files = readdirSync(src).filter((f) => /\.(tsx?|mjs)$/.test(f)).map((f) => join(src, f));
     const hits = [...files, join(process.cwd(), "..", "bin/ab.mjs")].flatMap((f) =>
-      readFileSync(f, "utf8").split("\n").filter((l) => !l.trim().startsWith("//")).filter((l) => /["'`](?:Accept|Take) all\b|of Engineer's picks|\(pick\)["'`]/.test(l) && !/BULK|test\(|RE\b|\/\\\(pick/.test(l)).map((l) => `${f}: ${l.trim()}`),
+      readFileSync(f, "utf8").split("\n").filter((l) => !l.trim().startsWith("//")).filter((l) => /["'`](?:Accept|Take) all\b|of Assistant's picks|\(pick\)["'`]/.test(l) && !/BULK|test\(|RE\b|\/\\\(pick/.test(l)).map((l) => `${f}: ${l.trim()}`),
     );
     expect(hits).toEqual([]);
   });

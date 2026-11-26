@@ -30,10 +30,10 @@ const finding = {
   context: "The audit checked Engineer against the question format rules. One finding is ready for you to accept or change.",
   bot: "Engineer",
   rule: "Every question needs a short context paragraph.",
-  seen: "On a ticket question, Engineer posted with no context paragraph.",
+  seen: "On a ticket question, Assistant posted with no context paragraph.",
   proposed_fix: "Refuse a question with no context, and re-ask that one with a short paragraph.",
-  question: "Apply this Engineer fix?",
-  what_happens_after: "If you apply the fix, the profile is updated as proposed. If you do not, Engineer stays as is.",
+  question: "Apply this Assistant fix?",
+  what_happens_after: "If you apply the fix, the profile is updated as proposed. If you do not, Assistant stays as is.",
   options: [
     { id: "apply", label: "Apply it" },
     { id: "dont", label: "Don't apply" },

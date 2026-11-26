@@ -8,7 +8,7 @@ import { latestStatus } from "./convoModel";
 // the questions still open (a newer "Qn" or an explicit superseded_by replaces an older one), collapses answered ones
 // to one line, and keeps the whole back-and-forth as history, oldest first. Pure, so the view and the tests agree.
 
-export type Who = "You" | "Assistant" | "Engineer" | "QA";
+export type Who = "You" | "Assistant" | "ops";
 export type HistoryMsg = { at: string; who: Who; text: string; key: string };
 export type TopicQuestion = {
   uid: string; // unique on the page: one question renders once
@@ -17,7 +17,7 @@ export type TopicQuestion = {
   context?: string; // shown inline, short
   image?: string;
   image_alt?: string;
-  suggestion?: string; // "Engineer suggests: ..." hint, never preselected
+  suggestion?: string; // "Assistant suggests: ..." hint, never preselected
   options: import("./data/types").Option[];
   itemKey: string; // where the answer goes
   kind: "thread" | "plan" | "decision" | "finding";
@@ -53,7 +53,7 @@ export type Topic = {
   label: string;
   link?: string;
   summary?: string;
-  ball: string; // You | Assistant | Engineer | QA | Alex | Done
+  ball: string; // You | Assistant | ops | Sam | Done
   statusLine: string;
   group: "you" | "progress" | "done";
   open: TopicQuestion[];
@@ -87,11 +87,11 @@ const firstSentence = (t: string) => {
   const m = /^(.{12,160}?[.!?])(\s|$)/.exec(plain);
   return m ? m[1] : plain.length > 160 ? `${plain.slice(0, 157)}...` : plain;
 };
-// A plan question's body repeats the question and Engineer's pick; keep only what's extra.
+// A plan question's body repeats the question and Assistant's pick; keep only what's extra.
 const planContext = (q: PlanQuestion) => {
   const rest = (q.body ?? "")
     .split("\n")
-    .filter((l) => l.trim() && l.replace(/^[-*\s]+/, "").trim() !== q.question.trim() && !/^\s*[-*]?\s*\**(my pick|engineer'?s pick|recommend(ed|ation))\b/i.test(l))
+    .filter((l) => l.trim() && l.replace(/^[-*\s]+/, "").trim() !== q.question.trim() && !/^\s*[-*]?\s*\**(my pick|assistant'?s pick|recommend(ed|ation))\b/i.test(l))
     .join("\n")
     .trim();
   return rest || undefined;
@@ -111,7 +111,7 @@ export function buildTopics(
   const topicOf = (key: string) => {
     const n = ticketOf(key);
     if (n && labels[`ticket:PROJ-${n}`]) return `ticket:PROJ-${n}`;
-    // A "waiting on others" row about one of the owner's PRs (waiting:1982-...) joins that PR's topic.
+    // A "waiting on others" row about one of the owner's PRs (waiting:209-...) joins that PR's topic.
     const w = /^waiting:(\d+)-/.exec(key)?.[1];
     const pr = w ? prKeys.find((k) => k.startsWith("mypr:") && k.endsWith(`/${w}`)) : undefined;
     return pr ?? key;
@@ -185,7 +185,7 @@ export function buildTopics(
         open.push({ uid: `${key}#plan-${q.id}`, label, text: q.question, context: q.context ?? explained(label) ?? planContext(q), suggestion: q.recommendation, itemKey: key, kind: "plan", options: [] });
     }
     // 3. Open decision cards (not plan containers whose questions are above).
-    // QA review cards expand into one question per finding, each answered on its own.
+    // ops review cards expand into one question per finding, each answered on its own.
     for (const d of tDecisions) {
       if (isPerFindingReview(d)) {
         const ans = answersFromAsks(tAsks, d.id, reviewFindings(d));
@@ -258,7 +258,7 @@ export function buildTopics(
       ball === "You" ? `Your turn: ${open.length} to answer.`
       : ball === "Done" ? `Done.${last?.who === "You" ? ` ${firstSentence(last.text)}` : now ? ` ${now}` : ""}`
       : ball === "Assistant" ? `Assistant has it.${last?.who === "You" ? " Your last message is being handled." : now ? ` ${now}` : ""}`
-      : ball === "Engineer" || ball === "QA" ? `${ball} has it.${now ? ` ${now}` : ""}`
+      : ball === "Assistant" || ball === "ops" ? `${ball} has it.${now ? ` ${now}` : ""}`
       : `Waiting on ${ball}.${now ? ` ${now}` : ""}`;
 
     const n = /PROJ-(\d+)/.exec(tkey)?.[0] ?? (ticketOf(tkey) ? `PROJ-${ticketOf(tkey)}` : undefined) ?? /\bPROJ-\d+\b/.exec(labels[tkey]?.label ?? "")?.[0];

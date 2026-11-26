@@ -63,7 +63,7 @@ const asking = "You're being asked to edit the overtime comment you already post
 
 function editCard(over: Partial<Decision> = {}): Decision {
   return {
-    id: "pr1936-ot-suggestion-fix-test",
+    id: "pr202-ot-suggestion-fix-test",
     title: "Fix a code suggestion in your overtime comment",
     card_ref: "https://github.com/acme/example-repo/pull/1936#discussion_r1",
     context: "You already posted a comment on the payroll export about overtime counting twice. Only the code box is broken.",
@@ -121,7 +121,7 @@ describe("comment edit cards", () => {
 
   it("still quotes a new reply when the card is not an edit of a posted comment", () => {
     const card = editCard({
-      id: "pr1936-reply",
+      id: "pr202-reply",
       current_text: undefined,
       question: "Post this exact reply on the payroll export thread?",
       what_happens_after: "I post the reply on GitHub.",
@@ -195,7 +195,7 @@ describe("ab raise and lint require current_text and an honest what_happens_afte
         JSON.stringify({
           ...base,
           current_text: current,
-          what_happens_after: "Your answer goes to QA word for word, and nothing changes on GitHub until you pick.",
+          what_happens_after: "Your answer goes to ops word for word, and nothing changes on GitHub until you pick.",
         }),
       ]);
       expect(bad.code).toBe(2);

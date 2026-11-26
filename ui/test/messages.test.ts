@@ -35,9 +35,9 @@ describe("glanceItemId", () => {
   });
 
   it("is stable: same item, same id, regardless of position or other fields", () => {
-    const a = { title: "Save changes label (#1530)", who: "QA" };
+    const a = { title: "Save changes label (#213)", who: "ops" };
     expect(glanceItemId("waiting", a)).toBe(glanceItemId("waiting", { ...a, who: "Someone else" } as never));
-    expect(glanceItemId("waiting", a)).toBe("waiting:save-changes-label-1530");
+    expect(glanceItemId("waiting", a)).toBe("waiting:save-changes-label-213");
   });
 });
 
@@ -75,14 +75,14 @@ describe("buildMessagePayload", () => {
   });
 
   it("waiting without a link: slug id, no item_link", () => {
-    const item = glanceItem("waiting", { title: "QA pass", who: "QA" });
+    const item = glanceItem("waiting", { title: "ops pass", who: "ops" });
     expect(buildMessagePayload(item, "x", NOW, MID)).toStrictEqual({
       event: "item.message",
       message_id: MID,
-      item_id: "waiting:qa-pass",
+      item_id: "waiting:ops-pass",
       item_section: "waiting",
-      item_title: "QA pass",
-      item_who: "QA",
+      item_title: "ops pass",
+      item_who: "ops",
       text: "x",
       sent_at: "2026-11-10T12:34:56.789Z",
     });
@@ -112,7 +112,7 @@ describe("buildMessagePayload", () => {
 
 describe("itemKey and newMessageId", () => {
   it("keys items by section and item_id, so the same PR waiting and as a ticket stays apart", () => {
-    const link = "https://github.com/acme/example-web/pull/1461";
+    const link = "https://github.com/acme/example-web/pull/210";
     const a = glanceItem("waiting", { title: "A", who: "Riley", link });
     const b = glanceItem("tickets", { id: "", title: "B", status: "To Do", link });
     expect(a.item_id).toBe(b.item_id);
