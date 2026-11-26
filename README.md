@@ -1,8 +1,16 @@
 # Agent Board
 
-Eric's private action board. Planner, QA, Engineer, dr eggbot, and Grok Bot raise decision cards; his answers go straight to the raising bot through that bot's webhook. No bot sits in between.
+Eric's action board for the small team of AI bots that work with him on rows-backend: Planner, QA, Engineer, dr eggbot, and Grok Bot.
 
-The board is not public and is not on GitHub Pages. It runs on Eric's box, listens on `localhost:8787`, and is reachable only over his tailnet.
+## The problem
+
+Their questions to him used to be scattered across chats, often relayed through another bot, and easy to miss. Work stalled waiting on an answer, and the answer sometimes got garbled in the relay. He became the scheduler: chasing bots, re-asking questions, and watching for loops.
+
+## How the board solves it
+
+Every bot raises a structured card in one place. The card says who raised it, what it's about, the options, and what happens after he answers. He answers on the card, and the answer goes straight to that bot through its own webhook. No bot sits in between.
+
+The pipeline is Planner plans, QA approves the plan, then Engineer builds. Pushes still need his OK. Strict validation on `ab raise` makes cards hard to misuse. The PR and ticket tabs are filled by the server from free APIs, not by bots. Status updates go to the notifications feed.
 
 ```mermaid
 flowchart LR
@@ -10,6 +18,8 @@ flowchart LR
   Board --> Answer[Eric answers]
   Answer --> Hook[Webhook to the raising bot]
 ```
+
+The board is private. It is not a hosted product, and it is not on GitHub Pages. It runs on Eric's box and is reachable only over his tailnet.
 
 ## Stack
 
