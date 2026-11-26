@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { addNote, addTask, deliver, getTask, setState, tx, type Clock, type Sender, type Wake } from './board.ts';
@@ -8,8 +8,10 @@ import { addNote, addTask, deliver, getTask, setState, tx, type Clock, type Send
 /** args 'shell' = run cmd through sh (checks, push wrapper). */
 export type Runner = (cmd: string, args: string[] | 'shell', cwd: string) => { code: number; out: string };
 export type Check = { name: string; cmd: string };
+export type HookVersion = (root: string) => string | null;
+export type SdmEntry = { result: string; reason: string };
 export type Status = 'pushed' | 'up_to_date' | 'conflict' | 'check_failed' | 'push_failed' | 'local_commits' | 'error';
-export type Result = { branch: string; status: Status; sha?: string; files?: string[]; check?: string; output?: string; worktree?: string };
+export type Result = { branch: string; status: Status; sha?: string; files?: string[]; check?: string; output?: string; worktree?: string; sdm?: SdmEntry };
 
 export const TASK = 'dev-merge';
 export const DEFAULT_CHECKS: Check[] = [
@@ -17,6 +19,10 @@ export const DEFAULT_CHECKS: Check[] = [
   { name: 'lint', cmd: 'npm run lint --if-present' },
   { name: 'tests', cmd: 'npm test' },
 ];
+/** Source hook tree whose hook_version must match the installed copy. */
+export const DEFAULT_SKILLS_HOOKS = '/workspace/eric-skills/hooks';
+/** Append-only log written by hooks/bin/push --scheduled-dev-merge. */
+export const DEFAULT_SDM_LOG = '/home/box/.local/state/eric-hooks/scheduled-dev-merge.jsonl';
 
 export const spawnRun: Runner = (cmd, args, cwd) => {
   const opts = { cwd, encoding: 'utf8', maxBuffer: 256 << 20 } as const;
@@ -27,6 +33,43 @@ export const spawnRun: Runner = (cmd, args, cwd) => {
 const tail = (s: string, n = 40) => s.trimEnd().split('\n').slice(-n).join('\n');
 // Branch names come from gh / argv and end up in a shell line: allow plain ref characters only.
 const SAFE_BRANCH = /^(?!-)(?!.*\.\.)[\w./-]+$/;
+const hookTree = (hooksDir: string) => (hooksDir.endsWith('/bin') ? resolve(hooksDir, '..') : hooksDir);
+
+/** hook_version is `_lib.hook_version(root)` with no CLI; hash a hook tree with the source _lib. */
+export function readHookVersion(root: string, skillsHookRoot = DEFAULT_SKILLS_HOOKS): string | null {
+  const libDir = join(skillsHookRoot, 'bin');
+  if (!existsSync(join(libDir, '_lib.py')) || !existsSync(join(root, 'pre-push'))) return null;
+  const r = spawnSync('python3', ['-c', 'import sys; sys.path.insert(0, sys.argv[1]); import _lib; print(_lib.hook_version(_lib.Path(sys.argv[2])), end="")', libDir, root], { encoding: 'utf8' });
+  const v = (r.stdout ?? '').trim();
+  return r.status === 0 && v ? v : null;
+}
+
+/** Last jsonl line whose branch and head_sha match this push attempt. */
+export function lastSdmEntry(logPath: string, branch: string, sha: string): SdmEntry | undefined {
+  if (!existsSync(logPath)) return undefined;
+  let found: SdmEntry | undefined;
+  for (const line of readFileSync(logPath, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const j = JSON.parse(line) as { branch?: unknown; head_sha?: unknown; result?: unknown; reason?: unknown };
+      if (j.branch === branch && j.head_sha === sha && typeof j.result === 'string') {
+        found = { result: j.result, reason: typeof j.reason === 'string' ? j.reason : '' };
+      }
+    } catch { /* skip a truncated or foreign line */ }
+  }
+  return found;
+}
+
+function staleHooks(
+  hooks: string,
+  o: { hookVersion?: HookVersion; skillsHookRoot?: string },
+): boolean {
+  if (!existsSync(join(hooks, 'push'))) return true;
+  const ver = o.hookVersion ?? ((root: string) => readHookVersion(root, o.skillsHookRoot ?? DEFAULT_SKILLS_HOOKS));
+  const have = ver(hookTree(hooks));
+  const want = ver(o.skillsHookRoot ?? DEFAULT_SKILLS_HOOKS);
+  return have != null && want != null && have !== want;
+}
 
 /** Merge origin/<base> into each branch in a temp worktree; push only if every check passes. */
 export function devMerge(
@@ -39,13 +82,16 @@ export function devMerge(
     base?: string;
     worktreeRoot?: string;
     checks?: Check[];
-    /** agent-board-hooks bin dir; default `<git-common-dir>/agent-board-hooks/bin` of the worktree. */
+    /** eric-hooks bin dir; default `<git-common-dir>/eric-hooks/bin` of the worktree. */
     hooksDir?: string;
-    /** Runs only when `<hooksDir>/push` is missing and pushCmd isn't overridden. */
+    /** Runs when `<hooksDir>/push` is missing or hook_version differs from skillsHookRoot, before stamping. */
     installCmd?: string;
     stampCmd?: string;
-    /** Full push command line; default `<hooksDir>/push -u origin HEAD`. */
+    /** Full push command line; default `<hooksDir>/push --scheduled-dev-merge -u origin HEAD`. */
     pushCmd?: string;
+    hookVersion?: HookVersion;
+    skillsHookRoot?: string;
+    sdmLog?: string;
     run?: Runner;
   },
 ): { results: Result[]; wake: Wake | null } {
@@ -78,7 +124,7 @@ export function devMerge(
         git(['worktree', 'add', wt, branch], o.repo);
         git(['merge', '--ff-only', `origin/${branch}`], wt);
       }
-      r = { branch, ...mergeAndCheck(wt) };
+      r = { branch, ...mergeAndCheck(wt, branch) };
     } catch (e) {
       r = { branch, status: 'error', output: (e as Error).message };
     }
@@ -87,7 +133,7 @@ export function devMerge(
     return r;
   });
 
-  function mergeAndCheck(wt: string): Omit<Result, 'branch'> {
+  function mergeAndCheck(wt: string, branch: string): Omit<Result, 'branch'> {
     const before = git(['rev-parse', 'HEAD'], wt);
     const m = run('git', ['merge', '--no-edit', `origin/${base}`], wt);
     if (m.code !== 0) {
@@ -103,17 +149,28 @@ export function devMerge(
       const r = run(`${c.cmd} 2>&1`, 'shell', wt);
       if (r.code !== 0) return undo(), { status: 'check_failed', check: c.name, output: tail(r.out) };
     }
-    const hooks = o.hooksDir ?? join(resolve(wt, git(['rev-parse', '--git-common-dir'], wt)), 'agent-board-hooks', 'bin');
-    if (!o.pushCmd && !existsSync(join(hooks, 'push'))) {
-      if (!o.installCmd) return undo(), { status: 'push_failed', output: `no push hook at ${join(hooks, 'push')} and no install command (--install-cmd / AGENT_BOARD_HOOKS_INSTALL); pass --push-cmd to push without hooks` };
+    const hooks = o.hooksDir ?? join(resolve(wt, git(['rev-parse', '--git-common-dir'], wt)), 'eric-hooks', 'bin');
+    if (staleHooks(hooks, o)) {
+      if (!o.installCmd) {
+        const why = existsSync(join(hooks, 'push'))
+          ? `installed hook_version differs from ${o.skillsHookRoot ?? DEFAULT_SKILLS_HOOKS} and no install command (--install-cmd / AGENT_BOARD_HOOKS_INSTALL)`
+          : `no push hook at ${join(hooks, 'push')} and no install command (--install-cmd / AGENT_BOARD_HOOKS_INSTALL); pass --push-cmd to push without hooks`;
+        return undo(), { status: 'push_failed', output: why };
+      }
       const i = run(`${o.installCmd} 2>&1`, 'shell', wt);
       if (i.code !== 0) return undo(), { status: 'push_failed', output: `hooks install failed\n${tail(i.out)}` };
     }
     const s = run(`${o.stampCmd ?? `'${join(hooks, 'ci')}'`} 2>&1`, 'shell', wt);
     if (s.code !== 0) return undo(), { status: 'check_failed', check: 'ci-stamp', output: tail(s.out) };
-    const p = run(`${o.pushCmd ?? `'${join(hooks, 'push')}' -u origin HEAD`} 2>&1`, 'shell', wt);
-    if (p.code !== 0) return undo(), { status: 'push_failed', output: tail(p.out) };
-    return { status: 'pushed', sha };
+    const p = run(`${o.pushCmd ?? `'${join(hooks, 'push')}' --scheduled-dev-merge -u origin HEAD`} 2>&1`, 'shell', wt);
+    const sdm = lastSdmEntry(o.sdmLog ?? DEFAULT_SDM_LOG, branch, sha);
+    if (p.code !== 0 || sdm?.result === 'refused' || sdm?.result === 'push_failed') {
+      const output = sdm
+        ? `result: ${sdm.result}\nreason: ${sdm.reason}${p.out.trim() ? `\n${tail(p.out)}` : ''}`
+        : tail(p.out);
+      return undo(), { status: 'push_failed', output, sdm };
+    }
+    return { status: 'pushed', sha, sdm };
   }
 
   return { results, wake: report(db, results, o, base) };

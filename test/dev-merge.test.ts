@@ -72,7 +72,7 @@ function fixture() {
     /** branches the fake push was called for (cwd basename = worktree name) */
     pushed: () => read(log).filter((l) => l.startsWith('push ')).map((l) => l.split(' ')[1].split('/').at(-1)!),
     ran: () => read(ran),
-    merge: (branches: string[], extra: { pushCmd?: string; stampCmd?: string } = {}) =>
+    merge: (branches: string[], extra: { pushCmd?: string; stampCmd?: string; hookVersion?: (root: string) => string | null; skillsHookRoot?: string; sdmLog?: string; installCmd?: string } = {}) =>
       devMerge(e.db, { ...e.run, branches, repo, worktreeRoot: join(dir, 'wt'), checks, hooksDir, installCmd, base: 'dev', ...extra }),
     notes: () => e.db.prepare(`SELECT author, kind, body FROM notes WHERE task_id = 'dev-merge' AND kind = 'info' ORDER BY id`).all() as { author: string; body: string }[],
   };
@@ -169,12 +169,12 @@ test('all-clean run → zero wakes, no notes', () => {
   assert.equal(f.notes().length, 0);
 });
 
-test('default push flow: install skipped when push exists, ci stamp then push -u origin HEAD in the worktree', () => {
+test('default push flow: install skipped when push exists, ci stamp then push --scheduled-dev-merge -u origin HEAD in the worktree', () => {
   const f = fixture();
   const { results } = f.merge(['clean']);
   assert.equal(results[0].status, 'pushed');
   const wt = join(realpathSync(f.dir), 'wt', 'clean');
-  assert.deepEqual(f.log(), [`ci ${wt} `, `push ${wt} -u origin HEAD`]);
+  assert.deepEqual(f.log(), [`ci ${wt} `, `push ${wt} --scheduled-dev-merge -u origin HEAD`]);
 });
 
 test('default push flow: missing hooks → install runs first, then ci, then push', () => {
@@ -183,7 +183,7 @@ test('default push flow: missing hooks → install runs first, then ci, then pus
   const { results } = f.merge(['clean']);
   assert.equal(results[0].status, 'pushed');
   const wt = join(realpathSync(f.dir), 'wt', 'clean');
-  assert.deepEqual(f.log(), [`install ${wt}`, `ci ${wt} `, `push ${wt} -u origin HEAD`]);
+  assert.deepEqual(f.log(), [`install ${wt}`, `ci ${wt} `, `push ${wt} --scheduled-dev-merge -u origin HEAD`]);
 });
 
 test('hooks install failure → push_failed, no ci, no push', () => {
@@ -266,13 +266,98 @@ test('leftover worktree dir is removed before the run; an unremovable one is an 
   assert.deepEqual(g.log(), []);
 });
 
-test('default hooks dir is <git-common-dir>/agent-board-hooks/bin, shared by the linked worktree', () => {
+test('default hooks dir is <git-common-dir>/eric-hooks/bin, shared by the linked worktree', () => {
   const f = fixture();
-  const common = join(f.repo, '.git', 'agent-board-hooks', 'bin');
+  const common = join(f.repo, '.git', 'eric-hooks', 'bin');
   mkdirSync(common, { recursive: true });
   const log = join(f.dir, 'common.log');
   for (const n of ['ci', 'push']) writeFileSync(join(common, n), `#!/bin/sh\necho "${n} $*" >> '${log}'\n`, { mode: 0o755 });
   const { results } = devMerge(f.db, { ...f.run, branches: ['clean'], repo: f.repo, base: 'dev', worktreeRoot: join(f.dir, 'wt'), checks: [], installCmd: 'false' });
   assert.equal(results[0].status, 'pushed');
-  assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n'), ['ci ', 'push -u origin HEAD']);
+  assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n'), ['ci ', 'push --scheduled-dev-merge -u origin HEAD']);
+});
+
+test('hook_version mismatch → reinstall before stamp, then scheduled-dev-merge push', () => {
+  const f = fixture();
+  const skills = join(f.dir, 'skills-hooks');
+  const { results } = f.merge(['clean'], {
+    skillsHookRoot: skills,
+    hookVersion: (root) => (root === skills ? 'new' : 'old'),
+  });
+  assert.equal(results[0].status, 'pushed');
+  const wt = join(realpathSync(f.dir), 'wt', 'clean');
+  assert.deepEqual(f.log(), [`install ${wt}`, `ci ${wt} `, `push ${wt} --scheduled-dev-merge -u origin HEAD`]);
+});
+
+test('matching hook_version → install skipped', () => {
+  const f = fixture();
+  const skills = join(f.dir, 'skills-hooks');
+  const { results } = f.merge(['clean'], { skillsHookRoot: skills, hookVersion: () => 'same' });
+  assert.equal(results[0].status, 'pushed');
+  const wt = join(realpathSync(f.dir), 'wt', 'clean');
+  assert.deepEqual(f.log(), [`ci ${wt} `, `push ${wt} --scheduled-dev-merge -u origin HEAD`]);
+});
+
+test('hook_version mismatch and no install command → push_failed, no stamp, no push', () => {
+  const f = fixture();
+  const skills = join(f.dir, 'skills-hooks');
+  const { results } = devMerge(f.db, {
+    ...f.run, branches: ['clean'], repo: f.repo, base: 'dev', worktreeRoot: join(f.dir, 'wt'),
+    checks: [], hooksDir: f.hooksDir, skillsHookRoot: skills,
+    hookVersion: (root) => (root === skills ? 'new' : 'old'),
+  });
+  assert.equal(results[0].status, 'push_failed');
+  assert.match(results[0].output!, /hook_version differs/);
+  assert.deepEqual(f.log(), []);
+});
+
+function sdmPush(dir: string, log: string, result: string, reason: string) {
+  // Decoy lines (wrong sha / other branch) first; last matching line wins.
+  const script = join(dir, 'sdm-push.py');
+  writeFileSync(script, String.raw`import json, subprocess, pathlib, sys
+b = subprocess.check_output(["git", "symbolic-ref", "--short", "HEAD"], text=True).strip()
+s = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+rows = [
+  {"branch": "other", "head_sha": s, "result": "refused", "reason": "other branch"},
+  {"branch": b, "head_sha": "deadbeef", "result": "refused", "reason": "old sha"},
+  {"branch": b, "head_sha": s, "result": sys.argv[2], "reason": sys.argv[3]},
+]
+pathlib.Path(sys.argv[1]).write_text("".join(json.dumps(r) + "\n" for r in rows))
+sys.exit(0 if sys.argv[2] == "pushed" else 1)
+`);
+  return `python3 '${script}' '${log}' '${result}' '${reason}'`;
+}
+
+test('after a push, the last matching scheduled-dev-merge log line is recorded', () => {
+  const f = fixture();
+  const log = join(f.dir, 'sdm.jsonl');
+  const { results } = f.merge(['clean'], { sdmLog: log, pushCmd: sdmPush(f.dir, log, 'pushed', 'clean dev merge, stamp valid, open PR') });
+  assert.equal(results[0].status, 'pushed');
+  assert.deepEqual(results[0].sdm, { result: 'pushed', reason: 'clean dev merge, stamp valid, open PR' });
+  assert.equal(f.notes().length, 0);
+});
+
+test('scheduled-dev-merge refused → push_failed, reason in the board note, merge undone, no retry', () => {
+  const f = fixture();
+  const log = join(f.dir, 'sdm.jsonl');
+  const tip = git(f.repo, 'rev-parse', 'origin/clean');
+  const { results, wake } = f.merge(['clean'], { sdmLog: log, pushCmd: sdmPush(f.dir, log, 'refused', 'HEAD is not a 2-parent merge') });
+  assert.equal(results[0].status, 'push_failed');
+  assert.deepEqual(results[0].sdm, { result: 'refused', reason: 'HEAD is not a 2-parent merge' });
+  assert.match(results[0].output!, /result: refused\nreason: HEAD is not a 2-parent merge/);
+  assert.equal(git(f.repo, 'rev-parse', 'clean'), tip);
+  assert.equal(wake?.bot, 'engineer');
+  assert.match(f.notes()[0].body, /result: refused\nreason: HEAD is not a 2-parent merge/);
+  assert.equal(f.log().filter((l) => l.startsWith('push ')).length, 0); // custom pushCmd; default hook push not retried
+});
+
+test('scheduled-dev-merge push_failed → push_failed, reason in the note, merge undone', () => {
+  const f = fixture();
+  const log = join(f.dir, 'sdm.jsonl');
+  const tip = git(f.repo, 'rev-parse', 'origin/clean');
+  const { results } = f.merge(['clean'], { sdmLog: log, pushCmd: sdmPush(f.dir, log, 'push_failed', 'git push exit 1') });
+  assert.equal(results[0].status, 'push_failed');
+  assert.deepEqual(results[0].sdm, { result: 'push_failed', reason: 'git push exit 1' });
+  assert.equal(git(f.repo, 'rev-parse', 'clean'), tip);
+  assert.match(f.notes()[0].body, /result: push_failed\nreason: git push exit 1/);
 });

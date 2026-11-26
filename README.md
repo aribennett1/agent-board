@@ -120,7 +120,7 @@ States and owners: `planning`→planner, `plan_review`→qa, `building`→engine
 
 ## dev-merge
 
-`node bin/board.ts dev-merge --repo <checkout>` keeps your open PR branches current. It lists them with `gh pr list --author <you>`, merges `origin/<base>` into each in a temporary worktree, runs your checks, and pushes only if all pass. Conflicts and failures become one note per problem and at most one engineer wake. Defaults: base `main`, checks `npm ci`, `npm run lint --if-present`, `npm test` (override with `--check name=cmd`). Pushing goes through hooks (`--install-cmd`, `--stamp-cmd`, `--push-cmd`) so you decide what a safe push is.
+`node bin/board.ts dev-merge --repo <checkout>` keeps your open PR branches current. It lists them with `gh pr list --author <you>`, merges `origin/<base>` into each in a temporary worktree, runs your checks, and pushes only if all pass. Conflicts and failures become one note per problem and at most one engineer wake. Defaults: base `main`, checks `npm ci`, `npm run lint --if-present`, `npm test` (override with `--check name=cmd`). Hooks are reinstalled when missing or when their `hook_version` differs from `/workspace/eric-skills`. The default push is `<hooks>/push --scheduled-dev-merge -u origin HEAD`. After each push attempt, the last matching line of `/home/box/.local/state/eric-hooks/scheduled-dev-merge.jsonl` is recorded; a `refused` or `push_failed` result is a failure (no retry, reason in that run's board note). Override the hook commands with `--install-cmd`, `--stamp-cmd`, and `--push-cmd`.
 
 ## HTTP
 
