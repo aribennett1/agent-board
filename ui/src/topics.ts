@@ -78,7 +78,7 @@ export function mentionsLabel(text: string, label: string) {
   for (const m of text.matchAll(/\bQ(\d+)\s*(?:–|-|to|through)\s*Q?(\d+)\b/gi)) if (n >= Number(m[1]) && n <= Number(m[2])) return true;
   return false;
 }
-const whoOf = (e: ThreadEntry): Who => (/^\s*\**\s*Engineer\b/i.test(e.text) ? "Engineer" : /^\s*\**\s*QA\b/i.test(e.text) ? "QA" : "Assistant");
+const whoOf = (e: ThreadEntry): Who => (/^\s*\**\s*assistant\b/i.test(e.text) ? "assistant" : /^\s*\**\s*ops\b/i.test(e.text) ? "ops" : "Assistant");
 const ticketOf = (key: string) => /^decision:proj-(\d+)-/i.exec(key)?.[1];
 const BULK = /\b(?:accept|take|apply)\s+all\b|\ball\s+\d*\s*(?:of\s+)?(?:engineer'?s\s+)?(?:picks|recommendations|suggestions)\b/i;
 const unpick = (l: string) => l.replace(/\s*\(pick\)\s*/gi, " ").trim();
@@ -217,7 +217,7 @@ export function buildTopics(
       const already_decided = d.already_decided ?? (prior?.answer ? { answer: choiceText(prior.answer), source: prior.title ?? "earlier card", at: prior.answer.answered_at } : undefined);
       open.push({
         uid: `decision:${d.id}`, text: d.question, context: d.context, itemKey: `decision:${d.id}`, kind: "decision", decision: d,
-        ...(d.section === "audit" ? { bot: d.bot, rule: d.rule, seen: d.seen, proposed_fix: d.proposed_fix, fixes: d.fixes, svg: d.svg } : {}),
+        ...(d.section === "assistant" ? { bot: d.bot, rule: d.rule, seen: d.seen, proposed_fix: d.proposed_fix, fixes: d.fixes, svg: d.svg } : {}),
         ...(d.answers_comment ? { answers_comment: d.answers_comment } : {}),
         ...(d.post_text !== undefined ? { post_text: d.post_text } : {}),
         ...(d.current_text !== undefined ? { current_text: d.current_text } : {}),
@@ -264,8 +264,8 @@ export function buildTopics(
     const n = /PROJ-(\d+)/.exec(tkey)?.[0] ?? (ticketOf(tkey) ? `PROJ-${ticketOf(tkey)}` : undefined) ?? /\bPROJ-\d+\b/.exec(labels[tkey]?.label ?? "")?.[0];
     const d0 = decisions.get(tkey);
     const summary = n && summaries[n] ? summaries[n] : d0?.context ? firstSentence(d0.context) : undefined;
-    const label = d0?.section === "audit"
-      ? `Audit: ${d0.title ?? d0.question}`
+    const label = d0?.section === "assistant"
+      ? `Dr. Assistant: ${d0.title ?? d0.question}`
       : (labels[tkey]?.label && !/^#+\s|\*\*Ticket:\*\*|\*\*Priority:\*\*/m.test(labels[tkey]!.label) ? labels[tkey]!.label : tkey).replace(/:\s*\d+\s+questions?$/i, "");
     topics.push({
       key: tkey, keys: members, label, link: labels[tkey]?.link, summary: summary ? short(summary) : undefined, ball, statusLine,

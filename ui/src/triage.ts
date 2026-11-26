@@ -81,7 +81,7 @@ export function sortTriage<T extends Decision>(cards: readonly T[]): T[] {
 
 export function groupKey(d: Decision): string {
   if (d.group) return d.group;
-  if (d.glance?.pr) return `pr:${d.glance.pr.repo ?? "example-repo"}/${d.glance.pr.number}`;
+  if (d.glance?.pr) return `pr:${d.glance.pr.repo ?? "app"}/${d.glance.pr.number}`;
   if (d.glance?.ticket?.id) return `ticket:${d.glance.ticket.id}`;
   return `decision:${d.id}`;
 }
@@ -114,7 +114,7 @@ export function groupByTicket<T extends Decision>(
   const groups: TicketGroup<T>[] = [];
   for (const [key, list] of map) {
     const sorted = sortTriage(list);
-    const actionable = sorted.filter((d) => isActionable(d, ctx, appAnswered) && d.section !== "audit");
+    const actionable = sorted.filter((d) => isActionable(d, ctx, appAnswered) && d.section !== "assistant");
     const stale = sorted.filter((d) => cardStale(d, ctx).stale);
     const first = sorted[0];
     // Groups with nothing to answer (all stale, or only FYI left unanswered) should not jump the queue.
@@ -158,6 +158,6 @@ export function nextFiveMinutes<T extends Decision>(
   n = 5,
 ): T[] {
   return sortTriage(
-    cards.filter((d) => isActionable(d, ctx, appAnswered) && effectiveTier(d) === "quick" && d.section !== "audit"),
+    cards.filter((d) => isActionable(d, ctx, appAnswered) && effectiveTier(d) === "quick" && d.section !== "assistant"),
   ).slice(0, n);
 }

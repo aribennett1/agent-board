@@ -159,13 +159,13 @@ beforeEach(() => {
   window.localStorage.clear();
   window.history.replaceState(null, "", "/");
   posted = [];
-  vi.stubEnv("ACTION_BOARD_WEBHOOK_URL", "http://hook.test/assistant");
+  vi.stubEnv("ACTION_BOARD_WEBHOOK_CONFIGURED", "1");
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
-      if (url === "http://hook.test/assistant") {
+      if (url === "/__ab/webhook") {
         posted.push(JSON.parse(String(init?.body)));
-        return new Response("ok", { status: 200 });
+        return new Response(JSON.stringify({ status: 200 }), { status: 200 });
       }
       return new Response(null, { status: 204 });
     }),

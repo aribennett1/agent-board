@@ -54,7 +54,7 @@ const finding = (n: number, extra: Partial<Decision["post_comments"] extends (in
   severity: "High",
   path: "app/Services/Foo.php",
   line: 100 + n,
-  url: `https://github.com/acme/example-repo/pull/1935/files`,
+  url: `https://github.com/example/app/pull/201/files`,
   summary: `Summary for finding ${n}`,
   body: `Exact comment text for #${n}.`,
   ...extra,
@@ -62,18 +62,18 @@ const finding = (n: number, extra: Partial<Decision["post_comments"] extends (in
 
 function reviewCard(over: Partial<Decision> = {}): Decision {
   return {
-    id: "pr1935-test",
-    card_ref: "https://github.com/acme/example-repo/pull/1935",
-    title: "QA review of #1935",
-    context: "QA reviewed PR #1935 and found two issues on the export.",
-    question: "Should QA post each of these comments?",
-    what_happens_after: "Each answer goes to QA with the PR, finding number, and file:line.",
+    id: "pr201-test",
+    card_ref: "https://github.com/example/app/pull/201",
+    title: "ops review of #201",
+    context: "ops reviewed PR #201 and found two issues on the export.",
+    question: "Should ops post each of these comments?",
+    what_happens_after: "Each answer goes to ops with the PR, finding number, and file:line.",
     options: [],
     post_comments: [finding(1), finding(2)],
-    group: "pr:example-repo/1935",
+    group: "pr:app/201",
     glance: {
       ticket: { id: "PROJ-4936", summary: "Rebuilds the single-employee timecard export" },
-      pr: { number: 1935, link: "https://github.com/acme/example-repo/pull/1935" },
+      pr: { number: 201, link: "https://github.com/example/app/pull/201" },
       asking: "For each comment, Post, Don't post, or write your own words.",
       outcomes: [
         { id: "post", happens: "ops posts that comment as written." },
@@ -93,11 +93,11 @@ describe("per-finding review helpers", () => {
     const payload = buildFindingPayload(d, 1, "note", "Please get me a link for the figma", new Date("2026-11-25T21:13:00.000Z"));
     expect(payload).toMatchObject({
       event: "review.answer",
-      decision_id: "pr1935-test:1",
-      card_id: "pr1935-test",
-      repo: "acme/example-repo",
-      pr: 1935,
-      pr_link: "https://github.com/acme/example-repo/pull/1935",
+      decision_id: "pr201-test:1",
+      card_id: "pr201-test",
+      repo: "example/app",
+      pr: 201,
+      pr_link: "https://github.com/example/app/pull/201",
       comment_id: "1",
       finding: 1,
       action: "note",
@@ -368,7 +368,7 @@ describe("per-finding review card UI", () => {
   });
 
   it("shows Posted with a view link, or a not-posted reason, on an answered finding", () => {
-    const posted = finding(1, { status: "posted", posted_url: "https://github.com/acme/example-repo/pull/1935#discussion_r1" });
+    const posted = finding(1, { status: "posted", posted_url: "https://github.com/example/app/pull/201#discussion_r1" });
     const pending = finding(2, { status: "pending", note: "The file and line are in the diff, so this comment can still be posted." });
     const { rerender } = render(
       <FindingDraft cardId="pr201-test" finding={posted} answered="Post" onAnswer={async () => true} />,
@@ -386,14 +386,14 @@ describe("per-finding review card UI", () => {
 describe("ab raise and lint require the per-finding review shape", () => {
   const raiseBase = {
     id: "test-review-per-finding",
-    group: "pr:example-repo/9997",
-    title: "QA review of #9997",
-    context: "QA reviewed PR #9997 and found two issues on the export.",
-    question: "Should QA post each of these comments?",
-    what_happens_after: "Each answer goes to QA with the PR, finding number, and file:line.",
+    group: "pr:app/9997",
+    title: "ops review of #9997",
+    context: "ops reviewed PR #9997 and found two issues on the export.",
+    question: "Should ops post each of these comments?",
+    what_happens_after: "Each answer goes to ops with the PR, finding number, and file:line.",
     glance: {
       ticket: { id: "export-review", summary: "Rebuilds a sample export for review comments" },
-      pr: { number: 9997, link: "https://github.com/acme/example-repo/pull/9997" },
+      pr: { number: 9997, link: "https://github.com/example/app/pull/9997" },
       asking: "For each comment, Post, Don't post, or write your own words.",
       outcomes: [
         { id: "post", happens: "ops posts that comment as written." },

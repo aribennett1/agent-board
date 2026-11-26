@@ -5,7 +5,7 @@ import type { AppChoice } from "./delivery";
 import type { AnsweredQuestion, Topic, TopicQuestion } from "./topics";
 import { summaryLine } from "./topics";
 import { clockTime, NoteBox } from "./ItemExpand";
-import { CardSvg, AuditFacts, AuditTable } from "./DecisionCard";
+import { CardSvg, AssistantFacts, AssistantTable } from "./DecisionCard";
 import { optionColorClass } from "./optionColor";
 import { AlreadyDecidedBanner, PostApprovalBlock } from "./PostApprovalBlock";
 import { FindingDraft, FindingStatusLine, type OnAnswerFinding } from "./ReviewFindingsBlock";
@@ -105,8 +105,8 @@ function OpenQuestionBox({ q, a, onDone }: { q: TopicQuestion; a: Answerers; onD
       <p className="tq-text">{title}</p>
       {q.context && q.context.trim() && q.context.trim() !== q.text.trim() && <Context text={q.context} />}
       <CardSvg src={q.svg ?? q.decision?.svg} />
-      <AuditFacts bot={q.bot} rule={q.rule} seen={q.seen} proposed_fix={q.proposed_fix} />
-      <AuditTable fixes={q.fixes} />
+      <AssistantFacts bot={q.bot} rule={q.rule} seen={q.seen} proposed_fix={q.proposed_fix} />
+      <AssistantTable fixes={q.fixes} />
       {q.image && <img className="thread-image" src={q.image} alt={q.image_alt ?? "Diagram"} />}
       {q.suggestion && (
         <p className="tq-hint">

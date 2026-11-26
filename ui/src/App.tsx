@@ -75,7 +75,7 @@ const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(r
 const withoutPriority = ({ priority: _priority, ...rest }: Decision) => JSON.stringify(rest);
 
 // The left nav's destinations. #project is the project tab; the rest are board sections.
-export type View = "conversation" | "home" | "tickets" | "mine" | "reviews" | "waiting" | "others" | "audit" | "project" | "focus";
+export type View = "conversation" | "home" | "tickets" | "mine" | "reviews" | "waiting" | "others" | "assistant" | "project" | "focus";
 
 type AppProps = {
   // Which section the main area shows. Missing: the classic one-page board with every section (used by tests).
@@ -426,7 +426,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   );
 
   // High first, then medium, then low; oldest first within a level. Unsaved taps count already.
-  // Shown as one section per level that has cards. Audit findings have their own tab.
+  // Shown as one section per level that has cards. Dr. Assistant findings have their own tab.
   const [findingLocals, setFindingLocals] = useState<FindingAnswerMap>(() => loadFindingAnswers());
   const findingAnswersOf = (d: Decision) => {
     const fromAsks = answersFromAsks(board.asks, d.id, reviewFindings(d));
@@ -445,8 +445,8 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
       .map((d) => (priorityOverride[d.id] ? { ...d, priority: priorityOverride[d.id] } : d))
       .filter((d) => !isPerFindingReview(d) || !allFindingsAnswered(d, board.asks, answersForCard(d.id, findingLocals))),
   );
-  const queue = openDecisions.filter((d) => d.section !== "audit");
-  const auditQueue = openDecisions.filter((d) => d.section === "audit");
+  const queue = openDecisions.filter((d) => d.section !== "assistant");
+  const assistantQueue = openDecisions.filter((d) => d.section === "assistant");
   // Without a webhook, pending messages also explain the "not set up" marker.
   const marker = deliveryMarker(WEBHOOK_CONFIGURED ? answers : { ...answers, ...messages }, WEBHOOK_CONFIGURED);
 
@@ -897,7 +897,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   const itemIndex: Record<string, { label: string; link?: string; ref: BoardItem }> = {};
   for (const e of [...ticketEntries, ...myEntries, ...waitingEntries, ...otherEntries])
     itemIndex[detailKey(e.kind, e.id)] = { label: e.kind === "ticket" ? `${e.id} ${e.title}` : e.sub ? `${e.sub} ${e.title}` : e.title, link: e.link, ref: e.ref };
-  for (const d of board.decisions) itemIndex[`decision:${d.id}`] = { label: d.section === "audit" ? `Audit: ${d.title ?? d.question}` : (d.title ?? d.question), ref: decisionItem(d) };
+  for (const d of board.decisions) itemIndex[`decision:${d.id}`] = { label: d.section === "assistant" ? `Dr. Assistant: ${d.title ?? d.question}` : (d.title ?? d.question), ref: decisionItem(d) };
   const detailRef = (k: string): { label: string; link?: string; ref: BoardItem } => {
     const ask = (board.asks ?? []).find((a) => a.item_key === k);
     const colon = k.indexOf(":");
@@ -934,7 +934,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   };
   const topics = buildTopics(convoBoard, itemIndex, (d) => openDecisions.some((x) => x.id === d.id));
   const openQs = openCount(topics);
-  const needsHuman = openQs > 0 || queue.length > 0 || auditQueue.length > 0;
+  const needsHuman = openQs > 0 || queue.length > 0 || assistantQueue.length > 0;
   useNeedsYouBadge(needsHuman);
   const openItem = (key: string) => {
     const i = key.indexOf(":");
@@ -988,7 +988,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
     { id: "reviews", label: "Reviews", count: needsCount(reviewEntries) },
     { id: "waiting", label: "Waiting on others", count: needsCount(waitingEntries) },
     { id: "others", label: "Others' PRs", count: needsCount(otherEntries) },
-    { id: "audit", label: "Audit", count: auditQueue.length, urgent: auditQueue.length > 0 },
+    { id: "assistant", label: "Dr. Assistant", count: assistantQueue.length, urgent: assistantQueue.length > 0 },
     ...(project ? [{ id: "project" as const, label: projectLabel ?? "Project" }] : []),
   ];
 
@@ -999,8 +999,8 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
     const kind = focus.slice(0, slash) as Kind;
     const id = focus.slice(slash + 1);
     const focusDecision = kind === "decision" ? board.decisions.find((x) => x.id === id) : undefined;
-    const back = focusDecision?.section === "audit"
-      ? { view: "audit" as View, label: "Audit" }
+    const back = focusDecision?.section === "assistant"
+      ? { view: "assistant" as View, label: "Dr. Assistant" }
       : (KIND_BACK[kind] ?? KIND_BACK.decision);
     if (kind === "decision") {
       const d = queue.find((x) => x.id === id) ?? board.decisions.find((x) => x.id === id);
@@ -1065,8 +1065,8 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
     }
   }
   const navCurrent: View = view === "focus"
-    ? (focus?.startsWith("decision/") && board.decisions.find((d) => d.id === focus.slice(9))?.section === "audit"
-        ? "audit"
+    ? (focus?.startsWith("decision/") && board.decisions.find((d) => d.id === focus.slice(9))?.section === "assistant"
+        ? "assistant"
         : (KIND_BACK[(focus ?? "").split("/")[0] as Kind]?.view ?? "home"))
     : (view ?? "conversation");
 
@@ -1170,24 +1170,24 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
             </PrTable>
           </div>
         )}
-        {view === "audit" && (
+        {view === "assistant" && (
           <div className="view">
             <header className="view-head">
-              <h1>Audit</h1>
-              <p>Audit findings and proposed bot changes. Apply one, skip it, or say how it should change.</p>
+              <h1>Dr. Assistant</h1>
+              <p>Dr. Assistant findings and proposed bot changes. Apply one, skip it, or say how it should change.</p>
             </header>
             <section className="needs-you">
-              {auditQueue.length === 0 ? (
+              {assistantQueue.length === 0 ? (
                 <p className="empty">Nothing needs you here.</p>
               ) : (
                 <>
                   <h2 className="kicker">
-                    Needs you <span className="n">{auditQueue.length}</span>
+                    Needs you <span className="n">{assistantQueue.length}</span>
                   </h2>
                   <div className="queue">
-                    {groupByPriority(auditQueue).map(({ level, items }) => (
-                      <section key={level} className="priority-section" data-level={level} aria-labelledby={`audit-level-${level}`}>
-                        <h3 className="priority-heading" id={`audit-level-${level}`}>
+                    {groupByPriority(assistantQueue).map(({ level, items }) => (
+                      <section key={level} className="priority-section" data-level={level} aria-labelledby={`assistant-level-${level}`}>
+                        <h3 className="priority-heading" id={`assistant-level-${level}`}>
                           {PRIORITY_LABEL[level]} <span className="n">{items.length}</span>
                         </h3>
                         <div className="queue-group">
@@ -1195,7 +1195,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
                             <DecisionCard
                               key={d.id}
                               decision={d}
-                              index={auditQueue.indexOf(d) + 1}
+                              index={assistantQueue.indexOf(d) + 1}
                               onAnswer={choose}
                               onClarify={requestClarify}
                               clarify={clarifying[d.id]}

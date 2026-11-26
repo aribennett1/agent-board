@@ -69,7 +69,7 @@ describe("Left nav", () => {
       "reviews",
       "waiting",
       "others",
-      "audit",
+      "assistant",
     ]);
     expect(item("project")).toBeNull();
     expect(item("home").querySelector(".nav-count")?.textContent).toBe("1");
@@ -79,7 +79,7 @@ describe("Left nav", () => {
     expect(item("others").querySelector(".nav-count")).toBeNull();
     expect(item("tickets").querySelector(".nav-count")).toBeNull();
     expect(item("mine").querySelector(".nav-count")).toBeNull();
-    expect(item("audit").querySelector(".nav-count")).toBeNull();
+    expect(item("assistant").querySelector(".nav-count")).toBeNull();
     expect(item("waiting").querySelector(".nav-count")).toBeNull();
     expect(current()).toEqual(["home"]);
     expect(screen.getByRole("heading", { name: /Needs you\s*1/ })).toBeTruthy();

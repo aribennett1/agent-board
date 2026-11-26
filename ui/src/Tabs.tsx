@@ -5,14 +5,14 @@ import { ProjectTab, ProjectTabLabel } from "./ProjectTab";
 import { useLiveProject } from "./useLiveBoard";
 import type { Project } from "./data/types";
 
-const BOARD_VIEWS: View[] = ["conversation", "home", "tickets", "mine", "reviews", "waiting", "others", "audit"];
+const BOARD_VIEWS: View[] = ["conversation", "home", "tickets", "mine", "reviews", "waiting", "others", "assistant"];
 const views = (project: Project | null): View[] => (project && hasProject(project) ? [...BOARD_VIEWS, "project"] : BOARD_VIEWS);
 const FOCUS_KINDS = ["ticket", "mypr", "pr", "waiting", "decision"];
 
 type Route = { view: View; focus?: string };
 
 // The hash picks the section (#reviews, #project, ...) or one item in focus mode (#ticket/PROJ-12,
-// #pr/example-repo/101). No hash or anything unknown is the Conversation view; #home is Home.
+// #pr/app/101). No hash or anything unknown is the Conversation view; #home is Home.
 const fromHash = (project: Project | null = null): Route => {
   const h = decodeURIComponent(window.location.hash.slice(1));
   const slash = h.indexOf("/");

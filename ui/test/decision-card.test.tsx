@@ -374,15 +374,15 @@ describe("DecisionCard: links", () => {
   });
 });
 
-describe("DecisionCard: audit table and svg", () => {
+describe("DecisionCard: assistant table and svg", () => {
   it("renders a sanitized SVG diagram and markdown in the fixes table", () => {
     const dirty = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script><text>Pick a root</text></svg>';
     const { container } = render(
       <DecisionCard
         decision={{
           ...base,
-          section: "audit",
-          bot: "Engineer",
+          section: "assistant",
+          bot: "assistant",
           rule: "Root causes",
           svg: dirty,
           fixes: [{ id: "R1", seen: "Nickname in ++headings++", proposed: "Rename to ==Plain summary==" }],
@@ -401,7 +401,7 @@ describe("DecisionCard: audit table and svg", () => {
     expect(svg.querySelector("script")).toBeNull();
     expect(svg.getAttribute("onload")).toBeNull();
     expect(svg.textContent).toContain("Pick a root");
-    const cell = container.querySelector(".audit-table tbody")!;
+    const cell = container.querySelector(".assistant-table tbody")!;
     expect(cell.querySelector("u")?.textContent).toBe("headings");
     expect(cell.querySelector("mark")?.textContent).toBe("Plain summary");
   });

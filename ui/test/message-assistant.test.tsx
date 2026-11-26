@@ -5,7 +5,7 @@ import type { Board } from "../src/data/types";
 import { MESSAGES_KEY, STORAGE_KEY } from "../src/delivery";
 
 const HOOK = "/__ab/webhook"; // every send goes through the server route
-const PR = "https://github.com/acme/example-web/pull/1461";
+const PR = "https://github.com/example/web/pull/213";
 
 const decision = (id: string) => ({
   id,

@@ -126,16 +126,16 @@ export type Decision = {
   multiSelect?: boolean;
   // Free-text answer field. Missing means true; only false hides it.
   allowCustom?: boolean;
-  // Audit audit finding or proposed bot change (ab audit). Missing means a Home decision (ab raise).
-  section?: "audit";
-  // Required on section "audit": which bot it is for, and a short rule/theme. seen and proposed_fix
+  // Dr. Assistant assistant finding or proposed bot change (ab assistant). Missing means a Home decision (ab raise).
+  section?: "assistant";
+  // Required on section "assistant": which bot it is for, and a short rule/theme. seen and proposed_fix
   // are required unless `fixes` lists each row (id, what was seen, proposed change) as a table.
   rule?: string;
   seen?: string;
   proposed_fix?: string;
   bot?: string;
   fixes?: { id: string; seen: string; proposed: string }[];
-  // Optional small SVG diagram on the card (ab raise / ab audit). Stored and rendered sanitized.
+  // Optional small SVG diagram on the card (ab raise / ab assistant). Stored and rendered sanitized.
   svg?: string;
   // How much it matters; sorts the Needs you queue. Missing means medium. Set by ab raise or ab priority.
   priority?: Priority;
@@ -153,7 +153,7 @@ export type Decision = {
   unblocks?: number;
   // Stamped SHA this card is about (push OKs). Stale when it no longer matches board.stamps / board.heads.
   sha?: string;
-  // Ticket or PR grouping key, e.g. "pr:example-repo/206" or "ticket:PROJ-5267".
+  // Ticket or PR grouping key, e.g. "pr:app/206" or "ticket:PROJ-5267".
   group?: string;
   glance?: Glance;
   // Optional one-line light joke, shown muted.
@@ -217,7 +217,7 @@ export type ReviewDraft = {
 };
 
 // What an item's chevron (and its focus page) shows beyond the row: a summary, Assistant's full plan, discussion,
-// and quick actions. Keyed by item key: ticket:PROJ-2512, pr:example-repo/209, mypr:example-repo/209,
+// and quick actions. Keyed by item key: ticket:PROJ-2512, pr:app/209, mypr:app/209,
 // waiting:<slug of title>, decision:<decision id>. Set by ab detail and ab plan.
 // answered (ab already-answered): the owner's own earlier words and where they came from; superseded_by: what replaced it.
 // Either one means the question is never asked again.

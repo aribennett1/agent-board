@@ -51,19 +51,19 @@ afterEach(() => {
 describe("Post/approve/thumb-up cards show comment and exact reply", () => {
   it("renders answers_comment quote, metadata, link, and exact post_text above options in DecisionCard", () => {
     const card: Decision = {
-      id: "pr2014-null-shift-reply",
-      card_ref: "PR #2014",
-      title: "Bugbot pushback on 2014: null shift IDs",
-      question: "Post this exact reply on Bugbot's thread on #2014?",
+      id: "pr205-null-shift-reply",
+      card_ref: "PR #205",
+      title: "Bugbot pushback on 205: null shift IDs",
+      question: "Post this exact reply on Bugbot's thread on #205?",
       what_happens_after: "The assistant posts the reply.",
       answers_comment: {
         author: "cursor[bot]",
-        repo: "acme/example-repo",
-        pr: 2014,
+        repo: "example/app",
+        pr: 205,
         path: "app/Http/Requests/EmployeeApp/StoreTimeOffRequestRequest.php",
         line: 167,
         severity: "High",
-        url: "https://github.com/acme/example-repo/pull/2014#discussion_r4696970871",
+        url: "https://github.com/example/app/pull/205#discussion_r4696970871",
         body: "### Null shift IDs fail distinct\n\nTwo unscheduled entries both omit or null the shift id.",
       },
       post_text: "`distinct` is not an implicit rule.\n\nWhat do you think?",
@@ -80,7 +80,7 @@ describe("Post/approve/thumb-up cards show comment and exact reply", () => {
     expect(screen.getByText(/Two unscheduled entries both omit or null the shift id\./)).toBeTruthy();
     expect(screen.getByText(/What do you think\?/)).toBeTruthy();
     const link = screen.getByRole("link", { name: /View on GitHub/i }) as HTMLAnchorElement;
-    expect(link.href).toBe("https://github.com/acme/example-repo/pull/2014#discussion_r4696970871");
+    expect(link.href).toBe("https://github.com/example/app/pull/205#discussion_r4696970871");
 
     const block = container.querySelector(".post-approval-block")!;
     const options = container.querySelector(".options")!;
@@ -98,7 +98,7 @@ describe("Post/approve/thumb-up cards show comment and exact reply", () => {
         pr: 207,
         path: "app/Services/PayrollService.php",
         line: 42,
-        url: "https://github.com/acme/example-repo/pull/2016#discussion_r123",
+        url: "https://github.com/example/app/pull/207#discussion_r123",
         body: "Looks wrong.",
       },
       post_text: null,
@@ -131,12 +131,12 @@ describe("Post/approve/thumb-up cards show comment and exact reply", () => {
                 context: "Check before posting.",
                 answers_comment: {
                   author: "cursor[bot]",
-                  repo: "acme/example-repo",
-                  pr: 2014,
+                  repo: "example/app",
+                  pr: 205,
                   path: "app/Http/Requests/EmployeeApp/StoreTimeOffRequestRequest.php",
                   line: 167,
                   severity: "High",
-                  url: "https://github.com/acme/example-repo/pull/2014#discussion_r4696970871",
+                  url: "https://github.com/example/app/pull/205#discussion_r4696970871",
                   body: "Two unscheduled entries both omit or null the shift id."
                 },
                 post_text: "Laravel skips distinct (Validator::isNotNullIfMarkedAsNullable).",
@@ -278,7 +278,7 @@ describe("ab.mjs structural rules", () => {
           answers_comment: {
             author: "cursor[bot]",
             pr: 9999,
-            url: "https://github.com/acme/example-repo/pull/9999#discussion_r1",
+            url: "https://github.com/example/app/pull/9999#discussion_r1",
             body: "Bug here.",
           },
           options: [
@@ -304,7 +304,7 @@ describe("ab.mjs structural rules", () => {
             path: "app/Foo.php",
             line: 10,
             severity: "High",
-            url: "https://github.com/acme/example-repo/pull/9999#discussion_r1",
+            url: "https://github.com/example/app/pull/9999#discussion_r1",
             body: "Bug here.",
           },
           post_text: "Fixed in next commit.",
@@ -327,7 +327,7 @@ describe("ab.mjs structural rules", () => {
           answers_comment: {
             author: "cursor[bot]",
             pr: 9999,
-            url: "https://github.com/acme/example-repo/pull/9999#discussion_r2",
+            url: "https://github.com/example/app/pull/9999#discussion_r2",
             body: "Good catch.",
           },
           post_text: null,
@@ -370,7 +370,7 @@ describe("ab.mjs structural rules", () => {
         "raise",
         JSON.stringify({
           id: "test-push-no-sha",
-          group: "pr:example-repo/9998",
+          group: "pr:app/9998",
           title: "Payroll fix (#9998): push branch",
           context: "Ready to push the payroll fix branch. Waiting for your go-ahead.",
           question: "Push #9998 now?",
@@ -391,7 +391,7 @@ describe("ab.mjs structural rules", () => {
           "raise",
           JSON.stringify({
             id: "test-push-1",
-            group: "pr:example-repo/9998",
+            group: "pr:app/9998",
             title: "Payroll fix (#9998): push branch",
             context: "Ready to push the payroll fix branch. Waiting for your go-ahead.",
             question: "Push #9998 now?",
@@ -410,7 +410,7 @@ describe("ab.mjs structural rules", () => {
           "raise",
           JSON.stringify({
             id: "test-push-2",
-            group: "pr:example-repo/9998",
+            group: "pr:app/9998",
             title: "Payroll fix (#9998): push branch",
             context: "New commit is ready on the payroll fix branch. Waiting for your go-ahead.",
             question: "Push #9998 now?",
@@ -440,11 +440,11 @@ describe("ab.mjs structural rules", () => {
 describe("Review card options post_text and raw ticket inline lint rules", () => {
   it("renders per-finding review comments with severity, file:line, summary, and Will post block", () => {
     const reviewCard: Decision = {
-      id: "pr1935-test",
-      card_ref: "https://github.com/acme/example-repo/pull/1935",
-      title: "QA review of #1935",
-      question: "Should QA post each of these comments?",
-      what_happens_after: "Each answer goes to QA with the PR, finding number, and file:line.",
+      id: "pr201-test",
+      card_ref: "https://github.com/example/app/pull/201",
+      title: "ops review of #201",
+      question: "Should ops post each of these comments?",
+      what_happens_after: "Each answer goes to ops with the PR, finding number, and file:line.",
       options: [],
       post_comments: [
         {
@@ -476,11 +476,11 @@ describe("Review card options post_text and raw ticket inline lint rules", () =>
         "raise",
         JSON.stringify({
           id: "test-review-missing-post-text",
-          group: "pr:example-repo/9997",
-          title: "QA review of #9997",
-          context: "QA reviewed PR #9997 and found two issues on the export.",
-          question: "Which comments should QA post?",
-          what_happens_after: "QA posts picked comments.",
+          group: "pr:app/9997",
+          title: "ops review of #9997",
+          context: "ops reviewed PR #9997 and found two issues on the export.",
+          question: "Which comments should ops post?",
+          what_happens_after: "ops posts picked comments.",
           multiSelect: true,
           options: [
             { id: "f1", label: "#1 Foo.php:10" },

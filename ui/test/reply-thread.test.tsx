@@ -25,7 +25,7 @@ vi.mock("../src/data/board", () => ({
         question: "Which one?",
         context: "Two ways to go.",
         what_happens_after: "I do the picked one.",
-        card_ref: "https://github.com/acme/example-repo/pull/1",
+        card_ref: "https://github.com/example/app/pull/1",
         options: [{ id: "a", label: "A" }, { id: "b", label: "B" }],
         allowCustom: false,
         created_at: "2026-11-24T20:00:00.000Z",
@@ -35,18 +35,18 @@ vi.mock("../src/data/board", () => ({
       waiting: [],
       tickets: [{ id: "PROJ-1", title: "Banks in seconds", status: "Todo" }],
       others: [
-        { title: "Standard hours fix", author: "alex", who: "Your review requested", link: "https://github.com/acme/example-repo/pull/1955" },
-        { title: "Docs pass", author: "sam", who: "Waiting on author", link: "https://github.com/acme/example-repo/pull/7" },
+        { title: "Standard hours fix", author: "sam", who: "Your review requested", link: "https://github.com/example/app/pull/203" },
+        { title: "Docs pass", author: "sam", who: "Waiting on author", link: "https://github.com/example/app/pull/7" },
       ],
     },
-    reviews: [{ repo: "example-repo", pr: 1955, verdict: "Comment", comments: [{ id: "c1", severity: "low", title: "Nit", path: "a.php", line: 3, body: "Rename it.", status: "pending" }] }],
+    reviews: [{ repo: "app", pr: 203, verdict: "Comment", comments: [{ id: "c1", severity: "low", title: "Nit", path: "a.php", line: 3, body: "Rename it.", status: "pending" }] }],
     details: {
-      "pr:example-repo/1955": {
+      "pr:app/203": {
         thread: [
           {
             at: REPLY_AT,
             from: "bot",
-            text: "Ready to approve: [#1955](https://github.com/acme/example-repo/pull/1955).",
+            text: "Ready to approve: [#203](https://github.com/example/app/pull/203).",
             image: "/replies/x.png",
             question: { id: "q1", text: "What do you want to do?", options: [{ id: "o1", label: "Approve with LGTM now" }, { id: "o2", label: "Wait for Sam" }] },
           },
@@ -109,7 +109,7 @@ describe("reply thread", () => {
     fireEvent.click(within(row).getByRole("button", { name: "Expand" }));
     expect(within(row).queryByRole("img", { name: "New reply" })).toBeNull();
     const thread = row.querySelector<HTMLElement>(".item-thread")!;
-    expect(within(thread).getByRole("link", { name: "#1955" }).getAttribute("href")).toBe("https://github.com/acme/example-repo/pull/1955");
+    expect(within(thread).getByRole("link", { name: "#203" }).getAttribute("href")).toBe("https://github.com/example/app/pull/203");
     expect(thread.querySelector("img.thread-image")?.getAttribute("src")).toBe("/replies/x.png");
 
     // Others' PRs: the PR with no details sits in the collapsed In progress group.
@@ -130,7 +130,7 @@ describe("reply thread", () => {
     const thread = row.querySelector<HTMLElement>(".item-thread")!;
     const box = within(thread).getByLabelText("Or answer in your own words") as HTMLTextAreaElement;
     expect(within(box.closest(".mic-wrap") as HTMLElement).getByRole("button", { name: "Voice typing" })).toBeTruthy();
-    fireEvent.change(box, { target: { value: "Approve, but ping Alex first" } });
+    fireEvent.change(box, { target: { value: "Approve, but ping Sam first" } });
     fireEvent.click(within(thread).getByRole("button", { name: "Send to assistant" }));
     await act(async () => {});
     const m = posted.filter((p) => p.event === "item.message").at(-1)!;
@@ -228,25 +228,25 @@ describe("ab reply", () => {
       `export const board = ${A}\n${JSON.stringify({
         updated_at: "2026-11-10T09:00:00.000Z",
         decisions: [],
-        glance: { waiting: [], tickets: [], others: [{ title: "x", author: "a", who: "w", link: "https://github.com/acme/example-repo/pull/1955" }], mine: [{ repo: "example-repo", number: 1982, title: "y", state: "open", link: "https://github.com/acme/example-repo/pull/1982" }] },
+        glance: { waiting: [], tickets: [], others: [{ title: "x", author: "a", who: "w", link: "https://github.com/example/app/pull/203" }], mine: [{ repo: "app", number: 209, title: "y", state: "open", link: "https://github.com/example/app/pull/209" }] },
       })}\n${Z};\n`,
     );
     const png = join(dir, "shot.png");
     writeFileSync(png, "png");
     expect(ab(["reply", "#203"]).status).toBe(2);
     expect(ab(["reply", "#4040", "hi"]).status).toBe(2);
-    expect(ab(["reply", "#1955", "hi", "--question", "Q?", "--option", "only one"]).status).toBe(2);
-    expect(ab(["reply", "#1955", "Ready: **yes**", "--question", "Do it?", "--option", "Yes", "--option", "No"]).status).toBe(2);
-    expect(ab(["reply", "#1955", "Ready: **yes**", "--question", "Do it?", "--context", "Alex fixed the save bug. We're asking if you want to approve it now.", "--option", "Yes", "--option", "No"]).status).toBe(0);
-    const r = ab(["reply", "example-repo#1982", "PHPStan fails", "--image", png]);
+    expect(ab(["reply", "#203", "hi", "--question", "Q?", "--option", "only one"]).status).toBe(2);
+    expect(ab(["reply", "#203", "Ready: **yes**", "--question", "Do it?", "--option", "Yes", "--option", "No"]).status).toBe(2);
+    expect(ab(["reply", "#203", "Ready: **yes**", "--question", "Do it?", "--context", "Sam fixed the save bug. We're asking if you want to approve it now.", "--option", "Yes", "--option", "No"]).status).toBe(0);
+    const r = ab(["reply", "app#209", "PHPStan fails", "--image", png]);
     expect(r.status).toBe(0);
     const d = read().details!;
-    expect(d["pr:example-repo/1955"].thread).toEqual([
+    expect(d["pr:app/203"].thread).toEqual([
       expect.objectContaining({ from: "bot", text: "Ready: **yes**", question: expect.objectContaining({ text: "Do it?", options: [{ id: "o1", label: "Yes" }, { id: "o2", label: "No" }] }) }),
     ]);
-    const t = d["mypr:example-repo/1982"].thread![0];
+    const t = d["mypr:app/209"].thread![0];
     expect(Number.isNaN(Date.parse(t.at))).toBe(false);
-    expect(t.image).toMatch(/^\/replies\/mypr-example-repo-1982-\d+\.png$/);
+    expect(t.image).toMatch(/^\/replies\/mypr-app-209-\d+\.png$/);
     expect(existsSync(join(dir, "app/public", t.image!))).toBe(true);
   });
 });

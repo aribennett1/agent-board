@@ -27,22 +27,22 @@ vi.mock("../src/data/board", () => {
         waiting: [],
         tickets: [],
         others: [
-          { title: "Standard hours fix", author: "alex", who: "Your review requested", link: "https://github.com/acme/example-repo/pull/1955" },
-          { title: "Rounding", author: "sam", who: "Your review requested", link: "https://github.com/acme/example-repo/pull/7" },
+          { title: "Standard hours fix", author: "sam", who: "Your review requested", link: "https://github.com/example/app/pull/203" },
+          { title: "Rounding", author: "sam", who: "Your review requested", link: "https://github.com/example/app/pull/7" },
         ],
       },
       asks: [
-        { id: "m1", at: t(20), item_key: "pr:example-repo/1955", label: "example-repo #1955", kind: "note", text: "Is 1955 ready?" },
+        { id: "m1", at: t(20), item_key: "pr:app/203", label: "app #203", kind: "note", text: "Is 203 ready?" },
         { id: "m2", at: t(7), item_key: "decision:plan", label: "Plan", kind: "note", text: "Q1: one PR is the way to go" },
       ],
       details: {
-        "pr:example-repo/1955": {
+        "pr:app/203": {
           thread: [
             { at: t(19), from: "bot", text: "Got it. Holding on #203 until Sam answers the bot." },
             { at: t(18), from: "bot", text: "", status: "waiting:Sam" },
           ],
         },
-        "pr:example-repo/7": {
+        "pr:app/7": {
           thread: [{ at: t(10), from: "bot", text: "Checks pass.", question: { id: "q7", text: "Approve #7?", options: [{ id: "o1", label: "Approve" }, { id: "o2", label: "Wait" }] } }],
         },
         "decision:plan": {
@@ -103,22 +103,22 @@ describe("Conversation view", () => {
     expect(answered).toEqual(['✓ Q1: One PR? you said "one PR is the way to go"', '✓ Q3: Old question you said "Use the constants" (your note)']);
     // Context shows inline (no hidden toggle), and the #203 topic sits folded under In progress.
     expect(within(plan).getByText("Re-explained: the hard stop.")).toBeTruthy();
-    expect(document.querySelector('[data-topic="pr:example-repo/1955"]')).toBeNull();
+    expect(document.querySelector('[data-topic="pr:app/203"]')).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "In progress (1)" }));
-    const pr = document.querySelector<HTMLElement>('[data-topic="pr:example-repo/1955"]')!;
-    expect(within(pr).getByText(/^Waiting on Alex\./)).toBeTruthy();
+    const pr = document.querySelector<HTMLElement>('[data-topic="pr:app/203"]')!;
+    expect(within(pr).getByText(/^Waiting on Sam\./)).toBeTruthy();
   });
 
   it("answers inline, then the question collapses and the count drops", async () => {
     const { default: Tabs } = await import("../src/Tabs");
     render(<Tabs />);
-    const q7 = document.querySelector<HTMLElement>('[data-question-uid="pr:example-repo/7#q7"]')!;
+    const q7 = document.querySelector<HTMLElement>('[data-question-uid="pr:app/7#q7"]')!;
     expect(within(q7).getByRole("img", { name: /Voice typing/ })).toBeTruthy();
     fireEvent.change(within(q7).getByLabelText("Or answer in your own words"), { target: { value: "Approve after lunch" } });
     fireEvent.click(within(q7).getByRole("button", { name: "Send to assistant" }));
     await act(async () => {});
     expect(posted.at(-1)).toMatchObject({ event: "item.message", text: 'Answer to "Approve #7?": Approve after lunch' });
-    expect(document.querySelector('[data-question-uid="pr:example-repo/7#q7"]')).toBeNull();
+    expect(document.querySelector('[data-question-uid="pr:app/7#q7"]')).toBeNull();
     expect(screen.getByRole("status").textContent).toBe("You have 2 things to answer across 1 topic.");
 
     const card = document.querySelector<HTMLElement>('[data-question-uid="decision:plan"]')!;
@@ -145,7 +145,7 @@ describe("Conversation view", () => {
     );
     const { default: Tabs } = await import("../src/Tabs");
     render(<Tabs />);
-    const q7 = document.querySelector<HTMLElement>('[data-question-uid="pr:example-repo/7#q7"]')!;
+    const q7 = document.querySelector<HTMLElement>('[data-question-uid="pr:app/7#q7"]')!;
     const btn = within(q7).getByRole("button", { name: "Approve" });
     fireEvent.click(btn);
     fireEvent.click(btn);
@@ -181,7 +181,7 @@ describe("buildTopics", () => {
       {
         decisions: [],
         details: {
-          "mypr:r/1": { thread: [{ at: t(10), from: "bot", text: "CI fails.", question: q("q1", "Fix it?") }, { at: t(8), from: "bot", text: "", status: "passed:Engineer" }] },
+          "mypr:r/1": { thread: [{ at: t(10), from: "bot", text: "CI fails.", question: q("q1", "Fix it?") }, { at: t(8), from: "bot", text: "", status: "passed:assistant" }] },
           "ticket:PROJ-9": { questions: [{ id: "Q1", question: "A?" }, { id: "Q2", question: "B?" }] },
         },
         asks: [
@@ -243,19 +243,19 @@ describe("ab ask / ab reply --status", () => {
 
   it("stores webhook payloads once, maps them to items and links answers to their question", () => {
     const q = { id: "q9", text: "Approve?", options: [{ id: "o1", label: "Yes" }, { id: "o2", label: "No" }] };
-    writeFileSync(file, `export const board = ${A}\n${JSON.stringify({ updated_at: t(0), decisions: [{ id: "d1", title: "Pick", question: "Which?", options: [{ id: "a", label: "A" }], created_at: t(60) }], glance: { waiting: [], tickets: [], others: [] }, details: { "pr:example-repo/9": { thread: [{ at: t(5), from: "bot", text: "x", question: q }] } } })}\n${Z};\n`);
-    const msg = { event: "item.message", message_id: "m-1", item_id: "https://github.com/acme/example-repo/pull/9", item_section: "others", item_title: "Nine", item_link: "https://github.com/acme/example-repo/pull/9", text: 'Answer to "Approve?": Yes', sent_at: t(1) };
+    writeFileSync(file, `export const board = ${A}\n${JSON.stringify({ updated_at: t(0), decisions: [{ id: "d1", title: "Pick", question: "Which?", options: [{ id: "a", label: "A" }], created_at: t(60) }], glance: { waiting: [], tickets: [], others: [] }, details: { "pr:app/9": { thread: [{ at: t(5), from: "bot", text: "x", question: q }] } } })}\n${Z};\n`);
+    const msg = { event: "item.message", message_id: "m-1", item_id: "https://github.com/example/app/pull/9", item_section: "others", item_title: "Nine", item_link: "https://github.com/example/app/pull/9", text: 'Answer to "Approve?": Yes', sent_at: t(1) };
     expect(ab(["ask", JSON.stringify(msg)]).status).toBe(0);
     expect(JSON.parse(ab(["ask", JSON.stringify(msg)]).stdout).duplicate).toBe(true);
     const ans = { event: "decision.answered", decision_id: "d1", card_ref: null, question: "Which?", answer: "custom", answer_label: "Neither", custom_text: "Neither", answered_by: "app", answered_at: t(0) };
     expect(ab(["ask", JSON.stringify(ans)]).status).toBe(0);
     expect(ab(["ask", '{"nope":1}']).status).toBe(2);
     expect(read().asks).toEqual([
-      expect.objectContaining({ id: "m-1", item_key: "pr:example-repo/9", kind: "answer", text: "Yes", reply_to: "q9" }),
+      expect.objectContaining({ id: "m-1", item_key: "pr:app/9", kind: "answer", text: "Yes", reply_to: "q9" }),
       expect.objectContaining({ id: "d1:answer", item_key: "decision:d1", kind: "custom", text: "Neither", label: "Pick" }),
     ]);
-    expect(ab(["reply", "pr:example-repo/9", "--status", "waiting:Alex"]).status).toBe(0);
-    expect(ab(["reply", "pr:example-repo/9", "--status", "sleeping"]).status).toBe(2);
-    expect(read().details!["pr:example-repo/9"].thread!.at(-1)).toMatchObject({ text: "", status: "waiting:Alex" });
+    expect(ab(["reply", "pr:app/9", "--status", "waiting:Sam"]).status).toBe(0);
+    expect(ab(["reply", "pr:app/9", "--status", "sleeping"]).status).toBe(2);
+    expect(read().details!["pr:app/9"].thread!.at(-1)).toMatchObject({ text: "", status: "waiting:Sam" });
   });
 });

@@ -112,7 +112,7 @@ describe("buildMessagePayload", () => {
 
 describe("itemKey and newMessageId", () => {
   it("keys items by section and item_id, so the same PR waiting and as a ticket stays apart", () => {
-    const link = "https://github.com/acme/example-web/pull/210";
+    const link = "https://github.com/example/web/pull/210";
     const a = glanceItem("waiting", { title: "A", who: "Riley", link });
     const b = glanceItem("tickets", { id: "", title: "B", status: "To Do", link });
     expect(a.item_id).toBe(b.item_id);

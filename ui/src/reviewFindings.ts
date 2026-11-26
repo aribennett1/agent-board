@@ -60,7 +60,7 @@ export function reviewPr(d: Decision): { repo: string; pr: number; link?: string
   const fromGroup = /^pr:([^/]+)\/(\d+)$/.exec(d.group ?? "");
   if (fromGroup) return { repo: fromGroup[1], pr: Number(fromGroup[2]), ...(link ? { link } : {}) };
   if (d.glance?.pr?.number) {
-    const repo = fromGroup?.[1] ?? "example-repo";
+    const repo = fromGroup?.[1] ?? "app";
     return { repo, pr: d.glance.pr.number, ...(d.glance.pr.link ? { link: d.glance.pr.link } : {}) };
   }
   return null;

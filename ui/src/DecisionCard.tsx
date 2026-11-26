@@ -62,8 +62,8 @@ type Props = {
 
 type Block = { label?: string; items: string[]; ordered?: boolean };
 
-// Rule, what was seen, proposed fix, and which bot — shown on Audit cards (and in Conversation).
-export function AuditFacts({ bot, rule, seen, proposed_fix }: { bot?: string; rule?: string; seen?: string; proposed_fix?: string }) {
+// Rule, what was seen, proposed fix, and which bot — shown on Dr. Assistant cards (and in Conversation).
+export function AssistantFacts({ bot, rule, seen, proposed_fix }: { bot?: string; rule?: string; seen?: string; proposed_fix?: string }) {
   if (!bot && !rule && !seen && !proposed_fix) return null;
   const row = (dt: string, dd?: string) =>
     dd?.trim() ? (
@@ -73,7 +73,7 @@ export function AuditFacts({ bot, rule, seen, proposed_fix }: { bot?: string; ru
       </div>
     ) : null;
   return (
-    <dl className="audit-fields">
+    <dl className="assistant-fields">
       {row("Bot", bot)}
       {row("Rule", rule)}
       {row("What was seen", seen)}
@@ -82,11 +82,11 @@ export function AuditFacts({ bot, rule, seen, proposed_fix }: { bot?: string; ru
   );
 }
 
-export function AuditTable({ fixes }: { fixes?: { id: string; seen: string; proposed: string }[] }) {
+export function AssistantTable({ fixes }: { fixes?: { id: string; seen: string; proposed: string }[] }) {
   if (!fixes?.length) return null;
   return (
-    <div className="audit-table-wrap">
-      <table className="audit-table">
+    <div className="assistant-table-wrap">
+      <table className="assistant-table">
         <thead>
           <tr>
             <th scope="col">Id</th>
@@ -185,7 +185,7 @@ export function DecisionCard({
 
   return (
     <article
-      className={decision.section === "audit" ? "card audit-card" : "card"}
+      className={decision.section === "assistant" ? "card assistant-card" : "card"}
       data-decision-id={decision.id}
       data-priority={priority}
       data-tier={tier}
@@ -232,8 +232,8 @@ export function DecisionCard({
       <GlanceHeader glance={decision.glance} />
       <Recommendation decision={decision} />
       <DraftToggle draft={decision.draft} />
-      <AuditFacts bot={decision.bot} rule={decision.rule} seen={decision.seen} proposed_fix={decision.proposed_fix} />
-      <AuditTable fixes={decision.fixes} />
+      <AssistantFacts bot={decision.bot} rule={decision.rule} seen={decision.seen} proposed_fix={decision.proposed_fix} />
+      <AssistantTable fixes={decision.fixes} />
       <div className="card-top">
         <span className="idx" aria-hidden="true">
           {index}

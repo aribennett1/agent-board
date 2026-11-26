@@ -14,7 +14,7 @@ describe("annotateTickets", () => {
     expect(annotateTickets("PROJ-4411: Return totals")).toBe("PROJ-4411: Return totals");
     expect(annotateTickets("**PROJ-5088** — endpoint")).toBe("**PROJ-5088** — endpoint");
     expect(annotateTickets("see `PROJ-4411` and https://linear.app/acme/issue/PROJ-4411/x")).toBe("see `PROJ-4411` and https://linear.app/acme/issue/PROJ-4411/x");
-    expect(annotateTickets("branch alex/proj-5088 and PROJ-5088-thing")).toBe("branch alex/proj-5088 and PROJ-5088-thing");
+    expect(annotateTickets("branch sam/proj-5088 and PROJ-5088-thing")).toBe("branch sam/proj-5088 and PROJ-5088-thing");
     expect(annotateTickets("```\nPROJ-4411\n```\nPROJ-5088 next")).toBe("```\nPROJ-4411\n```\nPROJ-5088 (Employee app PTO request endpoint) next");
     setTicketSummaries(undefined);
     expect(annotateTickets("PROJ-4411")).toBe("PROJ-4411");

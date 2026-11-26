@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// t103u: The owner answers every Engineer question himself. No card or thread offers "accept all picks", no option is
+// t103u: The owner answers every assistant question himself. No card or thread offers "accept all picks", no option is
 // labelled "(pick)", nothing is preselected, and a question already answered (ab already-answered) is never re-asked.
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -48,7 +48,7 @@ describe("no bulk accept (t103u)", () => {
 
   it("ab reply refuses them; ab lint flags old ones; drop-bulk-options cleans them up", () => {
     seed({
-      decisions: [{ ...card([{ id: "all", label: "Accept all 5 of Engineer's picks" }, { id: "each", label: "I'll answer each one" }]), created_at: at } as Board["decisions"][number]],
+      decisions: [{ ...card([{ id: "all", label: "Accept all 5 of assistant's picks" }, { id: "each", label: "I'll answer each one" }]), created_at: at } as Board["decisions"][number]],
       details: { "ticket:PROJ-1": { thread: [{ at, from: "bot", text: "x", question: { id: "q", text: "Q4: guard?", options: [{ id: "o1", label: "Check only (pick)" }, { id: "o2", label: "Hard stop" }] } }] } },
     });
     expect(ab(["reply", "ticket:PROJ-1", "Q5?", "--question", "Q5: undo?", "--option", "Final (pick)", "--option", "Reversible"]).status).toBe(2);

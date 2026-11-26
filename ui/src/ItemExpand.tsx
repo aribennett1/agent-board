@@ -311,7 +311,7 @@ export function ItemDetails({
   replyLabel?: string;
   // Starts each question answer, e.g. "PROJ-2512 ".
   questionPrefix?: string;
-  // The item's detail key (e.g. pr:example-repo/203): turns on the reply thread and remembers sent notes in it.
+  // The item's detail key (e.g. pr:app/203): turns on the reply thread and remembers sent notes in it.
   itemKey?: string;
   // the owner's stored sends on this item (board.asks), for the reply thread.
   asks?: Ask[];

@@ -33,10 +33,10 @@
 //     Cards that edit an already-posted comment also need "current_text" (the text on GitHub now). The board
 //     shows a highlighted diff of current_text against post_text, not two full copies. "what_happens_after"
 //     must say what actually happens on GitHub (edit, or delete and re-post), not that the answer only goes to ops.
-//     Recommendations are shown, never preselected. Audit cards are not required to have triage fields.
-//   ab audit '<json>' | ab audit < finding.json
-//                                                      posts an audit finding or proposed bot change on the Audit tab
-//                                                      (#audit). Same title/context/question rules as raise, plus required
+//     Recommendations are shown, never preselected. Dr. Assistant cards are not required to have triage fields.
+//   ab assistant '<json>' | ab assistant < finding.json
+//                                                      posts an assistant finding or proposed bot change on the Dr. Assistant tab
+//                                                      (#assistant). Same title/context/question rules as raise, plus required
 //                                                      "rule" and "bot" (which bot this is for). A single finding also needs
 //                                                      "seen" and "proposed_fix". A group of fixes uses "fixes": [{"id","seen",
 //                                                      "proposed"},...] (shown as a table) and usually "multiSelect": true.
@@ -46,7 +46,7 @@
 //                                                      are preselected; the owner can also answer in his own words. Answers come
 //                                                      back as decision.answered (or item.message for a note on the card).
 //                                                      A re-post of the same id updates the open card in place.
-//                                                      -> {"ok","board":"live","card":{...,"section":"audit","bot","rule",
+//                                                      -> {"ok","board":"live","card":{...,"section":"assistant","bot","rule",
 //                                                      "seen","proposed_fix","decision_id",...}}
 //   ab answer <id> <opt[,opt]> --by chat|app [--at ISO]
 //   ab answer <id> --custom "text" --by chat|app [--at ISO]
@@ -63,7 +63,7 @@
 //                                                      -> {"ok","id","priority","was","live"}; unknown id exit 5, answered exit 4
 //   ab open                                         -> open Home decision ids, file vs served, file glance counts {waiting,tickets,others},
 //                                                      priority_open {high,medium,low}, open_priority [{id,priority}] (missing = medium),
-//                                                      and audit_open (open Audit card ids; not part of --chat)
+//                                                      and assistant_open (open Dr. Assistant card ids; not part of --chat)
 //   ab check [--chat id1,id2]                       -> same as open; exit 1 on any mismatch
 //   ab glance < glance.json                         ({"waiting":[...],"tickets":[...],"others":[...]}; replaces the glance;
 //                                                      others is optional (missing = []), each exactly {title,author,who,link},
@@ -91,7 +91,7 @@
 //   ab detail <key> [json|-] | ab detail <key> --clear
 //                                                      merges {"summary"?,"plan"?,"discussion"?:[{"author","body","at"?,"link"?}],"actions"?:[...],
 //                                                      "questions"?:[{"id","question","body"?,"recommendation"?}]} into the item's chevron.
-//                                                      key: ticket:PROJ-2512, pr:example-repo/209, mypr:example-repo/209, waiting:<slug>,
+//                                                      key: ticket:PROJ-2512, pr:app/209, mypr:app/209, waiting:<slug>,
 //                                                      decision:<id>, page:tickets (shown above My tickets)
 //   ab ticket <key> <ticket.md> --plain "text" | --plain-file <f.md>
 //                                                      attaches the full ticket (Markdown) and an "In plain words" summary.
@@ -247,7 +247,7 @@ function isReviewOrEditCard(d) {
   return Boolean(d.post_comments || d.answers_comment || d.current_text);
 }
 function diagramError(d) {
-  if (d.section === "audit" || isReviewOrEditCard(d)) return null;
+  if (d.section === "assistant" || isReviewOrEditCard(d)) return null;
   if (d.tier && d.tier !== "decision") return null;
   if (typeof d.svg === "string" && d.svg.trim()) return null;
   const t = [d.title, d.question, d.context].filter(Boolean).join(" ");
@@ -299,7 +299,7 @@ function sanitizeSvg(src) {
   s = s.replace(/javascript:/gi, "");
   return s.trim();
 }
-function auditFixesError(fixes) {
+function assistantFixesError(fixes) {
   if (fixes === undefined) return null;
   if (!Array.isArray(fixes) || !fixes.length) return "fixes must be a non-empty array of {id, seen, proposed}";
   const ids = new Set();
@@ -316,9 +316,9 @@ function auditFixesError(fixes) {
   }
   return null;
 }
-function auditFieldError(d) {
-  if (d.section !== undefined && d.section !== "audit") return 'section must be "audit"';
-  const fe = auditFixesError(d.fixes);
+function assistantFieldError(d) {
+  if (d.section !== undefined && d.section !== "assistant") return 'section must be "assistant"';
+  const fe = assistantFixesError(d.fixes);
   if (fe) return fe;
   const hasFixes = Array.isArray(d.fixes) && d.fixes.length;
   for (const [k, label, max, oneLine, required] of [
@@ -480,7 +480,7 @@ function postApprovalError(d) {
   return null;
 }
 function triageError(d) {
-  if (d.section === "audit") return null;
+  if (d.section === "assistant") return null;
   if (d.tier !== undefined && !TIERS.includes(d.tier)) return "tier must be blocking, quick, decision, or fyi";
   if (d.estimate !== undefined && isBlank(d.estimate)) return "estimate must be a non-blank string when set";
   if (d.unblocks !== undefined && (!Number.isInteger(d.unblocks) || d.unblocks < 0)) return "unblocks must be a non-negative integer";
@@ -538,7 +538,7 @@ function editCardError(d) {
   }
   return null;
 }
-const storedProblems = (d) => [contextError(d.context), questionError(d.question), titleError(d.title), svgError(d.svg), diagramError(d), rawTicketError(d.title, "title"), rawTicketError(d.context, "context"), rawTicketError(d.question, "question"), rawTicketError(d.what_happens_after, "what_happens_after"), rawTicketError(d.glance?.ticket?.summary, "glance.ticket.summary"), ...(Array.isArray(d.details) ? d.details.flatMap((x, i) => typeof x === "string" ? [rawTicketError(x, "details[" + i + "]")] : []) : []), ...textBlockProblems(d), ...bulkProblems(d.options), ...(d.section === "audit" ? [auditFieldError(d)] : [triageError(d)]), postApprovalError(d), editCardError(d)].filter(Boolean);
+const storedProblems = (d) => [contextError(d.context), questionError(d.question), titleError(d.title), svgError(d.svg), diagramError(d), rawTicketError(d.title, "title"), rawTicketError(d.context, "context"), rawTicketError(d.question, "question"), rawTicketError(d.what_happens_after, "what_happens_after"), rawTicketError(d.glance?.ticket?.summary, "glance.ticket.summary"), ...(Array.isArray(d.details) ? d.details.flatMap((x, i) => typeof x === "string" ? [rawTicketError(x, "details[" + i + "]")] : []) : []), ...textBlockProblems(d), ...bulkProblems(d.options), ...(d.section === "assistant" ? [assistantFieldError(d)] : [triageError(d)]), postApprovalError(d), editCardError(d)].filter(Boolean);
 // details: a non-empty array of non-blank strings or {label, items, ordered?} objects. Returns an error or null.
 function detailsError(v) {
   if (!Array.isArray(v) || !v.length) return "details must be a non-empty array (leave it out when there is nothing)";
@@ -845,7 +845,7 @@ function allFindingsSettled(d, b = {}) {
     return /^don't post(?: any)?$/i.test(said) || /^post$/i.test(said);
   });
 }
-// Open Home and Audit cards: unanswered, not superseded or stale, and not a fully settled review card.
+// Open Home and Dr. Assistant cards: unanswered, not superseded or stale, and not a fully settled review card.
 const isOpen = (d, b = {}) => !d.answer && !cardStale(d, b) && !allFindingsSettled(d, b);
 
 
@@ -936,17 +936,17 @@ function findingOnCard(d, id) {
   });
 }
 
-if (cmd === "raise" || cmd === "audit") {
-  const asAudit = cmd === "audit";
+if (cmd === "raise" || cmd === "assistant") {
+  const asAssistant = cmd === "assistant";
   const d = parseInput(input());
-  if (!d || typeof d !== "object" || Array.isArray(d)) die(2, (asAudit ? "audit" : "raise") + ": input must be a JSON object");
+  if (!d || typeof d !== "object" || Array.isArray(d)) die(2, (asAssistant ? "assistant" : "raise") + ": input must be a JSON object");
   const link = d.link; delete d.link;                 // card-only field, not board schema
   if (link && !d.card_ref) d.card_ref = link;
-  if (asAudit) {
-    if (d.section !== undefined && d.section !== "audit") die(2, 'audit: section must be "audit"');
-    d.section = "audit";
+  if (asAssistant) {
+    if (d.section !== undefined && d.section !== "assistant") die(2, 'assistant: section must be "assistant"');
+    d.section = "assistant";
   } else if (d.section !== undefined || d.rule !== undefined || d.seen !== undefined || d.proposed_fix !== undefined || d.bot !== undefined || d.fixes !== undefined) {
-    die(2, "raise: Audit findings use ab audit '<json>', not raise");
+    die(2, "raise: Dr. Assistant findings use ab assistant '<json>', not raise");
   }
   for (const k of Object.keys(d)) if (!ALLOWED.has(k)) die(2, "unknown field " + k + " (allowed: " + [...ALLOWED].join(", ") + ", link)");
   if (!/^[a-z0-9][a-z0-9-]{2,80}$/.test(d.id || "")) die(2, "id must be lowercase-kebab, 3-81 chars");
@@ -955,15 +955,15 @@ if (cmd === "raise" || cmd === "audit") {
     if (d.options !== undefined && !Array.isArray(d.options)) die(2, "options must be an array when set");
     d.options = Array.isArray(d.options) ? d.options : [];
   } else if (!Array.isArray(d.options) || !d.options.length) die(2, "need at least one option");
-  if (asAudit && d.options.length < 2) die(2, "audit: need at least two options (usual set: Apply it, Don't apply, Change it)");
+  if (asAssistant && d.options.length < 2) die(2, "assistant: need at least two options (usual set: Apply it, Don't apply, Change it)");
   const ids = d.options.map((o) => o.id);
   if (d.options.some((o) => !o.id || !o.label || ("post_text" in o && typeof o.post_text !== "string")) || new Set(ids).size !== ids.length || ids.includes("custom")) die(2, "options need unique id+label (and string post_text when set); 'custom' is reserved");
   for (const k of ["multiSelect", "allowCustom", "pinned"]) if (k in d && typeof d[k] !== "boolean") die(2, k + " must be true or false");
   if ("details" in d) { const e = detailsError(d.details); if (e) die(2, e); }
   if ("priority" in d && !isPriority(d.priority)) die(2, "priority must be high, medium or low");
-  if (asAudit) {
-    const e = auditFieldError(d);
-    if (e) die(2, "audit: " + e);
+  if (asAssistant) {
+    const e = assistantFieldError(d);
+    if (e) die(2, "assistant: " + e);
     for (const k of ["rule", "seen", "proposed_fix", "bot"]) if (typeof d[k] === "string") d[k] = d[k].trim();
     if (d.fixes) d.fixes = d.fixes.map((f) => ({ id: f.id.trim(), seen: f.seen.trim(), proposed: f.proposed.trim() }));
   }
@@ -976,8 +976,8 @@ if (cmd === "raise" || cmd === "audit") {
   const f = load();
   const k = f.b.decisions.findIndex((x) => x.id === d.id);
   if (k >= 0 && f.b.decisions[k].answer) die(4, "refusing: " + d.id + " is already answered; never restore an answered decision");
-  if (k >= 0 && !asAudit && f.b.decisions[k].section === "audit") die(2, "raise: " + d.id + " is a Audit card; use ab audit");
-  if (k >= 0 && asAudit && f.b.decisions[k].section !== "audit") die(2, "audit: " + d.id + " is already a Home decision; use a new id");
+  if (k >= 0 && !asAssistant && f.b.decisions[k].section === "assistant") die(2, "raise: " + d.id + " is a Dr. Assistant card; use ab assistant");
+  if (k >= 0 && asAssistant && f.b.decisions[k].section !== "assistant") die(2, "assistant: " + d.id + " is already a Home decision; use a new id");
   d.card_ref = d.card_ref ?? null;
   if (typeof d.svg === "string") d.svg = sanitizeSvg(d.svg);
   // A re-raise without priority keeps the stored one; a new card without it stays without it (medium).
@@ -1002,14 +1002,14 @@ if (cmd === "raise" || cmd === "audit") {
   }
   save(f, f.b);
   const live = await waitServed((b) => b.decisions.some((x) => x.id === d.id && !x.answer && x.question === d.question));
-  log({ op: asAudit ? "audit" : "raise", id: d.id, live });
+  log({ op: asAssistant ? "assistant" : "raise", id: d.id, live });
   if (!live) die(3, "written to the board but the live board at " + URL_ + " does not serve it. Is the board server running (npm start)? Do NOT send the chat card until this passes.");
   console.log(JSON.stringify({ ok: true, board: "live", card: {
     title, context: d.context, question: d.question, ...(d.details ? { details: detailsText(d.details) } : {}), what_happens_after: d.what_happens_after,
     options: d.options.map((o) => o.label), multiSelect: !!d.multiSelect, allowCustom: d.allowCustom !== false,
     link: d.card_ref, decision_id: d.id, priority: priorityOf(d),
-    ...(asAudit ? { section: "audit", bot: d.bot, rule: d.rule, ...(d.seen ? { seen: d.seen } : {}), ...(d.proposed_fix ? { proposed_fix: d.proposed_fix } : {}), ...(d.fixes ? { fixes: d.fixes } : {}) } : {}),
-    footer: "Also on your Action Board: http://" + HOST + ":" + PORT + (asAudit ? "/#audit" : "") + " (" + d.id + ")" } }, null, 2));
+    ...(asAssistant ? { section: "assistant", bot: d.bot, rule: d.rule, ...(d.seen ? { seen: d.seen } : {}), ...(d.proposed_fix ? { proposed_fix: d.proposed_fix } : {}), ...(d.fixes ? { fixes: d.fixes } : {}) } : {}),
+    footer: "Also on your Action Board: http://" + HOST + ":" + PORT + (asAssistant ? "/#assistant" : "") + " (" + d.id + ")" } }, null, 2));
 } else if (cmd === "answer") {
   const by = flag(args, "--by"), at = flag(args, "--at") || new Date().toISOString(), custom = flag(args, "--custom");
   const id = args[0];
@@ -1122,7 +1122,7 @@ if (cmd === "raise" || cmd === "audit") {
     const at = "reviews[" + n + "]";
     if (!d || typeof d !== "object" || Array.isArray(d)) die(2, at + " must be an object");
     for (const k of Object.keys(d)) if (!["repo", "pr", "verdict", "notes", "done", "comments"].includes(k)) die(2, at + " has unknown key " + k);
-    if (!nonBlank(d.repo)) die(2, at + ".repo must be a non-blank string like example-repo");
+    if (!nonBlank(d.repo)) die(2, at + ".repo must be a non-blank string like app");
     if (!Number.isInteger(d.pr) || d.pr < 1) die(2, at + ".pr must be a positive integer");
     if (!nonBlank(d.verdict)) die(2, at + ".verdict must be a non-blank string");
     if ("notes" in d && typeof d.notes !== "string") die(2, at + ".notes must be a string");
@@ -1235,7 +1235,7 @@ if (cmd === "raise" || cmd === "audit") {
   // ab detail <key> '<json>' | ab detail <key> [-] < detail.json   merges {summary?, plan?, discussion?, actions?, questions?}
   // ab detail <key> --clear                                          removes the item's detail
   const key = detailKeyOf(args[0]);
-  if (!key) die(2, "detail: usage: ab detail <key> [json|-] | ab detail <key> --clear (key like ticket:PROJ-2512, pr:example-repo/209, mypr:example-repo/209, waiting:<slug>, decision:<id>, page:tickets)");
+  if (!key) die(2, "detail: usage: ab detail <key> [json|-] | ab detail <key> --clear (key like ticket:PROJ-2512, pr:app/209, mypr:app/209, waiting:<slug>, decision:<id>, page:tickets)");
   lock(); const f = load(); const all = f.b.details && typeof f.b.details === "object" ? f.b.details : {};
   if (args[1] === "--clear") { delete all[key]; }
   else {
@@ -1287,8 +1287,8 @@ if (cmd === "raise" || cmd === "audit") {
   // ab reply <item> "text" [--image path] [--alt "text"] [--question "q" --option "Label" ...]: appends a Assistant reply
   // (Markdown, links) to the item's thread with a timestamp. This is how to answer the owner on the board. The image is copied
   // into app/public/replies/. A question shows its options as one-click answers that go to the webhook as item.message.
-  // The item moves to Needs you with an unread dot until the owner opens it. <item> is a detail key (pr:example-repo/203,
-  // mypr:example-repo/209, ticket:PROJ-2512, decision:<id>), a bare ticket key, or repo#N / #N for a PR.
+  // The item moves to Needs you with an unread dot until the owner opens it. <item> is a detail key (pr:app/203,
+  // mypr:app/209, ticket:PROJ-2512, decision:<id>), a bare ticket key, or repo#N / #N for a PR.
   // ab reply <item> --at <iso> "text": replaces the text of the existing reply with that timestamp (other fields stay).
   const image = flag(args, "--image"); const alt = flag(args, "--alt"); const question = flag(args, "--question"); const status = flag(args, "--status");
   const qContext = flag(args, "--context"); const svg = flag(args, "--svg"); const suggestion = flag(args, "--suggestion");
@@ -1566,14 +1566,14 @@ if (cmd === "raise" || cmd === "audit") {
 } else if (cmd === "open" || cmd === "check") {
   const chatArg = flag(args, "--chat");
   const f = load(true);
-  if (f.error) { console.log(JSON.stringify({ ok: false, open_on_board: null, served_open: null, counts: null, priority_open: null, open_priority: null, audit_open: null, problems: [f.error] }, null, 2)); process.exit(1); }
+  if (f.error) { console.log(JSON.stringify({ ok: false, open_on_board: null, served_open: null, counts: null, priority_open: null, open_priority: null, assistant_open: null, problems: [f.error] }, null, 2)); process.exit(1); }
   // Glance list sizes in the file; a missing list (older files have no others) counts 0.
   const counts = Object.fromEntries(["waiting", "tickets", "others"].map((k) => [k, Array.isArray(f.b.glance?.[k]) ? f.b.glance[k].length : 0]));
   const fileB = f.b; const srv = await served();
-  const isHomeOpen = (d) => isOpen(d, fileB) && d.section !== "audit";
+  const isHomeOpen = (d) => isOpen(d, fileB) && d.section !== "assistant";
   const fileOpen = fileB.decisions.filter(isHomeOpen).map((d) => d.id);
-  const auditOpen = fileB.decisions.filter((d) => isOpen(d, fileB) && d.section === "audit").map((d) => d.id);
-  // Over open Home decisions only; a missing priority counts as medium. Audit ids are in audit_open.
+  const assistantOpen = fileB.decisions.filter((d) => isOpen(d, fileB) && d.section === "assistant").map((d) => d.id);
+  // Over open Home decisions only; a missing priority counts as medium. Dr. Assistant ids are in assistant_open.
   const openPriority = fileB.decisions.filter(isHomeOpen).map((d) => ({ id: d.id, priority: priorityOf(d) }));
   const priorityOpen = Object.fromEntries(PRIORITIES.map((p) => [p, openPriority.filter((x) => x.priority === p).length]));
   const srvOpen = srv ? srv.decisions.filter(isHomeOpen).map((d) => d.id) : null;
@@ -1591,7 +1591,7 @@ if (cmd === "raise" || cmd === "audit") {
     for (const id of missing) problems.push(answered.has(id) ? "chat card " + id + " is answered on the board: clear the chat card" : "chat card " + id + " is NOT on the board: run ab raise for it");
     for (const id of boardOnly) problems.push("board decision " + id + " has no open chat card: card it from `ab raise` output, or ab clear it");
   }
-  console.log(JSON.stringify({ ok: problems.length === 0, open_on_board: fileOpen, served_open: srvOpen, counts, priority_open: priorityOpen, open_priority: openPriority, audit_open: auditOpen, problems }, null, 2));
+  console.log(JSON.stringify({ ok: problems.length === 0, open_on_board: fileOpen, served_open: srvOpen, counts, priority_open: priorityOpen, open_priority: openPriority, assistant_open: assistantOpen, problems }, null, 2));
   if (cmd === "check" && problems.length) process.exit(1);
 } else if (cmd === "lint") {
   const lb = load().b;
@@ -1723,5 +1723,5 @@ if (cmd === "raise" || cmd === "audit") {
   log({ op: "project-refresh", milestones: r.milestones.length });
   console.log(JSON.stringify({ ok: true, milestones: r.milestones.length, totals, updated_at: updated }));
 } else {
-  die(2, "usage: ab raise|audit|answer|clear|restore|priority|glance|mypr|reviews|review-status|gh-refresh|detail|ticket|ticket-summaries|plan|reply|supersede|already-answered|wipe|drop-bulk-options|ask|open|check|lint|backfill-stamps|backfill-titles|project-refresh (see header of " + process.argv[1] + ")");
+  die(2, "usage: ab raise|assistant|answer|clear|restore|priority|glance|mypr|reviews|review-status|gh-refresh|detail|ticket|ticket-summaries|plan|reply|supersede|already-answered|wipe|drop-bulk-options|ask|open|check|lint|backfill-stamps|backfill-titles|project-refresh (see header of " + process.argv[1] + ")");
 }
