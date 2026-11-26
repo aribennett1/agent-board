@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Board, BoardNotification } from "../src/data/types";
-import { Notifications, noticeTime, CLEAR_PATH } from "../src/Notifications";
+import { Notifications, noticeTime, newestFirst, CLEAR_PATH } from "../src/Notifications";
 import { badgeTitle } from "../src/needsYouBadge";
 import { POLL_MS, VERSION_PATH, BOARD_PATH, resetLiveFeed } from "../src/useLiveBoard";
 
@@ -49,6 +49,19 @@ describe("Notifications feed", () => {
     expect(noticeTime("2026-11-25T17:00:00.000Z", now)).toBe("Nov 25, 12:00 PM ET");
     expect(screen.getByRole("button", { name: "Dismiss all" })).toBeTruthy();
     void style;
+  });
+
+  it("puts a 4:39 note above a 4:37 note even when the payload is oldest first", () => {
+    const engineer = note(32, { bot: "Engineer", text: "The 5 cleanups are ready.", created_at: "2026-11-26T21:37:44.887Z" });
+    const grok = note(33, { bot: "Grok Bot", text: "PR #2076 needs work.", created_at: "2026-11-26T21:39:36.311Z" });
+    expect(newestFirst([engineer, grok]).map((n) => n.id)).toEqual([33, 32]);
+    const { container } = render(<Notifications items={[engineer, grok]} now={now} />);
+    const rows = [...container.querySelectorAll<HTMLElement>("[data-notice-id]")];
+    expect(rows.map((r) => r.dataset.noticeId)).toEqual(["33", "32"]);
+    expect(rows[0].querySelector(".notice-bot")!.textContent).toBe("Grok Bot");
+    expect(rows[0].querySelector("time")!.textContent).toBe("4:39 PM ET");
+    expect(rows[1].querySelector("time")!.textContent).toBe("4:37 PM ET");
+    expect(container.querySelector(".feed-list")).not.toBeNull();
   });
 
   it("the X posts a clear for that note, hides it, and never hits the webhook", async () => {

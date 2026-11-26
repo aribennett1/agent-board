@@ -16,6 +16,17 @@ const DAY = new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, month: "shor
 const TODAY = new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, year: "numeric", month: "numeric", day: "numeric" });
 const plain = (s: string) => s.replace(/[\u202f\u00a0]/g, " ");
 
+/** Newest created_at first; later id wins a tie. Does not mutate the input. */
+export function newestFirst<T extends { id: number; created_at: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const tb = Date.parse(b.created_at);
+    const ta = Date.parse(a.created_at);
+    const nb = Number.isNaN(tb) ? 0 : tb;
+    const na = Number.isNaN(ta) ? 0 : ta;
+    return nb - na || b.id - a.id;
+  });
+}
+
 export function noticeTime(iso: string, now: Date = new Date()): string {
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return "";
@@ -41,9 +52,7 @@ export function Notifications({ items, now = new Date() }: { items: BoardNotific
   const pending = useRef(new Set<number>());
 
   // Newest first, so later times sit at the top.
-  const visible = items
-    .filter((n) => !n.cleared_at && !hidden.has(n.id))
-    .sort((a, b) => (a.created_at > b.created_at ? -1 : a.created_at < b.created_at ? 1 : b.id - a.id));
+  const visible = newestFirst(items.filter((n) => !n.cleared_at && !hidden.has(n.id)));
 
   const hide = (ids: number[]) =>
     setHidden((s) => {

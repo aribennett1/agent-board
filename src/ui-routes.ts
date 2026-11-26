@@ -129,7 +129,7 @@ function asksWithStatus(db: DatabaseSync, asks: Json[]): Json[] {
 /** The board the UI renders: the ab-written document plus derived task decisions and the project tab. */
 export function boardFeed(db: DatabaseSync): Json {
   const b: Json = doc(db, 'board') ?? EMPTY_BOARD();
-  const notifications = db.prepare('SELECT id, bot, text, next_update, link, created_at, cleared_at FROM ui_notifications WHERE cleared_at IS NULL ORDER BY id DESC').all();
+  const notifications = db.prepare('SELECT id, bot, text, next_update, link, created_at, cleared_at FROM ui_notifications WHERE cleared_at IS NULL ORDER BY created_at DESC, id DESC').all();
   // My tickets, My PRs and Others' PRs come only from the server's own fetch (src/feed.ts), never from the ab document.
   const f = readFeed(db);
   const glance = { ...(b.glance ?? {}), tickets: f?.tickets ?? [], mine: f?.mine ?? [], others: f?.others ?? [] };
