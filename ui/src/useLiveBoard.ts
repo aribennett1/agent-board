@@ -92,6 +92,11 @@ export function useLiveBoard(initial: Board): Board {
   return f?.board ?? initial;
 }
 
+/** True once a poll has replaced the bundled board with the server's. */
+export function useLiveReady(): boolean {
+  return useSyncExternalStore(subscribe, () => feed !== null, () => false);
+}
+
 /** The project tab's data from the same poll; null until the server has sent one. */
 export function useLiveProject(): Project | null {
   return useFeed()?.project ?? null;

@@ -58,7 +58,10 @@ import { setTicketSummaries } from "./ticketRefs";
 import { draftSummary, reviewKey, ReviewDrafts, type OnReview, type ReviewLocals } from "./ReviewDrafts";
 import { effectivePriority, groupByPriority, PRIORITY_LABEL, PRIORITY_PATH, sortByPriority } from "./priority";
 import { headerDate } from "./stamp";
-import { useLiveBoard } from "./useLiveBoard";
+import { useLiveBoard, useLiveReady } from "./useLiveBoard";
+import { useTurnSounds } from "./useTurnSounds";
+import { raisedByOf } from "./raisedBy";
+import { SoundControl } from "./SoundControl";
 import { useNow } from "./useNow";
 import { needsYou } from "./visibility";
 import { useNeedsYouBadge } from "./needsYouBadge";
@@ -696,6 +699,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
             Action Board
           </h1>
           {markerEl}
+          <SoundControl />
           <span className="top-meta">{headerDate(now)} · local</span>
         </header>
 
@@ -962,6 +966,12 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   }
   const needsHuman = openQs > 0 || queue.length > 0 || assistantQueue.length > 0;
   useNeedsYouBadge(needsHuman);
+  // Eric's turn items: every open question on a topic plus every open card. A new one plays its bot's sound.
+  const turnItems = [
+    ...topics.flatMap((t) => t.open.map((q) => ({ key: q.uid, bot: q.raisedBy ?? t.raisedBy }))),
+    ...openDecisions.map((d) => ({ key: `decision:${d.id}`, bot: raisedByOf(d, details) })),
+  ];
+  useTurnSounds(turnItems, useLiveReady());
   const openItem = (key: string) => {
     const i = key.indexOf(":");
     markSeen(key);
@@ -1110,6 +1120,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
           ))}
         </ul>
         <Notifications items={board.notifications ?? []} />
+        <div className="sidenav-sound"><SoundControl /></div>
         <div className="sidenav-foot">{headerDate(now)} · local</div>
       </nav>
       <div

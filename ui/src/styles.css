@@ -3208,3 +3208,43 @@ a.live-title:hover { text-decoration: underline; }
 .review-collapsed-title { font-weight: 650; min-width: 0; overflow-wrap: anywhere; }
 .post-comment-draft.is-collapsed .post-approval-head { margin-bottom: 0; }
 .post-comment-draft.is-collapsed .finding-post-status.inline { margin: 0; }
+
+.sound-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sound-toggle,
+.sound-test {
+  font: inherit;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.sound-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+}
+
+.sound-test {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.sound-toggle:hover,
+.sound-test:hover {
+  color: var(--text, #111827);
+  background: #f3f4f6;
+}
+
+.sidenav-sound {
+  padding: 0 10px;
+}
