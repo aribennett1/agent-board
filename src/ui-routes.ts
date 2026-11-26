@@ -7,6 +7,7 @@ import type { Hono } from 'hono';
 import { OWNERS, addNote, getTask, type Clock } from './board.ts';
 import type { WebhookConfig } from './config.ts';
 import { routeWebhook } from './routing.ts';
+import { slimPayload } from './context.ts';
 import { readFeed, refreshFeed, type FeedDeps } from './feed.ts';
 
 // The action board UI's server side, ported from the original local board's dev-server routes (/__ab/*):
@@ -205,6 +206,17 @@ export function mountUi(app: Hono, db: DatabaseSync, clock: Clock, o: UiOptions 
 
   app.get('/__ab/board', (c) => c.json({ ...boardFeed(db), webhook_configured: Boolean(o.webhook) }, 200, { 'Cache-Control': 'no-store' }));
 
+  // Closed cards, asks and details the daily prune moved out of the live board, newest first. Read only.
+  app.get('/__ab/archive', (c) => {
+    const limit = Math.min(500, Math.max(1, Number(c.req.query('limit')) || 100));
+    const item = c.req.query('item_key');
+    const cards = (db.prepare('SELECT card_id, json, details_json, answered_at, archived_at FROM archive_cards ORDER BY archived_at DESC, card_id LIMIT ?').all(limit) as Json[]).map((r) => ({ ...JSON.parse(r.json), archived_at: r.archived_at, details: r.details_json ? JSON.parse(r.details_json) : undefined }));
+    const asks = (item
+      ? db.prepare('SELECT json FROM archive_asks WHERE item_key = ? ORDER BY at LIMIT ?').all(item, limit)
+      : db.prepare('SELECT json FROM archive_asks ORDER BY at DESC LIMIT ?').all(limit)) as Json[];
+    return c.json({ cards, asks: asks.map((r) => JSON.parse(r.json)) }, 200, { 'Cache-Control': 'no-store' });
+  });
+
   app.get('/__ab/config', (c) => c.json({ assistantName: o.assistantName ?? 'your assistant', timeZone: o.timeZone ?? 'America/New_York', webhookConfigured: Boolean(o.webhook) }));
 
   // Fetch tickets and PRs now (the timer does it every two minutes). Rate limited to one run per 15 seconds.
@@ -279,8 +291,11 @@ export function mountUi(app: Hono, db: DatabaseSync, clock: Clock, o: UiOptions 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (hook.auth) headers.Authorization = hook.auth;
     let status: number | null = null;
+    // The bot gets the answer and the card it is about, not the browser's whole payload. The full payload is still
+    // recorded on the board below (recordAsk), and the bot reads the rest with `ab context`.
+    const sent = JSON.stringify(slimPayload(p, route.bot));
     try {
-      const up = await fetchImpl(hook.url, { method: 'POST', headers, body: raw, signal: AbortSignal.timeout(15000) });
+      const up = await fetchImpl(hook.url, { method: 'POST', headers, body: sent, signal: AbortSignal.timeout(15000) });
       status = up.status;
       if (up.ok) {
         const askId = askIdOf(p);

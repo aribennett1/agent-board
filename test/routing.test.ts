@@ -108,3 +108,14 @@ test('a failing bot webhook is reported and does not fall back to Grok Bot', asy
   assert.deepEqual(await r.json(), { status: 500 });
   assert.deepEqual(urls, [BOTS.AB_WEBHOOK_URL_QA]);
 });
+
+test('the bot webhook gets a slim payload: the answer and the card, not the browser\'s whole payload, and a pointer to ab context', async () => {
+  const e = setup(BOTS);
+  e.put({ decisions: [card('d1', { raised_by: 'Planner' })], glance: { waiting: [], tickets: [] } });
+  await e.post(answer('d1', { question: 'Q?', answered_by: 'app', custom_text: 'my words', junk: 'x'.repeat(3000) }));
+  const sent = e.up[0].body;
+  assert.equal(sent.decision_id, 'd1');
+  assert.equal(sent.custom_text, 'my words');
+  assert.equal(sent.junk, undefined);
+  assert.equal(sent.read_more, 'ab context --bot Planner');
+});

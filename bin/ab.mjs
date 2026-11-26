@@ -124,6 +124,18 @@
 //                                                      Concise plain words and an optional diagram; never a raw ticket dump.
 //   ab stamp <group> <sha>                          records the stamped SHA for a group (push-OK cards go stale when they differ).
 //   ab heads <group> <sha>                          records the current PR head SHA for a group.
+//   ab context --bot <name> [--full] [--last N] [--clip N] [--asks N] [--no-mark]
+//                                                      the bot's compact, read-only view of its conversations with Eric, as plain text:
+//                                                      its open cards, each thread cut to the last 5 messages ("(+K earlier, see --full)"),
+//                                                      long text clipped, and Eric's latest messages to it (unread first, marked NEW).
+//                                                      Read this at the start of every run instead of the whole board. --full gives every
+//                                                      card (closed too), whole threads, unclipped text and every message. Marks the
+//                                                      shown messages as read (the board's checks) unless --no-mark.
+//   ab prune [--dry-run] [--card-days N] [--ask-days N] [--log-days N] [--notification-days N]
+//                                                      moves closed cards older than 14 days (with their asks and details), notes on tickets
+//                                                      and PRs older than 30 days, ui_log and ui_delivery_log rows older than 14 days and
+//                                                      notifications cleared more than 3 days ago into archive_* tables in the same database.
+//                                                      Nothing is deleted. Idempotent. -> {"ok","dry_run","moved":{...},"updated_at"?}
 //   ab lint                                         -> {"ok","failing":[{"id","problems":[...]}]}: open decisions breaking
 //                                                      the title/context/question rules above, including the 3-line paragraph
 //                                                      cap and a missing diagram on relationship/flow/timeline decisions; exit 1 if any (fix with ab raise, ab reply --at, or ab plan,
@@ -160,6 +172,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { approvalState, changesFacts, ciReport, myReviewComments, prData, reviewCommentExists } from "./gh-enrich.mjs";
+import { buildContext } from "../src/context.ts";
+import { applyPrune, boardAfter, countsOf, planPrune } from "../src/prune.ts";
 
 // Storage: the agent-board SQLite file (AGENT_BOARD_DB, default ./agent-board.db) unless AB_FILE names a board.ts
 // file (the file mode is kept for the UI's own tests and for importing an old board.ts).
@@ -1710,8 +1724,44 @@ if (cmd === "raise" || cmd === "assistant") {
     for (const id of missing) problems.push(answered.has(id) ? "chat card " + id + " is answered on the board: clear the chat card" : "chat card " + id + " is NOT on the board: run ab raise for it");
     for (const id of boardOnly) problems.push("board decision " + id + " has no open chat card: card it from `ab raise` output, or ab clear it");
   }
-  console.log(JSON.stringify({ ok: problems.length === 0, open_on_board: fileOpen, served_open: srvOpen, counts, priority_open: priorityOpen, open_priority: openPriority, assistant_open: assistantOpen, problems }, null, 2));
+  // Compact by default: one line, and served_open only when it differs from open_on_board. --full is the complete pretty view.
+  const out = { ok: problems.length === 0, open_on_board: fileOpen, served_open: srvOpen, counts, priority_open: priorityOpen, open_priority: openPriority, assistant_open: assistantOpen, problems };
+  if (args.includes("--full")) console.log(JSON.stringify(out, null, 2));
+  else {
+    const same = srvOpen && srvOpen.length === fileOpen.length && srvOpen.every((id, i) => id === fileOpen[i]);
+    const { served_open, ...rest } = out;
+    console.log(JSON.stringify({ ...rest, ...(same ? { served_open_same: true } : { served_open }) }));
+  }
   if (cmd === "check" && problems.length) process.exit(1);
+} else if (cmd === "context") {
+  if (!SQL) die(2, "context: needs the SQLite board (unset AB_FILE)");
+  const bot = flag(args, "--bot") ?? process.env.AGENT_BOT;
+  const intFlag = (name) => { const v = flag(args, name); if (v === undefined) return undefined; const n = Number(v); if (!Number.isInteger(n) || n < 1) die(2, "context: " + name + " must be a positive integer"); return n; };
+  const last = intFlag("--last"), clipN = intFlag("--clip"), asksN = intFlag("--asks");
+  const full = args.includes("--full"), noMark = args.includes("--no-mark");
+  if (!BOARD_BOTS.has(bot)) die(2, "context: usage: ab context --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> [--full] [--last N] [--clip N] [--asks N] [--no-mark]");
+  const b = load().b;
+  const reads = new Map(sql().prepare("SELECT item_key, read_at FROM ui_item_read").all().map((r) => [r.item_key, r.read_at]));
+  const r = buildContext(b, { bot, now: new Date(), timeZone: process.env.AGENT_BOARD_TIMEZONE || "America/New_York", full, last, clip: clipN, asks: asksN, isOpen: (d) => isOpen(d, b), isRead: (a) => (reads.get(a.item_key) ?? "") >= a.at });
+  console.log(r.text);
+  if (!noMark) for (const k of r.read_keys) markRead(k);
+} else if (cmd === "prune") {
+  if (!SQL) die(2, "prune: needs the SQLite board (unset AB_FILE)");
+  const dryRun = args.includes("--dry-run");
+  const num = (name) => { const v = flag(args, name); if (v === undefined) return undefined; const n = Number(v); if (!Number.isFinite(n) || n < 0) die(2, "prune: " + name + " must be a number of days, 0 or more"); return n; };
+  const o = { cardDays: num("--card-days"), askDays: num("--ask-days"), logDays: num("--log-days"), notificationDays: num("--notification-days") };
+  for (const k of Object.keys(o)) if (o[k] === undefined) delete o[k];
+  lock(); const f = load();
+  const now = new Date();
+  const plan = planPrune(sql(), f.b, { now, ...o, isOpen: (d) => isOpen(d, f.b) });
+  const moved = countsOf(plan);
+  if (dryRun || Object.values(moved).every((n) => n === 0)) { console.log(JSON.stringify({ ok: true, dry_run: dryRun, moved })); process.exit(0); }
+  const next = boardAfter(f.b, plan);
+  let updated;
+  applyPrune(sql(), plan, now, () => { updated = save(f, next); });
+  const live = await waitServed((x) => x.updated_at === updated);
+  log({ op: "prune", ...moved });
+  console.log(JSON.stringify({ ok: true, dry_run: false, live, moved, updated_at: updated }));
 } else if (cmd === "lint") {
   const lb = load().b;
   const failing = lb.decisions.filter((d) => isOpen(d, lb)).map((d) => ({ id: d.id, problems: storedProblems(d) })).filter((x) => x.problems.length);
@@ -1842,5 +1892,5 @@ if (cmd === "raise" || cmd === "assistant") {
   log({ op: "project-refresh", milestones: r.milestones.length });
   console.log(JSON.stringify({ ok: true, milestones: r.milestones.length, totals, updated_at: updated }));
 } else {
-  die(2, "usage: ab raise|assistant|answer|read|notify|clear|restore|priority|glance|mypr|reviews|review-status|gh-refresh|detail|ticket|ticket-summaries|plan|reply|supersede|already-answered|wipe|drop-bulk-options|ask|open|check|lint|backfill-stamps|backfill-titles|project-refresh (see header of " + process.argv[1] + ")");
+  die(2, "usage: ab raise|assistant|answer|read|context|prune|notify|clear|restore|priority|glance|mypr|reviews|review-status|gh-refresh|detail|ticket|ticket-summaries|plan|reply|supersede|already-answered|wipe|drop-bulk-options|ask|open|check|lint|backfill-stamps|backfill-titles|project-refresh (see header of " + process.argv[1] + ")");
 }

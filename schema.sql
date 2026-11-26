@@ -170,3 +170,42 @@ CREATE TABLE IF NOT EXISTS ui_feed (
   json TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+-- Daily prune (ab prune): old closed cards and their asks and details, old log rows and cleared notifications are
+-- moved here, never deleted. GET /__ab/archive reads them back.
+CREATE TABLE IF NOT EXISTS archive_cards (
+  card_id TEXT PRIMARY KEY,
+  json TEXT NOT NULL,
+  details_json TEXT,
+  answered_at TEXT,
+  archived_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS archive_asks (
+  ask_id TEXT PRIMARY KEY,
+  item_key TEXT NOT NULL,
+  at TEXT NOT NULL,
+  json TEXT NOT NULL,
+  archived_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS archive_asks_item ON archive_asks(item_key, at);
+CREATE TABLE IF NOT EXISTS archive_ui_log (
+  id INTEGER PRIMARY KEY,
+  json TEXT NOT NULL,
+  archived_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS archive_ui_delivery_log (
+  id INTEGER PRIMARY KEY,
+  json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  archived_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS archive_ui_notifications (
+  id INTEGER PRIMARY KEY,
+  bot TEXT NOT NULL,
+  text TEXT NOT NULL,
+  next_update TEXT,
+  link TEXT,
+  created_at TEXT NOT NULL,
+  cleared_at TEXT,
+  archived_at TEXT NOT NULL
+);
