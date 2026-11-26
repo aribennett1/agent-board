@@ -70,8 +70,19 @@ function htmlToNodes(html: string, key: string): ReactNode[] {
   return walk(root, key);
 }
 
+const AUTO_LANGS = ["php", "sql", "javascript", "typescript", "json", "bash", "diff"];
+
+function autoLang(code: string): string | undefined {
+  try {
+    const r = hljs.highlightAuto(code, AUTO_LANGS);
+    return r.language && hljs.getLanguage(r.language) ? r.language : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function highlightCode(code: string, lang?: string, key = "hl"): ReactNode[] {
-  const language = resolveLang(lang);
+  const language = resolveLang(lang) ?? autoLang(code);
   if (!language) return [code];
   try {
     const html = hljs.highlight(code, { language, ignoreIllegals: true }).value;

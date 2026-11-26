@@ -84,3 +84,43 @@ describe("RichText", () => {
     expect(inline("just text", "x").join("")).toBe("just text");
   });
 });
+
+describe("unfenced code detection", () => {
+  it("renders an unfenced PHP bullet as a highlighted block", () => {
+    const text = `- $code = DeductionPayCode::query()->lockForUpdate()->findOrFail($id);`;
+    const { container } = render(<RichText text={text} k="php-bullet" />);
+    const pre = container.querySelector("pre.md-code");
+    expect(pre).not.toBeNull();
+    expect(pre!.querySelector("code")!.textContent).toContain("DeductionPayCode::query()->lockForUpdate()");
+    expect(pre!.querySelector(".hljs-variable")!.textContent).toBe("$code");
+    expect(container.textContent).not.toMatch(/^php\s+\$code/);
+  });
+
+  it("renders a bare multi-line dump as a highlighted block", () => {
+    const dump = `$code = DeductionPayCode::query()->lockForUpdate()->findOrFail($id);
+if (($validated['amount'] ?? $code->amount) === null) {
+    throw ValidationException::withMessages(['amount' => 'An amount is required for this deduction code.']);
+}`;
+    const { container } = render(<RichText text={dump} k="dump" />);
+    const pre = container.querySelector("pre.md-code");
+    expect(pre).not.toBeNull();
+    expect(pre!.querySelector("code")!.textContent).toContain("ValidationException::withMessages");
+    expect(pre!.querySelector(".hljs-variable")).not.toBeNull();
+    expect(pre!.querySelector(".hljs-keyword")).not.toBeNull();
+  });
+
+  it("leaves ticket links, times, and arrows as prose", () => {
+    const text = "See [#1838](https://linear.app/rows/issue/1838) at 9:00 am → the next step, then go on.";
+    const { container } = render(<RichText text={text} k="prose" />);
+    expect(container.querySelector("pre")).toBeNull();
+    expect(container.textContent).toContain("9:00 am");
+    expect(container.textContent).toContain("→");
+  });
+
+  it("leaves a sentence that only mentions a Class::method as prose", () => {
+    const text = "See Foo::bar() for the check after the earlier copy.";
+    const { container } = render(<Markdown text={text} />);
+    expect(container.querySelector("pre")).toBeNull();
+    expect(container.querySelector("p")!.textContent).toBe("See Foo::bar() for the check after the earlier copy.");
+  });
+});

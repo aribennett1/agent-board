@@ -1,13 +1,8 @@
-// Write-time check and normalizer: user-visible card text that is clearly code
-// but not in a fenced block is wrapped when the pattern is unambiguous (a
-// language tag like `php ` followed by code). Leftover bare multi-line dumps
-// are rejected so every bot gets the same rule. Existing stored cards are left
-// alone; only new writes (ab raise, ab slack-draft, ab notify, and the same
-// checks on re-raise) are touched.
-//
-// Normalization rather than a hard reject on the language-tag pattern: bots
-// already try to write fences, and a retry would cost a wake. The renderer
-// also handles proper fences, including ones nested in lists or details items.
+// Write-time normalizer: a language tag like `php ` followed by code is wrapped
+// in a fenced block. Existing stored cards are left alone; only new writes
+// (ab raise, ab slack-draft, ab notify, and the same checks on re-raise) are
+// touched. Bare unfenced code is not rejected: the UI detects it and renders
+// it as a highlighted block, so agents do not need a formatting rule.
 
 import { visibleFields } from './ticket-links.ts';
 
@@ -46,7 +41,6 @@ const LANG_PREFIX = new RegExp(`^(${LANG})[ \\t]+(\\S[\\s\\S]*)$`, 'i');
 const LIST_LANG_PREFIX = new RegExp(`^(\\s*(?:[-*+]|\\d+[.)])\\s+)(${LANG})[ \\t]+(\\S.*)$`, 'i');
 const CODE_HINT = /(?:[;{}]|::|->|=>|\$\w|function\s|const\s+|let\s+|var\s+|SELECT\s+|<\?php|:=)/i;
 const FENCE = /```|~~~/;
-const BARE_DUMP = /^(?:<\?php|\$\w+\s*=|(?:async\s+)?function\s+\w+\s*\(|(?:const|let|var)\s+\w+\s*=|SELECT\s+\S)/i;
 
 export function looksLikeCode(s: string): boolean {
   const t = s.trim();
@@ -90,31 +84,6 @@ export function fenceBareCode(text: string): string {
   const whole = wrapLangPrefixed(text);
   if (whole) return whole;
   return fenceListItems(text);
-}
-
-export function guessLang(text: string): string {
-  if (/<\?php|\$\w|::|->|function\s+\w+\s*\(/.test(text) && /;/.test(text)) return 'php';
-  if (/^\s*SELECT\s+/im.test(text)) return 'sql';
-  if (/^\s*(diff --git|--- |\+\+\+ |@@ )/.test(text)) return 'diff';
-  if (/^\s*[{[]/.test(text.trim()) && /":/.test(text)) return 'json';
-  if (/^\s*(const|let|var|function|import|export)\s/.test(text)) return 'ts';
-  if (text.trimStart().startsWith('#!') || /^\s*(npm|yarn|pnpm|cd|export)\s/.test(text)) return 'bash';
-  return 'php';
-}
-
-/** After normalization, leftover multi-line code dumps still need a fence. */
-export function unfencedCodeError(text: string, field?: string): string | null {
-  if (typeof text !== 'string' || !text || FENCE.test(text)) return null;
-  const t = text.trim();
-  // A details item or field that is itself a bare code dump (no language tag, no surrounding prose).
-  const lines = t.split('\n').filter((l) => l.trim());
-  if (lines.length < 2) return null;
-  if (!BARE_DUMP.test(t) || !looksLikeCode(t)) return null;
-  // Prose that happens to mention a $variable on the first line still has sentence structure.
-  if (/^[A-Z][^;{]{12,}[.?!]\s/.test(t)) return null;
-  const lang = guessLang(t);
-  const prefix = field ? field + ': ' : '';
-  return prefix + 'put code in a fenced ```' + lang + ' block';
 }
 
 function setPath(d: Json, field: string, value: string): void {
@@ -220,10 +189,3 @@ export function applyCodeFences(d: Json): void {
   }
 }
 
-export function cardCodeFenceError(d: Json): string | null {
-  for (const [field, text] of [...visibleFields(d), ...extraFields(d)]) {
-    const e = unfencedCodeError(text, field);
-    if (e) return e;
-  }
-  return null;
-}

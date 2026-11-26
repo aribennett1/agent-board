@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { open } from '../src/db.ts';
-import { applyCodeFences, cardCodeFenceError, fenceBareCode, unfencedCodeError } from '../src/code-fences.ts';
+import { applyCodeFences, fenceBareCode } from '../src/code-fences.ts';
 
 test('fenceBareCode wraps a language-tagged snippet and leaves real fences and prose alone', () => {
   const bare = 'php $code = DeductionPayCode::query()->lockForUpdate()->findOrFail($id); if ($code->amount === null) { throw ValidationException::withMessages(["amount" => "required"]); }';
@@ -32,14 +32,7 @@ test('fenceBareCode wraps a list item that starts with a language tag', () => {
   assert.match(out, /Then we save/);
 });
 
-test('unfencedCodeError rejects a bare multi-line dump and accepts fences and prose', () => {
-  const dump = '$code = DeductionPayCode::query()->lockForUpdate()->findOrFail($id);\nif (($validated["amount"] ?? $code->amount) === null) {\n    throw ValidationException::withMessages(["amount" => "required"]);\n}';
-  assert.equal(unfencedCodeError(dump, 'details[1].items[1]'), 'details[1].items[1]: put code in a fenced ```php block');
-  assert.equal(unfencedCodeError('```php\n' + dump + '\n```'), null);
-  assert.equal(unfencedCodeError('The first read is kept on the request. That is the earlier copy.'), null);
-});
-
-test('applyCodeFences rewrites a details item and cardCodeFenceError then passes', () => {
+test('applyCodeFences rewrites a language-tagged details item', () => {
   const d = {
     title: 'Locked re-read',
     context: 'Validation reads the pay code once, with no lock.',
@@ -50,7 +43,6 @@ test('applyCodeFences rewrites a details item and cardCodeFenceError then passes
   applyCodeFences(d);
   const item = (d.details[0] as { items: string[] }).items[0];
   assert.match(item, /^```php\n\$code = DeductionPayCode/);
-  assert.equal(cardCodeFenceError(d), null);
 });
 
 const ab = (dbPath: string, ...args: string[]) => {
@@ -94,14 +86,14 @@ test('ab raise wraps a language-tagged details item and stores the fence', () =>
   assert.match(card.details[0].items[0], /^```php\n\$code = DeductionPayCode/);
 });
 
-test('ab raise rejects a bare multi-line code dump with a clear fence error', () => {
+test('ab raise accepts a bare multi-line dump; the UI, not a write rule, formats it', () => {
   const db = fresh();
   const dump = '$code = DeductionPayCode::query()->lockForUpdate()->findOrFail($id);\nif ($code->amount === null) {\n    throw new Exception("empty");\n}';
   const r = ab(db, 'raise', '--bot', 'Planner', JSON.stringify(valid({
     details: [{ label: 'The small change', items: [dump] }],
   })));
-  assert.equal(r.code, 2);
-  assert.match(r.stderr, /put code in a fenced ```php block/);
-  const row = open(db).prepare("SELECT json FROM ui_doc WHERE key = 'board'").get() as { json?: string } | undefined;
-  assert.ok(!row?.json || JSON.parse(row.json).decisions.length === 0);
+  assert.equal(r.code, 0, r.stderr);
+  const row = open(db).prepare("SELECT json FROM ui_doc WHERE key = 'board'").get() as { json: string };
+  const card = JSON.parse(row.json).decisions[0];
+  assert.equal(card.details[0].items[0], dump);
 });

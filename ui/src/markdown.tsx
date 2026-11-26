@@ -1,5 +1,6 @@
 import { annotateTickets } from "./ticketRefs";
 import { highlightCode } from "./highlight";
+import { looksLikeCodeText, promoteBareCode } from "./bareCode";
 import type { ReactNode } from "react";
 
 // A small Markdown renderer for plans and review comments: headings, paragraphs, lists, block quotes, tables,
@@ -12,7 +13,8 @@ export function hasFence(text: string): boolean {
 }
 
 export function RichText({ text, k = "t", className = "md md-frag" }: { text: string; k?: string; className?: string }) {
-  if (hasFence(text)) return <Markdown text={text} className={className} />;
+  const promoted = promoteBareCode(text);
+  if (hasFence(promoted) || looksLikeCodeText(promoted)) return <Markdown text={promoted} className={className} />;
   return <>{inline(text, k)}</>;
 }
 
@@ -65,7 +67,8 @@ const cells = (row: string) =>
 type ListItem = { depth: number; text: string; ordered: boolean };
 
 function itemBody(text: string, key: string): ReactNode {
-  return hasFence(text) ? <Markdown text={text} className="md-li" /> : inline(text, key);
+  const promoted = promoteBareCode(text);
+  return hasFence(promoted) || looksLikeCodeText(promoted) ? <Markdown text={promoted} className="md-li" /> : inline(text, key);
 }
 
 function renderList(items: ListItem[], ordered: boolean, key: string): ReactNode {
@@ -104,7 +107,7 @@ function codeBlock(key: string, lang: string, body: string): ReactNode {
 }
 
 export function Markdown({ text: raw, className = "md" }: { text: string; className?: string }) {
-  const text = annotateTickets(raw);
+  const text = annotateTickets(promoteBareCode(raw));
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
