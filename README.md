@@ -150,6 +150,8 @@ On the Grok Bot box, `scripts/start-box.sh` (live copy: `/workspace/agent-board-
 
 Only devices signed in to your tailnet can reach it. Don't use `tailscale funnel`, because that makes the board public.
 
+To restore this board and the rest of the bot box after a machine replacement, see the private [aribennett1/eric-skills](https://github.com/aribennett1/eric-skills) repo (`ops/RESTORE.md`).
+
 ## Security
 
 - **The board has no login.** Never expose it directly to the internet. Reach it over a private network (see [Remote access](#remote-access)) or behind an auth proxy such as Cloudflare Access.
