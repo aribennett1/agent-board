@@ -134,9 +134,20 @@ npm run typecheck
 
 CI runs both on Node 22 for every push and pull request.
 
+## Remote access
+
+The board usually runs on the machine where your agents work, not on your laptop. To open it from your laptop or phone without making it public, use [Tailscale](https://tailscale.com), a free private network that needs no domain:
+
+1. Install Tailscale on your laptop (and phone, if you like) and sign in. That creates your private network (tailnet).
+2. On the board's host, install Tailscale and join the same tailnet: `sudo tailscale up` and open the sign-in link it prints.
+3. Start the board (`npm start`, which listens on `PORT`, 8787 by default), then serve it on the tailnet: `sudo tailscale serve --bg 8787`.
+4. Open `https://<host-name>.<your-tailnet>.ts.net` on any of your signed-in devices.
+
+Only devices signed in to your tailnet can reach it. Don't use `tailscale funnel`, because that makes the board public.
+
 ## Security
 
-- **The board has no login.** Run it behind an auth proxy such as Cloudflare Access (Tunnel plus an email sign-in) and never expose it directly to the internet.
+- **The board has no login.** Never expose it directly to the internet. Reach it over a private network (see [Remote access](#remote-access)) or behind an auth proxy such as Cloudflare Access.
 - Browser writes from another origin are refused, but that is not a substitute for the proxy.
 - The wake webhook URL and auth value stay on the server. Keep them in `.env` or your process manager, never in git. `.env` and database files are git-ignored.
 - Set `GITHUB_WEBHOOK_SECRET` before pointing GitHub at the server. Linear signatures are not verified yet, so put Linear behind your proxy rules too.
