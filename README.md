@@ -63,6 +63,7 @@ The sender is in **shadow mode**: it logs who it would wake and calls nothing. P
 
 ## Board UI
 
+- **Auto-refresh.** Every 10 seconds, and when you come back to the tab, the board asks a small version endpoint for a content hash. If the hash is the same, nothing moves. If it changed, only the parts that changed are swapped in. Checks never overlap, they wait while you are typing or the mic is recording, and they keep your scroll position. The red dot and favicon update from the same poll.
 - **Red dot.** The favicon and tab title change while a task waits for you, and update live without a reload.
 - **Microphone.** Every text box has a mic button (Chrome, Safari) that types what you say at the cursor. It never sends by itself. Browsers without speech recognition show a hint.
 - **Every text box can wake your assistant.** An answer, or a free-text message, is POSTed to your wake webhook from the server, so the URL and secret never reach the browser.

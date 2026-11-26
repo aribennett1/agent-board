@@ -28,7 +28,7 @@ test('the board page serves the favicon link, the stylesheet and every script it
   const { app } = setup();
   const html = await (await app.request('/')).text();
   assert.match(html, /<link rel="icon"[^>]*href="\/favicon\.svg"/);
-  for (const path of ['/app.js', '/mic.js', '/badge.js', '/styles.css', '/favicon.svg', '/favicon-needs.svg']) {
+  for (const path of ['/app.js', '/mic.js', '/badge.js', '/poll.js', '/render.js', '/styles.css', '/favicon.svg', '/favicon-needs.svg']) {
     const r = await app.request(path);
     assert.equal(r.status, 200, path);
   }

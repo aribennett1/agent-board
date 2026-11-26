@@ -8,6 +8,7 @@ import { open } from './db.ts';
 import { loadServerConfig, ConfigError } from './config.ts';
 import { makeNotify, type Notify } from './webhook.ts';
 import { OWNERS, addNote, getTask, ingest, printSender, runWake, type Clock } from './board.ts';
+import { boardVersion } from './version.ts';
 
 // shortcut: no auth here; run the board behind an auth proxy (e.g. Cloudflare Access) and never expose it directly. Linear signatures are not verified yet; add before exposing.
 
@@ -35,7 +36,7 @@ function normalizeGithub(event: string, b: Json): { pr: unknown; type: string; p
 
 const PUBLIC = new URL('../public/', import.meta.url);
 const FILES: Record<string, string> = {
-  '/': 'index.html', '/app.js': 'app.js', '/mic.js': 'mic.js', '/badge.js': 'badge.js', '/styles.css': 'styles.css',
+  '/': 'index.html', '/app.js': 'app.js', '/mic.js': 'mic.js', '/badge.js': 'badge.js', '/poll.js': 'poll.js', '/render.js': 'render.js', '/styles.css': 'styles.css',
   '/favicon.svg': 'favicon.svg', '/favicon-needs.svg': 'favicon-needs.svg',
 };
 const TYPES: Record<string, string> = { html: 'text/html', js: 'text/javascript', css: 'text/css', svg: 'image/svg+xml' };
@@ -54,6 +55,7 @@ export function createApp(db: DatabaseSync, clock: Clock, opts: AppOptions = {})
   });
 
   app.get('/api/config', (c) => c.json({ assistantName: opts.assistantName ?? 'your assistant' }));
+  app.get('/api/version', (c) => c.json({ version: boardVersion(db) }, 200, { 'Cache-Control': 'no-store' }));
 
   for (const [path, file] of Object.entries(FILES)) {
     app.get(path, (c) => c.body(readFileSync(new URL(file, PUBLIC)), 200, { 'Content-Type': `${TYPES[file.split('.').pop()!]}; charset=utf-8`, 'Cache-Control': 'no-cache' }));
