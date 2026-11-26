@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
-import { watchAttention } from './attention.ts';
+import { watchAttention, type AttentionWake } from './attention.ts';
 
 // The data behind My tickets, My PRs and Others' PRs. The board server fetches it itself on a timer: GitHub through
 // the gh CLI (GraphQL) and Linear through its GraphQL API with LINEAR_API_KEY. No bot, no AI call and no `ab` command
@@ -10,7 +10,7 @@ type Json = Record<string, any>;
 
 export type Gh = (args: string[]) => Promise<string>;
 export type LinearFetch = (query: string, key: string) => Promise<Json>;
-export type FeedDeps = { gh?: Gh; linear?: LinearFetch; linearKey?: string | null; now?: () => Date; /** Test hook: override LINEAR_FEED_ENABLED. */ linearEnabled?: boolean };
+export type FeedDeps = { gh?: Gh; linear?: LinearFetch; linearKey?: string | null; now?: () => Date; /** Test hook: override LINEAR_FEED_ENABLED. */ linearEnabled?: boolean; /** Wake Engineer when a PR is flagged (tests inject a fake). */ attentionWake?: AttentionWake };
 
 export const FEED_INTERVAL_MS = 120_000;
 // My tickets is hidden for now. Set this to true (and put "tickets" back in the sidebar and BOARD_VIEWS) to fetch Linear again.
@@ -209,7 +209,7 @@ export async function refreshFeed(db: DatabaseSync, deps: FeedDeps = {}): Promis
     .run('feed', JSON.stringify(feed), iso);
   if (feed.github.ok) {
     try {
-      watchAttention(db, feed.mine, now);
+      await watchAttention(db, feed.mine, now, deps.attentionWake);
     } catch (e) {
       console.error(`attention watch failed: ${errText(e)}`);
     }

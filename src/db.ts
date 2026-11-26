@@ -14,6 +14,7 @@ export function open(path: string): DatabaseSync {
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   db.exec(schema);
   migrateNotifications(db);
+  migrateAttention(db);
   return db;
 }
 
@@ -24,3 +25,11 @@ export function migrateNotifications(db: DatabaseSync) {
   if (cols.includes('read_at') && !cols.includes('cleared_at')) db.exec('ALTER TABLE ui_notifications RENAME COLUMN read_at TO cleared_at');
   else if (!cols.includes('cleared_at')) db.exec('ALTER TABLE ui_notifications ADD COLUMN cleared_at TEXT');
 }
+
+/** Existing DBs may have pr_attention without woken_at (the Engineer wake timestamp). */
+export function migrateAttention(db: DatabaseSync) {
+  const cols = (db.prepare("PRAGMA table_info(pr_attention)").all() as { name: string }[]).map((c) => c.name);
+  if (!cols.length) return;
+  if (!cols.includes('woken_at')) db.exec('ALTER TABLE pr_attention ADD COLUMN woken_at TEXT');
+}
+

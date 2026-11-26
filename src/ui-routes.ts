@@ -8,6 +8,7 @@ import { OWNERS, addNote, getTask, type Clock } from './board.ts';
 import type { WebhookConfig } from './config.ts';
 import { routeWebhook } from './routing.ts';
 import { slimPayload } from './context.ts';
+import { deliveryLogEntry } from './deliver.ts';
 import { readFeed, refreshFeed, type FeedDeps } from './feed.ts';
 
 // The action board UI's server side, ported from the original local board's dev-server routes (/__ab/*):
@@ -136,26 +137,7 @@ export function boardFeed(db: DatabaseSync): Json {
   return { ...b, glance, feed, ...(Array.isArray(b.asks) ? { asks: asksWithStatus(db, b.asks) } : {}), decisions: [...(Array.isArray(b.decisions) ? b.decisions : []), ...derivedDecisions(db)], project: doc(db, 'project') ?? EMPTY_PROJECT(), notifications };
 }
 
-/** The delivery log line: only known fields in a fixed order, so a URL, auth value or message text is never stored. */
-export function deliveryLogEntry(body: unknown): Json | null {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
-  const b = body as Json;
-  const outcome = (b.http === null || Number.isInteger(b.http)) && (b.via === null || b.via === 'direct' || b.via === 'fallback') &&
-    Number.isInteger(b.attempt) && b.attempt >= 0 && ['delivered', 'failed', 'retrying'].includes(b.status) && isStr(b.at);
-  if (!outcome) return null;
-  const { http, via, attempt, status, at } = b;
-  if (b.event === 'item.message') {
-    if (!isId(b.message_id) || !isId(b.item_id) || !isId(b.item_section)) return null;
-    return { event: 'item.message', message_id: b.message_id, item_id: b.item_id, item_section: b.item_section, http, via, attempt, status, at };
-  }
-  if (b.event === 'decision.clarify' || b.event === 'decision.not_relevant' || b.event === 'review.answer') {
-    if (!isId(b.decision_id)) return null;
-    return { event: b.event, decision_id: b.decision_id, http, via, attempt, status, at };
-  }
-  if (b.event !== undefined && b.event !== 'decision.answered') return null;
-  if (!isId(b.decision_id) || !isStrOrList(b.answer) || !isStrOrList(b.answer_label)) return null;
-  return { event: 'decision.answered', decision_id: b.decision_id, answer: b.answer, answer_label: b.answer_label, http, via, attempt, status, at };
-}
+export { deliveryLogEntry };
 
 /** The text a person typed or picked, from any board payload. */
 export function payloadText(p: Json): string {

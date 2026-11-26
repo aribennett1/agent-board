@@ -125,6 +125,7 @@ const KEEP: Record<string, string[]> = {
   'decision.clarify': ['event', 'decision_id', 'question', 'clicked_at', 'to_bot'],
   'decision.not_relevant': ['event', 'decision_id', 'question', 'cleared_at', 'to_bot'],
   'review.answer': ['event', 'decision_id', 'card_id', 'finding', 'repo', 'pr', 'pr_link', 'comment_id', 'action', 'text', 'edited', 'severity', 'path', 'line', 'body', 'answered_at', 'to_bot'],
+  'pr.attention': ['event', 'pr', 'link', 'reasons', 'instruction', 'read_more', 'to_bot'],
 };
 const PAYLOAD_CLIP = 600;
 
