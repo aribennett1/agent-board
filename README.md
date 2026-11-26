@@ -12,6 +12,8 @@ Every bot raises a structured card in one place. The card says who raised it, wh
 
 The pipeline is Planner plans, QA approves the plan, then Engineer builds. Pushes to GitHub still need the dev's OK. Strict validation on `ab raise` makes cards hard to misuse. The PR and ticket tabs are filled by the server from free APIs, not by bots. Status updates go to the notifications feed.
 
+Board state lives in SQLite: cards, answers, bot replies and threads on each card, and notifications. An hourly backup keeps a copy of that database.
+
 ```mermaid
 flowchart LR
   Raise[Bot raises a card] --> Board[Action board]
@@ -20,6 +22,26 @@ flowchart LR
 ```
 
 The board is private. It is not a hosted product, and it is not on GitHub Pages. It runs on the dev's box and is reachable only over their tailnet.
+
+## Principles
+
+1. Grok Bot gives us our own always-on cloud computer, so it doubles as the server hosting the board.
+2. Scheduled scripts on that computer are free, while bot runs cost usage, so anything a script can do runs as a script (feeds, routing, merges, backups, trimming), and bots only do judgment work.
+3. Every bot-to-bot hop costs usage twice (sender plus receiver) and adds delay, so there is no chief-of-staff relay: the dev talks to each bot directly, and answers go from the board straight to the bot that asked.
+4. Context is the main cost driver per run, so conversations live in the database and bots read a trimmed view instead of carrying chat history.
+5. Bots follow instructions inconsistently, so important rules are enforced in code (strict card validation, the git push guard), not just written in prompts.
+6. Waking a bot to check for nothing wastes usage, so everything is event-driven over polling.
+7. The dev's attention is the bottleneck, so cards are built to decide in seconds: a plain explanation, a visual, and what happens after.
+
+## What it looks like
+
+The screenshots below use example data, not live work.
+
+![Home, with decision cards and the notifications feed in the sidebar](docs/screenshots/home.png)
+
+![A card with the split send button, aimed at the bot that raised it](docs/screenshots/send.png)
+
+![My PRs, with labels, comments, and lines changed](docs/screenshots/my-prs.png)
 
 ## Stack
 
