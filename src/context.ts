@@ -1,3 +1,4 @@
+import { quietSwapText } from './quiet-swap.ts';
 import { isBoardBot, raisedByOf, type BoardBot } from '../ui/src/raisedBy.ts';
 
 // The compact, bot-facing view of the board: `ab context --bot <name>`. Pure functions over the board document, so
@@ -137,6 +138,7 @@ export function slimPayload(p: Json, bot: BoardBot | null): Json {
     if (p[k] === undefined) continue;
     out[k] = typeof p[k] === 'string' && k !== 'text' && k !== 'custom_text' && k !== 'body' ? clip(p[k], PAYLOAD_CLIP) : p[k];
   }
+  if (p.event === 'review.answer' && typeof out.body === 'string') out.body = quietSwapText(out.body);
   if (bot) out.read_more = `ab context --bot ${bot}`;
   return out;
 }

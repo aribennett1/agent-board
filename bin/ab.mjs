@@ -191,6 +191,7 @@ import { applyPrune, boardAfter, countsOf, planPrune } from "../src/prune.ts";
 import { cardTicketLinkError, ticketLinkError } from "../src/ticket-links.ts";
 import { applyCodeFences, fenceBareCode } from "../src/code-fences.ts";
 import { isSlackDraft, normalizeSlack, slackDraftError } from "../src/slack-draft.ts";
+import { applyQuietSwap, quietSwapText } from "../src/quiet-swap.ts";
 
 // Storage: the agent-board SQLite file (AGENT_BOARD_DB, default ./agent-board.db) unless AB_FILE names a board.ts
 // file (the file mode is kept for the UI's own tests and for importing an old board.ts).
@@ -1141,6 +1142,9 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   }
   const problems = storedProblems(d);
   if (problems.length) die(2, problems.join("\nab: "));
+  for (const c of Array.isArray(d.post_comments) ? d.post_comments : []) applyQuietSwap(c);
+  if (typeof d.post_text === "string") d.post_text = quietSwapText(d.post_text);
+  for (const o of d.options) if (typeof o.post_text === "string") o.post_text = quietSwapText(o.post_text);
   applyCodeFences(d);
   const links = cardTicketLinkError(d);
   if (links) die(2, links);
@@ -1333,6 +1337,7 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
       // Bodies are raw Markdown: store `->`, never `-&gt;`.
       c.body = decodeEntities(c.body).replace(/^(\s*)```suggestions\b/gm, "$1```suggestion");
       if (typeof c.title === "string") c.title = decodeEntities(c.title);
+      applyQuietSwap(c);
     });
   });
   lock(); const f = load();
@@ -1401,7 +1406,7 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
       if (urlFlag !== undefined) c.posted_url = urlFlag;
       if (noteFlag !== undefined) { if (noteFlag.trim()) c.note = noteFlag.trim(); else delete c.note; }
       if (answerQFlag !== undefined) c.answer_to_question = answerQFlag.trim();
-      if (bodyFlag !== undefined) c.body = bodyFlag.trim();
+      if (bodyFlag !== undefined) c.body = quietSwapText(bodyFlag.trim());
       if (answerQFlag !== undefined || bodyFlag !== undefined) c.revision_at = new Date().toISOString();
       hit = true;
       out.push({ card: card.id, n: c.n ?? id, ...(c.status ? { status: c.status } : {}), ...(c.posted_url ? { posted_url: c.posted_url } : {}), ...(c.note ? { note: c.note } : {}), ...(c.answer_to_question ? { answer_to_question: c.answer_to_question } : {}) });
