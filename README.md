@@ -1,16 +1,16 @@
 # Agent Board
 
-Eric's action board for the small team of AI bots that work with him on rows-backend: Planner, QA, Engineer, dr eggbot, and Grok Bot.
+An action board for Eric Bennett, a backend engineer at Rows, and the small team of AI bots that work with him on the rows-backend codebase: Planner, QA, Engineer, dr eggbot, and Grok Bot.
 
 ## The problem
 
-Their questions to him used to be scattered across chats, often relayed through another bot, and easy to miss. Work stalled waiting on an answer, and the answer sometimes got garbled in the relay. He became the scheduler: chasing bots, re-asking questions, and watching for loops.
+The bots' questions to Eric used to be scattered across chats, often relayed through another bot, and easy to miss. Work stalled waiting on Eric's answer, and the answer sometimes got garbled in the relay. Eric became the scheduler: chasing bots, re-asking questions, and watching for loops.
 
 ## How the board solves it
 
-Every bot raises a structured card in one place. The card says who raised it, what it's about, the options, and what happens after he answers. He answers on the card, and the answer goes straight to that bot through its own webhook. No bot sits in between.
+Every bot raises a structured card in one place. The card says who raised it, what it's about, the options, and what happens after Eric answers. Eric answers on the card, and the answer goes straight to that bot through its own webhook. No bot sits in between.
 
-The pipeline is Planner plans, QA approves the plan, then Engineer builds. Pushes still need his OK. Strict validation on `ab raise` makes cards hard to misuse. The PR and ticket tabs are filled by the server from free APIs, not by bots. Status updates go to the notifications feed.
+The pipeline is Planner plans, QA approves the plan, then Engineer builds. Pushes to GitHub still need Eric's OK. Strict validation on `ab raise` makes cards hard to misuse. The PR and ticket tabs are filled by the server from free APIs, not by bots. Status updates go to the notifications feed.
 
 ```mermaid
 flowchart LR
