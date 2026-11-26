@@ -190,8 +190,8 @@ export type DeliveryDeps = {
   fetch: typeof fetch;
   sleep: (ms: number) => Promise<void>;
   storage: KeyValueStorage;
-  /** False while the server has no webhook: answers and messages stay pending. Default true. */
-  enabled?: boolean;
+  /** False while the server has no webhook: answers and messages stay pending. Default true. A function is read on every send. */
+  enabled?: boolean | (() => boolean);
   fallbackUrl: string;
   now?: () => Date;
   delaysMs?: number[];
@@ -355,7 +355,7 @@ export function createDelivery(deps: DeliveryDeps) {
 
     // Runs one delivery cycle for a stored record. Without a webhook URL it leaves the record pending.
     async function deliver(id: string): Promise<void> {
-      if (deps.enabled === false || inFlight.has(id)) return;
+      if ((typeof deps.enabled === "function" ? deps.enabled() : deps.enabled) === false || inFlight.has(id)) return;
       inFlight.add(id);
       try {
         for (let i = 0; i < delays.length; i++) {

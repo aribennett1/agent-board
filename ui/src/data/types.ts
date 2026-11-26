@@ -253,6 +253,8 @@ export type Ask = {
   link?: string;
   kind: "note" | "answer" | "custom" | "click" | "review";
   text: string;
+  // The check state the server derives: sent (saved), delivered (the wake webhook took it), read (the assistant ran ab on the item).
+  status?: "sent" | "delivered" | "read";
   reply_to?: string;
   ref?: string;
 };
@@ -298,6 +300,8 @@ export type Board = {
   // mine (My PRs) is optional so older files still load; missing means [].
   // the owner's side of the conversation, oldest first.
   asks?: Ask[];
+  // Whether the server has a wake webhook right now; re-read on every live refresh (the page-load value can be stale).
+  webhook_configured?: boolean;
   // ab wipe: when the board was emptied. Local history from before it is not shown or re-sent.
   reset_at?: string;
   // Short summaries of ticket keys, shown next to the first mention of a key in any board text (ab ticket-summaries).

@@ -48,6 +48,9 @@
 //                                                      A re-post of the same id updates the open card in place.
 //                                                      -> {"ok","board":"live","card":{...,"section":"assistant","bot","rule",
 //                                                      "seen","proposed_fix","decision_id",...}}
+//   ab read <id|item>                               marks the human's messages on that item as read by the assistant (blue checks on the board).
+//                                                      <id> is a decision id (task:T-1:4 too) or an item key (ticket:PROJ-1, decision:<id>).
+//                                                      ab answer and ab reply do this for their item too. Deterministic: no AI involved.
 //   ab answer <id> <opt[,opt]> --by chat|app [--at ISO]
 //   ab answer <id> --custom "text" --by chat|app [--at ISO]
 //   ab clear <id> --reason "why"                    (tombstoned: raise refuses it later) -> {"ok","status":"cleared","id"}
@@ -162,6 +165,8 @@ function sql() {
 }
 const docGet = (key) => sql().prepare("SELECT json FROM ui_doc WHERE key = ?").get(key)?.json;
 const docPut = (key, json) => sql().prepare("INSERT INTO ui_doc (key, json, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at").run(key, json, new Date().toISOString());
+// The assistant has seen the human's messages on this item: the board shows their checks as read. Storage mode only.
+const markRead = (key) => { if (SQL && key) sql().prepare("INSERT INTO ui_item_read (item_key, read_at) VALUES (?, ?) ON CONFLICT(item_key) DO UPDATE SET read_at = excluded.read_at").run(key, new Date().toISOString()); };
 export const EMPTY_BOARD = () => ({ updated_at: new Date(0).toISOString(), decisions: [], glance: { waiting: [], tickets: [], others: [], mine: [] } });
 export const EMPTY_PROJECT = () => ({ title: "", updated_at: new Date(0).toISOString(), parent: { id: "", url: "" }, milestones: [] });
 // A setting from the shell, else from app/.env.local (plain KEY=value lines), else undefined.
@@ -1014,6 +1019,7 @@ if (cmd === "raise" || cmd === "assistant") {
   const by = flag(args, "--by"), at = flag(args, "--at") || new Date().toISOString(), custom = flag(args, "--custom");
   const id = args[0];
   if (!id || !["chat", "app"].includes(by)) die(2, "usage: ab answer <id> <opt[,opt]>|--custom text --by chat|app [--at ISO]");
+  markRead("decision:" + id);
   lock(); const f = load(); const d = f.b.decisions.find((x) => x.id === id);
   if (!d) die(5, "no decision " + id + " on the board");
   if (d.answer) { console.log(JSON.stringify({ ok: true, status: "already-answered", answer: d.answer })); process.exit(0); }
@@ -1352,6 +1358,7 @@ if (cmd === "raise" || cmd === "assistant") {
     console.log(JSON.stringify({ ok: true, live, key, at: atFlag, edited: true, replies: all[key].thread.length }));
   } else {
   const at = new Date().toISOString();
+  markRead(key);
   const entry = { at, from: "bot", text: (text ?? "").trim() };
   if (status !== undefined) entry.status = status;
   if (image !== undefined) {
@@ -1410,6 +1417,11 @@ if (cmd === "raise" || cmd === "assistant") {
   log({ op: "reply", key, image: entry.image, question: entry.question?.id });
   console.log(JSON.stringify({ ok: true, live, key, at, replies: all[key].thread.length, image: entry.image, question: entry.question?.id }));
   }
+} else if (cmd === "read") {
+  if (!nonBlank(args[0]) || /\s/.test(args[0])) die(2, "usage: ab read <decision id | item key>");
+  const key = detailKeyOf(args[0]) ?? "decision:" + args[0];
+  markRead(key);
+  console.log(JSON.stringify({ ok: true, key, read: SQL }));
 } else if (cmd === "wipe") {
   // ab wipe --yes: empties the board (cards, items, PRs, reviews, details, threads, asks) and sets reset_at, so asks
   // older than the wipe are ignored when a browser re-syncs. Keeps ticket_summaries. Back up board.ts first.
@@ -1723,5 +1735,5 @@ if (cmd === "raise" || cmd === "assistant") {
   log({ op: "project-refresh", milestones: r.milestones.length });
   console.log(JSON.stringify({ ok: true, milestones: r.milestones.length, totals, updated_at: updated }));
 } else {
-  die(2, "usage: ab raise|assistant|answer|clear|restore|priority|glance|mypr|reviews|review-status|gh-refresh|detail|ticket|ticket-summaries|plan|reply|supersede|already-answered|wipe|drop-bulk-options|ask|open|check|lint|backfill-stamps|backfill-titles|project-refresh (see header of " + process.argv[1] + ")");
+  die(2, "usage: ab raise|assistant|answer|read|clear|restore|priority|glance|mypr|reviews|review-status|gh-refresh|detail|ticket|ticket-summaries|plan|reply|supersede|already-answered|wipe|drop-bulk-options|ask|open|check|lint|backfill-stamps|backfill-titles|project-refresh (see header of " + process.argv[1] + ")");
 }

@@ -67,9 +67,7 @@ describe("Left nav", () => {
       "tickets",
       "mine",
       "reviews",
-      "waiting",
       "others",
-      "assistant",
     ]);
     expect(item("project")).toBeNull();
     expect(item("home").querySelector(".nav-count")?.textContent).toBe("1");
@@ -79,8 +77,9 @@ describe("Left nav", () => {
     expect(item("others").querySelector(".nav-count")).toBeNull();
     expect(item("tickets").querySelector(".nav-count")).toBeNull();
     expect(item("mine").querySelector(".nav-count")).toBeNull();
-    expect(item("assistant").querySelector(".nav-count")).toBeNull();
-    expect(item("waiting").querySelector(".nav-count")).toBeNull();
+    // Waiting on others and Dr. Assistant are folded into My tickets and Home; the old tabs are gone from the nav.
+    expect(item("assistant")).toBeNull();
+    expect(item("waiting")).toBeNull();
     expect(current()).toEqual(["home"]);
     expect(screen.getByRole("heading", { name: /Needs you\s*1/ })).toBeTruthy();
     expect(document.querySelector('[data-decision-id="single"]')).not.toBeNull();
@@ -97,9 +96,9 @@ describe("Left nav", () => {
 
   it("shows only the picked section, keeps it in the hash, and goes back to Conversation", async () => {
     await renderTabs();
-    fireEvent.click(item("waiting"));
-    expect(current()).toEqual(["waiting"]);
-    expect(window.location.hash).toBe("#waiting");
+    fireEvent.click(item("tickets"));
+    expect(current()).toEqual(["tickets"]);
+    expect(window.location.hash).toBe("#tickets");
     openInProgress();
     expect(screen.getByText("Signed NDA")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: /Needs you/ })).toBeNull();
@@ -113,6 +112,16 @@ describe("Left nav", () => {
     expect(window.location.hash).toBe("");
     expect(window.location.pathname).toBe("/");
     expect(screen.queryByText("Docs pass")).toBeNull();
+  });
+
+  it("keeps old #waiting and #assistant links working", async () => {
+    window.history.replaceState(null, "", "/#waiting");
+    await renderTabs();
+    expect(current()).toEqual(["tickets"]);
+    cleanup();
+    window.history.replaceState(null, "", "/#assistant");
+    await renderTabs();
+    expect(current()).toEqual(["home"]);
   });
 
   it("opens the section named in the hash on load", async () => {

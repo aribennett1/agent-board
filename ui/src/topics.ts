@@ -3,13 +3,16 @@ import { choiceText } from "./delivery";
 import { answersFromAsks, isFindingSettled, isPerFindingReview, reviewFindings } from "./reviewFindings";
 import { sameSha } from "./triage";
 import { latestStatus } from "./convoModel";
+import type { CheckStatus } from "./Checks";
 
 // The Conversation tab's model (t102u): ONE topic per ticket / PR / plan. Each topic says who has the ball, lists only
 // the questions still open (a newer "Qn" or an explicit superseded_by replaces an older one), collapses answered ones
 // to one line, and keeps the whole back-and-forth as history, oldest first. Pure, so the view and the tests agree.
 
 export type Who = "You" | "Assistant" | "ops";
-export type HistoryMsg = { at: string; who: Who; text: string; key: string };
+// A message in a topic's thread. `status` marks one of the human's own messages (it gets checks); `card` marks an
+// answered decision card, shown as one line (title + answer) that expands to its question.
+export type HistoryMsg = { at: string; who: Who; text: string; key: string; status?: CheckStatus; card?: { title: string; answer: string; body: string } };
 export type TopicQuestion = {
   uid: string; // unique on the page: one question renders once
   label?: string; // "Q4", "Q3b"
@@ -233,14 +236,22 @@ export function buildTopics(
     open.sort((a, b) => order(a) - order(b));
     answered.sort((a, b) => order(a) - order(b));
 
+    // An answered decision card collapses into one row: its title and what he said, with the question inside.
+    const cardBody = (d?: Decision) => (d ? `**${d.question}**${d.context ? `\n\n${d.context}` : ""}` : "");
+    const isCardAsk = (a: Ask) => a.item_key.startsWith("decision:") && (a.kind === "answer" || a.kind === "custom");
+    const cardAsks = tAsks.filter(isCardAsk);
+    const collapsed = new Set(tDecisions.filter((d) => d.answer || cardAsks.some((a) => a.item_key === `decision:${d.id}`)).map((d) => `decision:${d.id}`));
     const history: HistoryMsg[] = [
-      ...tAsks.map((a) => ({ at: a.at, who: "You" as Who, text: a.text, key: a.item_key })),
+      ...tAsks.map((a) => {
+        const d = decisions.get(a.item_key);
+        return { at: a.at, who: "You" as Who, text: a.text, key: a.item_key, status: (a.status ?? "sent") as CheckStatus, ...(isCardAsk(a) ? { card: { title: a.label, answer: a.text, body: cardBody(d) } } : {}) };
+      }),
       ...tThread.filter((e) => e.text.trim() || e.question).map((e) => ({ at: e.at, who: whoOf(e), text: [e.text.trim(), e.question ? `**${e.question.text}**` : ""].filter(Boolean).join("\n\n"), key: e.key })),
-      ...tDecisions.flatMap((d) => (d.created_at ? [{ at: d.created_at, who: "Assistant" as Who, text: `**${d.title ?? d.question}**\n\n${d.context}`, key: `decision:${d.id}` }] : [])),
+      ...tDecisions.filter((d) => !collapsed.has(`decision:${d.id}`)).flatMap((d) => (d.created_at ? [{ at: d.created_at, who: "Assistant" as Who, text: `**${d.title ?? d.question}**\n\n${d.context}`, key: `decision:${d.id}` }] : [])),
       ...tDecisions.flatMap((d) => {
         const said = ansText(d);
-        if (!d.answer || !said || tAsks.some((a) => a.item_key === `decision:${d.id}` && a.text.includes(said))) return [];
-        return [{ at: d.answer.answered_at ?? d.created_at ?? "", who: "You" as Who, text: `You chose: ${said}`, key: `decision:${d.id}` }];
+        if (!d.answer || !said || cardAsks.some((a) => a.item_key === `decision:${d.id}`)) return [];
+        return [{ at: d.answer.answered_at ?? d.created_at ?? "", who: "You" as Who, text: `You chose: ${said}`, key: `decision:${d.id}`, card: { title: d.title ?? d.question, answer: said, body: cardBody(d) } }];
       }),
     ].sort(byAt);
 

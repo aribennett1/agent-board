@@ -5,20 +5,22 @@ import { ProjectTab, ProjectTabLabel } from "./ProjectTab";
 import { useLiveProject } from "./useLiveBoard";
 import type { Project } from "./data/types";
 
-const BOARD_VIEWS: View[] = ["conversation", "home", "tickets", "mine", "reviews", "waiting", "others", "assistant"];
+const BOARD_VIEWS: View[] = ["conversation", "home", "tickets", "mine", "reviews", "others"];
 const views = (project: Project | null): View[] => (project && hasProject(project) ? [...BOARD_VIEWS, "project"] : BOARD_VIEWS);
 const FOCUS_KINDS = ["ticket", "mypr", "pr", "waiting", "decision"];
 
 type Route = { view: View; focus?: string };
 
 // The hash picks the section (#reviews, #project, ...) or one item in focus mode (#ticket/PROJ-12,
-// #pr/app/101). No hash or anything unknown is the Conversation view; #home is Home.
+// #pr/app/101). No hash or anything unknown is the Conversation view; #waiting opens My tickets, #assistant opens Home.
 const fromHash = (project: Project | null = null): Route => {
   const h = decodeURIComponent(window.location.hash.slice(1));
   const slash = h.indexOf("/");
   if (slash > 0 && FOCUS_KINDS.includes(h.slice(0, slash)) && h.length > slash + 1) return { view: "focus", focus: h };
   const allowed = views(project);
-  return { view: allowed.includes(h as View) ? (h as View) : "conversation" };
+  // Retired tabs keep their links: Waiting on others lives under My tickets; Dr. Assistant findings sit on Home.
+  const name = h === "waiting" ? "tickets" : h === "assistant" ? "home" : h;
+  return { view: allowed.includes(name as View) ? (name as View) : "conversation" };
 };
 
 // The page: a left nav with every section, and the selected one (or one focused item) in the main area. The board

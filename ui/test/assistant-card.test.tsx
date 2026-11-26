@@ -177,26 +177,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("Dr. Assistant tab", () => {
-  it("lists the tab, keeps findings off Home, and includes them in Needs-you counts", async () => {
+describe("Dr. Assistant findings", () => {
+  it("sit on Home (no tab of their own), count in Home and Conversation, and take answers", async () => {
     const { default: Tabs } = await import("../src/Tabs");
     render(<Tabs />);
     const nav = screen.getByRole("navigation", { name: "Views" });
     const item = (view: string) => nav.querySelector<HTMLButtonElement>(`[data-view="${view}"]`)!;
-    expect([...nav.querySelectorAll(".nav-item")].map((b) => b.getAttribute("data-view"))).toContain("assistant");
-    expect(item("assistant").textContent).toMatch(/Dr\. Assistant/);
-    expect(item("assistant").querySelector(".nav-count")?.textContent).toBe("1");
+    expect(item("assistant")).toBeNull();
     expect(item("conversation").querySelector(".nav-count")?.textContent).toBe("2");
-    expect(item("home").querySelector(".nav-count")?.textContent).toBe("1");
+    expect(item("home").querySelector(".nav-count")?.textContent).toBe("2");
 
     fireEvent.click(item("home"));
-    expect(document.querySelector('[data-decision-id="assistant-audit-assistant"]')).toBeNull();
     expect(document.querySelector('[data-decision-id="single"]')).not.toBeNull();
-
-    fireEvent.click(item("assistant"));
-    expect(window.location.hash).toBe("#assistant");
-    expect(screen.getByRole("heading", { name: "Dr. Assistant" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: /Needs you\s*1/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Dr. Assistant findings" })).toBeTruthy();
     const card = document.querySelector<HTMLElement>('[data-decision-id="assistant-audit-assistant"]')!;
     expect(card.getAttribute("data-section")).toBe("assistant");
     expect(within(card).getByText("Assistant")).toBeTruthy();

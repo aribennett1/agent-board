@@ -71,6 +71,7 @@ A React app in `ui/`, built into `ui/dist` and served by the same server. State 
 - **Tabs.** Conversation, Home, Tickets, My PRs, Reviews, Waiting, Others, Audit and a Project tab (hidden until `ab project-refresh` has data). Each item opens in a focus view.
 - **Glance sections, details and toggles.** Lists of waiting items, tickets and PRs, with expandable ticket briefs and review findings.
 - **Threads.** Reply thread per item with follow-up questions and one-click answers. Replies and images come from `ab reply`.
+- **Chat-style threads with checks.** Conversation is the one live inbox. Answered cards fold into a one-line summary inside their thread, with a link to the item's tab, which is a view of the same records. The human's messages carry WhatsApp-style checks: one gray = saved, two gray = delivered (the wake webhook returned 2xx), two blue = read. Read is set by `ab answer`, `ab reply` or `ab read <id|item>` on that item, with no AI involved.
 - **Diagrams.** A card may carry an inline SVG, sanitized before it renders.
 - **Auto-refresh.** Every 10 seconds, and when you come back to the tab, the board asks `/api/version` for a content hash (covering tasks, notes, cards and every `ui_*` document). If the hash is the same, nothing moves. If it changed, only the parts that changed are swapped in. Checks never overlap, they wait while a field is focused or holds a draft or the mic is on, and they keep your scroll position. It covers every tab and the red dot.
 - **Red dot.** The favicon and tab title change while anything needs you, and update live.
@@ -109,7 +110,7 @@ The bots are `planner`, `engineer`, `qa`, `ops` and `chief`. `human` is you and 
 | `tick [--drift <file>]` | Hourly backstop: wake, liveness, failed sends, drift. Safe to repeat. |
 | `drift <file>` | Compare with a JSON array of `{task, linear: {status, labels}, github: {state, checks}}`. |
 | `report [--since ISO]` | Weekly bottleneck report in markdown. |
-| `node bin/ab.mjs <raise\|audit\|answer\|clear\|restore\|priority\|glance\|reply\|detail\|...>` | Write the board's decisions, glance lists, details and replies (run `ab.mjs` with no arguments for usage). |
+| `node bin/ab.mjs <raise\|audit\|answer\|read\|clear\|restore\|priority\|glance\|reply\|detail\|...>` | Write the board's decisions, glance lists, details and replies (run `ab.mjs` with no arguments for usage). |
 | `dev-merge --repo <path>` | Merge the base branch into your open PR branches, check, and push. |
 
 Note kinds: `started answer question work review_pass review_changes pass_through info`.

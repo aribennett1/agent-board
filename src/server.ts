@@ -56,7 +56,7 @@ export function createApp(db: DatabaseSync, clock: Clock, opts: AppOptions = {})
   app.use('/__ab/*', sameOrigin);
 
   app.get('/api/config', (c) => c.json({ assistantName: opts.assistantName ?? 'your assistant' }));
-  app.get('/api/version', (c) => c.json({ version: boardVersion(db) }, 200, { 'Cache-Control': 'no-store' }));
+  app.get('/api/version', (c) => c.json({ version: boardVersion(db, Boolean(opts.ui?.webhook)) }, 200, { 'Cache-Control': 'no-store' }));
 
 
   function readBody(raw: string): Json | null {

@@ -11,6 +11,8 @@ import { AlreadyDecidedBanner, PostApprovalBlock } from "./PostApprovalBlock";
 import { FindingDraft, FindingStatusLine, type OnAnswerFinding } from "./ReviewFindingsBlock";
 import { isFindingSettled } from "./reviewFindings";
 import { Markdown } from "./markdown";
+import { Checks } from "./Checks";
+import type { HistoryMsg } from "./topics";
 
 // The landing view (t102u): one card per topic (ticket, PR or plan). Each card says what it is, what's happening and
 // who has the ball, then "Your turn" with only the open questions (context inline, options, own words + mic), answered
@@ -230,10 +232,43 @@ function DontPostAny({
   );
 }
 
+// One message in a topic's thread. The assistant's replies and the human's notes are chat bubbles (Markdown); an answered
+// decision card is one line, title and answer, that opens to its question. The human's own messages carry the checks.
+function ThreadMessage({ m }: { m: HistoryMsg }) {
+  const [open, setOpen] = useState(false);
+  const mine = m.who === "You";
+  const checks = mine && m.status ? <Checks status={m.status} /> : null;
+  if (m.card) {
+    return (
+      <li className="msg msg-you msg-card" data-thread-card>
+        <button type="button" className="msg-card-line" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          <span className="msg-card-title">{m.card.title}</span>
+          <span className="msg-card-answer">{m.card.answer}</span>
+          {checks}
+        </button>
+        {open && m.card.body && <Markdown text={m.card.body} className="md msg-text" />}
+      </li>
+    );
+  }
+  return (
+    <li className={`msg msg-${mine ? "you" : "bot"}`}>
+      <p className="msg-who">
+        {m.who} <span className="msg-at">{when(m.at)}</span>
+        {checks}
+      </p>
+      <Markdown text={m.text} className="md msg-text" />
+    </li>
+  );
+}
+
+// The read-only view of the same record in its own tab (same board payload, filtered there).
+const TAB_OF: Record<string, [string, string]> = { ticket: ["tickets", "My tickets"], waiting: ["tickets", "My tickets"], mypr: ["mine", "My PRs"], pr: ["others", "Others' PRs"], decision: ["home", "Home"] };
+const tabOf = (key: string) => TAB_OF[key.split(":")[0]] ?? TAB_OF.decision;
+
 const BALL_CLASS = (ball: string) => (ball === "You" ? "you" : ball === "Done" ? "done" : ball === "Assistant" ? "bot" : "others");
 
 function TopicCard({ t, a, onOpen, sent, markSent, brief, detail }: { t: Topic; a: Answerers; onOpen: (key: string) => void; sent: Record<string, string>; markSent: (uid: string, text: string) => void; brief?: Brief; detail?: ItemDetail }) {
-  const [history, setHistory] = useState(false);
+  const [history, setHistory] = useState(t.group !== "done");
   const open = t.open.filter((q) => !(q.uid in sent));
   const justSent: AnsweredQuestion[] = t.open.filter((q) => q.uid in sent).map((q) => ({
     uid: q.uid,
@@ -252,6 +287,9 @@ function TopicCard({ t, a, onOpen, sent, markSent, brief, detail }: { t: Topic; 
         <button type="button" className="topic-title" onClick={() => onOpen(t.keys.find((k) => k === t.key) ?? t.keys[0])} title="Open this item">
           {t.label}
         </button>
+        <a className="topic-tab-link" href={`#${tabOf(t.key)[0]}`}>
+          {tabOf(t.key)[1]}
+        </a>
         <span className={`ball ball-${BALL_CLASS(open.length ? "You" : t.ball === "You" ? "Assistant" : t.ball)}`}>
           {open.length ? "Your turn" : t.ball === "Done" ? "Done" : t.ball === "You" ? "Assistant" : t.ball}
         </span>
@@ -303,12 +341,7 @@ function TopicCard({ t, a, onOpen, sent, markSent, brief, detail }: { t: Topic; 
           {history && (
             <ol className="history">
               {t.history.map((m, i) => (
-                <li key={i} className={`msg msg-${m.who === "You" ? "you" : "bot"}`}>
-                  <p className="msg-who">
-                    {m.who} <span className="msg-at">{when(m.at)}</span>
-                  </p>
-                  <Markdown text={m.text} className="md msg-text" />
-                </li>
+                <ThreadMessage key={i} m={m} />
               ))}
             </ol>
           )}

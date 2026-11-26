@@ -4,12 +4,13 @@ import { openThreadQuestions, statusText } from "./convoModel";
 import { clockTime, NoteBox } from "./ItemExpand";
 import { Markdown } from "./markdown";
 import { AlreadyDecidedBanner, PostApprovalBlock } from "./PostApprovalBlock";
+import { Checks, type CheckStatus } from "./Checks";
 
 // The reply thread on one item: the owner's notes from this browser and Assistant's replies (ab reply), oldest first.
 // A reply can carry a question with one-click answers; an answer goes to Assistant like any note on the item.
 
 const MINE_KEY = "action-board:my-notes";
-export type MyNote = { at: string; text: string; reply?: string };
+export type MyNote = { at: string; text: string; reply?: string; status?: CheckStatus };
 type MyNotes = Record<string, MyNote[]>;
 
 export function loadMyNotes(): MyNotes {
@@ -79,7 +80,7 @@ export function Thread({
   const [, setTick] = useState(0);
   const [busyQ, setBusyQ] = useState<string | null>(null);
   const sendingQ = useRef(new Set<string>());
-  const stored: MyNote[] = asks.map((a) => ({ at: a.at, text: a.text, reply: a.reply_to }));
+  const stored: MyNote[] = asks.map((a) => ({ at: a.at, text: a.text, reply: a.reply_to, status: a.status ?? "sent" }));
   const local = (loadMyNotes()[itemKey] ?? []).filter((m) => !stored.some((x) => x.text === m.text || x.text === `Answer to: ${m.text}`));
   const mine = [...stored, ...local];
   void version;
@@ -117,7 +118,7 @@ export function Thread({
           x.kind === "me" ? (
             <li key={`me-${x.at}-${idx}`} className="thread-msg me">
               <p className="thread-head">
-                <strong>You</strong> <span className="thread-at">{when(x.at)}</span>
+                <strong>You</strong> <span className="thread-at">{when(x.at)}</span> <Checks status={x.m.status} />
               </p>
               <p className="thread-text">{x.m.reply ? `Answered: ${x.m.text}` : x.m.text}</p>
             </li>

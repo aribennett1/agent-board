@@ -142,3 +142,13 @@ CREATE TABLE IF NOT EXISTS ui_derived_state (
   cleared_at TEXT,
   answered_at TEXT
 );
+-- Receipts for the human's messages (the checks next to them). Delivered: the wake webhook answered 2xx for that ask id.
+-- Read: the assistant ran ab answer, ab reply or ab read on the item; every ask on it sent at or before read_at counts as read.
+CREATE TABLE IF NOT EXISTS ui_ask_delivered (
+  ask_id TEXT PRIMARY KEY,
+  delivered_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS ui_item_read (
+  item_key TEXT PRIMARY KEY,
+  read_at TEXT NOT NULL
+);

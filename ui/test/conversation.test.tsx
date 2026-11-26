@@ -102,7 +102,7 @@ describe("Conversation view", () => {
     const answered = [...plan.querySelectorAll("[data-answered-uid]")].map((e) => e.textContent);
     expect(answered).toEqual(['✓ Q1: One PR? you said "one PR is the way to go"', '✓ Q3: Old question you said "Use the constants" (your note)']);
     // Context shows inline (no hidden toggle), and the #203 topic sits folded under In progress.
-    expect(within(plan).getByText("Re-explained: the hard stop.")).toBeTruthy();
+    expect(within(plan.querySelector<HTMLElement>(".your-turn")!).getByText("Re-explained: the hard stop.")).toBeTruthy();
     expect(document.querySelector('[data-topic="pr:app/203"]')).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "In progress (1)" }));
     const pr = document.querySelector<HTMLElement>('[data-topic="pr:app/203"]')!;

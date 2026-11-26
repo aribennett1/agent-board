@@ -75,7 +75,7 @@ const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(r
 const withoutPriority = ({ priority: _priority, ...rest }: Decision) => JSON.stringify(rest);
 
 // The left nav's destinations. #project is the project tab; the rest are board sections.
-export type View = "conversation" | "home" | "tickets" | "mine" | "reviews" | "waiting" | "others" | "assistant" | "project" | "focus";
+export type View = "conversation" | "home" | "tickets" | "mine" | "reviews" | "others" | "project" | "focus";
 
 type AppProps = {
   // Which section the main area shows. Missing: the classic one-page board with every section (used by tests).
@@ -105,7 +105,7 @@ const KIND_BACK: Record<Kind, { view: View; label: string }> = {
   ticket: { view: "tickets", label: "My tickets" },
   mypr: { view: "mine", label: "My PRs" },
   pr: { view: "others", label: "Others' PRs" },
-  waiting: { view: "waiting", label: "Waiting on others" },
+  waiting: { view: "tickets", label: "My tickets" },
   decision: { view: "home", label: "Home" },
 };
 // Quick actions when the item's detail names none. Each sends its label to the assistant as a message on the item.
@@ -154,6 +154,10 @@ function approvalChipOf(e: Entry, st: { needs: boolean; reason: string }, detail
 export default function App({ view, onSelect, project, projectLabel, focus, onFocus }: AppProps = {}) {
   const board = useLiveBoard(bundledBoard);
   setTicketSummaries(board.ticket_summaries);
+  // The live board says whether the webhook is on; the page-load value only covers the first paint.
+  const webhookConfigured = board.webhook_configured ?? WEBHOOK_CONFIGURED;
+  const webhookRef = useRef(webhookConfigured);
+  webhookRef.current = webhookConfigured;
   // One clock for every card's stamp and the header date, ticking each minute.
   const now = useNow();
   const [answers, setAnswers] = useState<AppAnswers>(() => loadAnswers(window.localStorage));
@@ -184,7 +188,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
         fetch: window.fetch.bind(window),
         sleep,
         storage: window.localStorage,
-        enabled: WEBHOOK_CONFIGURED,
+        enabled: () => webhookRef.current,
         fallbackUrl: FALLBACK_PATH,
         onChange: setAnswers,
         onMessagesChange: setMessages,
@@ -417,7 +421,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
       item={item}
       draft={drafts[itemKey(item)]}
       latest={latest.get(itemKey(item))}
-      webhookConfigured={WEBHOOK_CONFIGURED}
+      webhookConfigured={webhookConfigured}
       onOpen={openComposer}
       onText={typeDraft}
       onClose={closeComposer}
@@ -445,10 +449,11 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
       .map((d) => (priorityOverride[d.id] ? { ...d, priority: priorityOverride[d.id] } : d))
       .filter((d) => !isPerFindingReview(d) || !allFindingsAnswered(d, board.asks, answersForCard(d.id, findingLocals))),
   );
+  const urgent = openDecisions.some((d) => effectivePriority(d) === "high");
   const queue = openDecisions.filter((d) => d.section !== "assistant");
   const assistantQueue = openDecisions.filter((d) => d.section === "assistant");
   // Without a webhook, pending messages also explain the "not set up" marker.
-  const marker = deliveryMarker(WEBHOOK_CONFIGURED ? answers : { ...answers, ...messages }, WEBHOOK_CONFIGURED);
+  const marker = deliveryMarker(webhookConfigured ? answers : { ...answers, ...messages }, webhookConfigured);
 
   // New layout: open chevrons by item key, and review answers that went through from this browser.
   const [expanded, setExpanded] = useState<Record<string, true>>({});
@@ -706,7 +711,6 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   const others = sortOthers(board.glance.others ?? []);
   const reviews = others.filter(isReviewRequest);
   const mine: MyPR[] = Array.isArray(board.glance.mine) ? board.glance.mine : [];
-  const urgent = queue.some((d) => effectivePriority(d) === "high");
 
   const prEntry = (o: (typeof others)[number]): Entry => {
     const path = prPath(o.link);
@@ -982,13 +986,11 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   const needsCount = (entries: Entry[]) => entries.filter((e) => statusOf(e).needs).length;
   const nav: { id: View; label: ReactNode; count?: number; urgent?: boolean }[] = [
     { id: "conversation", label: "Conversation", count: openQs, urgent: openQs > 0 },
-    { id: "home", label: "Home", count: queue.length, urgent },
-    { id: "tickets", label: "My tickets", count: needsCount(ticketEntries) },
+    { id: "home", label: "Home", count: queue.length + assistantQueue.length, urgent },
+    { id: "tickets", label: "My tickets", count: needsCount(ticketEntries) + needsCount(waitingEntries) },
     { id: "mine", label: "My PRs", count: needsCount(myEntries) },
     { id: "reviews", label: "Reviews", count: needsCount(reviewEntries) },
-    { id: "waiting", label: "Waiting on others", count: needsCount(waitingEntries) },
     { id: "others", label: "Others' PRs", count: needsCount(otherEntries) },
-    { id: "assistant", label: "Dr. Assistant", count: assistantQueue.length, urgent: assistantQueue.length > 0 },
     ...(project ? [{ id: "project" as const, label: projectLabel ?? "Project" }] : []),
   ];
 
@@ -998,10 +1000,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
     const slash = focus.indexOf("/");
     const kind = focus.slice(0, slash) as Kind;
     const id = focus.slice(slash + 1);
-    const focusDecision = kind === "decision" ? board.decisions.find((x) => x.id === id) : undefined;
-    const back = focusDecision?.section === "assistant"
-      ? { view: "assistant" as View, label: "Dr. Assistant" }
-      : (KIND_BACK[kind] ?? KIND_BACK.decision);
+    const back = KIND_BACK[kind] ?? KIND_BACK.decision;
     if (kind === "decision") {
       const d = queue.find((x) => x.id === id) ?? board.decisions.find((x) => x.id === id);
       focusView = (
@@ -1064,11 +1063,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
       );
     }
   }
-  const navCurrent: View = view === "focus"
-    ? (focus?.startsWith("decision/") && board.decisions.find((d) => d.id === focus.slice(9))?.section === "assistant"
-        ? "assistant"
-        : (KIND_BACK[(focus ?? "").split("/")[0] as Kind]?.view ?? "home"))
-    : (view ?? "conversation");
+  const navCurrent: View = view === "focus" ? (KIND_BACK[(focus ?? "").split("/")[0] as Kind]?.view ?? "home") : (view ?? "conversation");
 
   return (
     <div className="layout">
@@ -1109,81 +1104,12 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
               <p>What needs you now, most urgent first.</p>
             </header>
             {renderNeeds(true)}
-            <PrTable title="Reviews waiting for your yes" count={needsCount(reviewEntries)} total={reviewEntries.length}>
-              {rows(reviewEntries)}
-            </PrTable>
-          </div>
-        )}
-        {view === "tickets" && (
-          <div className="view">
-            <header className="view-head">
-              <h1>My tickets</h1>
-              <p>Tickets with no PR yet. Click a title to focus on it.</p>
-            </header>
-            {details["page:tickets"]?.plan && <PagePlan text={details["page:tickets"].plan} file={details["page:tickets"].plan_file} />}
-            <WidePanel title="Tickets with no PR yet" count={needsCount(ticketEntries)} total={ticketEntries.length} head={["Ticket", "Status"]}>
-              {rows(ticketEntries.map((e) => ({ ...e, title: `${e.id}  ${e.title}` })))}
-            </WidePanel>
-          </div>
-        )}
-        {view === "mine" && (
-          <div className="view">
-            <header className="view-head">
-              <h1>My PRs</h1>
-              <p>Your open pull requests.</p>
-            </header>
-            <WidePanel title="My open PRs" count={needsCount(myEntries)} total={myEntries.length} head={["Pull request", "State", "CI", "Reviews"]}>
-              {rows(myEntries)}
-            </WidePanel>
-          </div>
-        )}
-        {view === "reviews" && (
-          <div className="view">
-            <header className="view-head">
-              <h1>Reviews</h1>
-              <p>Pull requests waiting on your review. Open a row to see the drafted comments.</p>
-            </header>
-            <PrTable title="Reviews waiting for your yes" count={needsCount(reviewEntries)} total={reviewEntries.length}>
-              {rows(reviewEntries)}
-            </PrTable>
-          </div>
-        )}
-        {view === "waiting" && (
-          <div className="view">
-            <header className="view-head">
-              <h1>Waiting on others</h1>
-              <p>Things you are waiting on someone else for.</p>
-            </header>
-            <WidePanel title="Waiting on others" count={needsCount(waitingEntries)} total={waitingEntries.length} head={["Item", "Waiting on"]}>
-              {rows(waitingEntries)}
-            </WidePanel>
-          </div>
-        )}
-        {view === "others" && (
-          <div className="view">
-            <header className="view-head">
-              <h1>Others' PRs</h1>
-              <p>Other people's open PRs that involve you.</p>
-            </header>
-            <PrTable title="Others' PRs with you" count={needsCount(otherEntries)} total={otherEntries.length}>
-              {rows(otherEntries)}
-            </PrTable>
-          </div>
-        )}
-        {view === "assistant" && (
-          <div className="view">
-            <header className="view-head">
-              <h1>Dr. Assistant</h1>
-              <p>Dr. Assistant findings and proposed bot changes. Apply one, skip it, or say how it should change.</p>
-            </header>
-            <section className="needs-you">
+            <section className="needs-you" aria-label="Dr. Assistant">
+              <h2 className="kicker">Dr. Assistant findings</h2>
               {assistantQueue.length === 0 ? (
-                <p className="empty">Nothing needs you here.</p>
+                <p className="empty">No findings to review.</p>
               ) : (
                 <>
-                  <h2 className="kicker">
-                    Needs you <span className="n">{assistantQueue.length}</span>
-                  </h2>
                   <div className="queue">
                     {groupByPriority(assistantQueue).map(({ level, items }) => (
                       <section key={level} className="priority-section" data-level={level} aria-labelledby={`assistant-level-${level}`}>
@@ -1216,6 +1142,57 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
                 </>
               )}
             </section>
+            <PrTable title="Reviews waiting for your yes" count={needsCount(reviewEntries)} total={reviewEntries.length}>
+              {rows(reviewEntries)}
+            </PrTable>
+          </div>
+        )}
+        {view === "tickets" && (
+          <div className="view">
+            <header className="view-head">
+              <h1>My tickets</h1>
+              <p>Tickets with no PR yet. Click a title to focus on it.</p>
+            </header>
+            {details["page:tickets"]?.plan && <PagePlan text={details["page:tickets"].plan} file={details["page:tickets"].plan_file} />}
+            <WidePanel title="Tickets with no PR yet" count={needsCount(ticketEntries)} total={ticketEntries.length} head={["Ticket", "Status"]}>
+              {rows(ticketEntries.map((e) => ({ ...e, title: `${e.id}  ${e.title}` })))}
+            </WidePanel>
+            <WidePanel title="Waiting on others" count={needsCount(waitingEntries)} total={waitingEntries.length} head={["Item", "Waiting on"]}>
+              {rows(waitingEntries)}
+            </WidePanel>
+          </div>
+        )}
+        {view === "mine" && (
+          <div className="view">
+            <header className="view-head">
+              <h1>My PRs</h1>
+              <p>Your open pull requests.</p>
+            </header>
+            <WidePanel title="My open PRs" count={needsCount(myEntries)} total={myEntries.length} head={["Pull request", "State", "CI", "Reviews"]}>
+              {rows(myEntries)}
+            </WidePanel>
+          </div>
+        )}
+        {view === "reviews" && (
+          <div className="view">
+            <header className="view-head">
+              <h1>Reviews</h1>
+              <p>Pull requests waiting on your review. Open a row to see the drafted comments.</p>
+            </header>
+            <PrTable title="Reviews waiting for your yes" count={needsCount(reviewEntries)} total={reviewEntries.length}>
+              {rows(reviewEntries)}
+            </PrTable>
+          </div>
+        )}
+        {view === "others" && (
+          <div className="view">
+            <header className="view-head">
+              <h1>Others' PRs</h1>
+              <p>Other people's open PRs that involve you.</p>
+            </header>
+            <PrTable title="Others' PRs with you" count={needsCount(otherEntries)} total={otherEntries.length}>
+              {rows(otherEntries)}
+            </PrTable>
           </div>
         )}
         {view === "project" && <div className="view">{project}</div>}

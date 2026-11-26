@@ -99,10 +99,27 @@ export function derivedDecisions(db: DatabaseSync): Json[] {
   return out;
 }
 
+/** The id `ab ask` gives the ask a webhook payload becomes (see askOf in bin/ab.mjs); null for events that are not asks. */
+export function askIdOf(p: Json): string | null {
+  if (p.event === 'item.message') return isId(p.message_id) ? p.message_id : null;
+  if (!isId(p.decision_id)) return null;
+  if (p.event === 'decision.answered') return `${p.decision_id}:answer`;
+  if (p.event === 'decision.clarify') return `${p.decision_id}:clarify:${p.clicked_at}`;
+  if (p.event === 'decision.not_relevant') return `${p.decision_id}:not-relevant`;
+  return null;
+}
+
+/** Each ask with its check state: read (the assistant ran ab answer/reply/read on the item after it), delivered (webhook 2xx), else sent. */
+function asksWithStatus(db: DatabaseSync, asks: Json[]): Json[] {
+  const delivered = new Set((db.prepare('SELECT ask_id FROM ui_ask_delivered').all() as Json[]).map((r) => r.ask_id));
+  const read = new Map((db.prepare('SELECT item_key, read_at FROM ui_item_read').all() as Json[]).map((r) => [r.item_key, r.read_at]));
+  return asks.map((a) => ({ ...a, status: (read.get(a.item_key) ?? '') >= a.at ? 'read' : delivered.has(a.id) ? 'delivered' : 'sent' }));
+}
+
 /** The board the UI renders: the ab-written document plus derived task decisions and the project tab. */
 export function boardFeed(db: DatabaseSync): Json {
-  const b = doc(db, 'board') ?? EMPTY_BOARD();
-  return { ...b, decisions: [...(Array.isArray(b.decisions) ? b.decisions : []), ...derivedDecisions(db)], project: doc(db, 'project') ?? EMPTY_PROJECT() };
+  const b: Json = doc(db, 'board') ?? EMPTY_BOARD();
+  return { ...b, ...(Array.isArray(b.asks) ? { asks: asksWithStatus(db, b.asks) } : {}), decisions: [...(Array.isArray(b.decisions) ? b.decisions : []), ...derivedDecisions(db)], project: doc(db, 'project') ?? EMPTY_PROJECT() };
 }
 
 /** The delivery log line: only known fields in a fixed order, so a URL, auth value or message text is never stored. */
@@ -173,7 +190,7 @@ export function mountUi(app: Hono, db: DatabaseSync, clock: Clock, o: UiOptions 
     return Buffer.byteLength(text) > limit ? null : text;
   }
 
-  app.get('/__ab/board', (c) => c.json(boardFeed(db), 200, { 'Cache-Control': 'no-store' }));
+  app.get('/__ab/board', (c) => c.json({ ...boardFeed(db), webhook_configured: Boolean(o.webhook) }, 200, { 'Cache-Control': 'no-store' }));
 
   app.get('/__ab/config', (c) => c.json({ assistantName: o.assistantName ?? 'your assistant', timeZone: o.timeZone ?? 'America/New_York', webhookConfigured: Boolean(o.webhook) }));
 
@@ -218,6 +235,8 @@ export function mountUi(app: Hono, db: DatabaseSync, clock: Clock, o: UiOptions 
       const up = await fetchImpl(o.webhook.url, { method: 'POST', headers, body: raw, signal: AbortSignal.timeout(15000) });
       status = up.status;
       if (up.ok) {
+        const askId = askIdOf(p);
+        if (askId) db.prepare('INSERT OR IGNORE INTO ui_ask_delivered (ask_id, delivered_at) VALUES (?, ?)').run(askId, clock.now().toISOString());
         if (msgId) db.prepare('INSERT OR IGNORE INTO ui_delivered (message_id) VALUES (?)').run(msgId);
         void recordAsk(raw);
       }
