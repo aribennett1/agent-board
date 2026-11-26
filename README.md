@@ -43,6 +43,28 @@ The screenshots below use example data, not live work.
 
 ![My PRs, with labels, comments, and lines changed](docs/screenshots/my-prs.png)
 
+## Features
+
+- Voice to text: a mic on card and other text fields uses the browser's Web Speech API. Click once to start (the icon turns red and pulses), click again to stop; heard words are inserted at the cursor and are never sent on their own. It works in Chrome and Safari; other browsers see a short hint instead of the button.
+- Each card is labeled with the bot that raised it.
+- Each card shows when it was posted, in ET: time only if it was today, otherwise the date too.
+- Notifications sit in a chat-style feed under the sidebar tabs, oldest at the top. It auto-scrolls to new notes unless the dev has scrolled up, and an X or Dismiss all clears notes without waking a bot.
+- The send button reads "Send to <bot>" for the bot that raised the card, with a picker beside it to send to a different bot.
+- After the dev sends an answer, the board scrolls back to the top.
+- Home groups cards into collapsible sections, one per raising bot.
+- A red dot on the favicon and tab title appears when something needs the dev's attention.
+- Priority is High, Medium, or Low; tapping another level changes it on the card.
+- Every card has Explain this better, which asks the bot to reword it without answering, and Not relevant anymore, which clears the card.
+- The latest bot note on a topic shows as a callout; the rest of the back-and-forth is under Show the thread.
+- Topics that are underway or finished sit under collapsible In progress and Show done groups.
+- Every card has a free-text field, with the mic, so the dev can answer in their own words even when there are buttons.
+- A card can include a small SVG diagram, sanitized before it renders. Recommendations are shown, never preselected.
+- The dev's messages in a thread show WhatsApp-style checks: one gray for saved, two gray for delivered, two blue for read.
+- The board refreshes every 10 seconds and when the tab is focused again, swapping in only what changed, and it waits if the dev is typing or the mic is on.
+- My PRs groups the dev's open pull requests and shows reason chips (changes requested, failing checks, unresolved comments), labels, comment count, lines changed, and a chevron that opens the description and open comments.
+- Others' PRs lists open PRs the dev was asked to review or is involved in, with the same chips and chevron.
+- The sidebar is Home, My PRs, and Others' PRs, plus a Project tab once it has data. My tickets is hidden while Linear is off. `#conversation` and `#tickets` open Home; `#reviews` opens Others' PRs.
+
 ## Stack
 
 Node 22.18+, Hono, `node:sqlite`, React and Vite.
@@ -91,12 +113,6 @@ node --env-file=.env bin/ab.mjs raise --bot <Planner|QA|Engineer|dr eggbot|Grok 
 Also: `glance`, `mypr`, `reviews`, `review-status`, `gh-refresh`, `detail`, `ticket`, `ticket-summaries`, `plan`, `supersede`, `already-answered`, `wipe`, `drop-bulk-options`, `ask`, `open`, `check`, `lint`, `backfill-stamps`, `backfill-titles`. Run `ab` with no arguments for usage. The PR tabs are no longer filled by `ab glance`, `ab mypr`, or `ab gh-refresh`.
 
 `bin/board.ts` still has the older task, note, wake, tick, report, and `dev-merge` commands.
-
-## UI
-
-A React app in `ui/`, built into `ui/dist` and served by the same process.
-
-The sidebar is Home, My PRs, and Others' PRs, plus a Project tab once `ab project-refresh` has data. Home holds the decision cards, grouped in collapsible sections by the raising bot, with a Send control aimed at that bot (or another bot the person picks). Notifications are a chat-style feed under the tab list; an X or Dismiss all clears a note and never wakes a bot. My tickets is hidden while Linear is off. `#conversation` and `#tickets` open Home; `#reviews` opens Others' PRs.
 
 ## Running
 
