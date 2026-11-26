@@ -4,6 +4,7 @@ import { answersFromAsks, isFindingSettled, isPerFindingReview, reviewFindings }
 import { sameSha } from "./triage";
 import { latestStatus } from "./convoModel";
 import type { CheckStatus } from "./Checks";
+import { raisedByOf, raisedByFromId, type BoardBot } from "./raisedBy";
 
 // The Conversation tab's model (t102u): ONE topic per ticket / PR / plan. Each topic says who has the ball, lists only
 // the questions still open (a newer "Qn" or an explicit superseded_by replaces an older one), collapses answered ones
@@ -12,7 +13,7 @@ import type { CheckStatus } from "./Checks";
 export type Who = "You" | "Assistant" | "ops";
 // A message in a topic's thread. `status` marks one of the human's own messages (it gets checks); `card` marks an
 // answered decision card, shown as one line (title + answer) that expands to its question.
-export type HistoryMsg = { at: string; who: Who; text: string; key: string; status?: CheckStatus; card?: { title: string; answer: string; body: string } };
+export type HistoryMsg = { at: string; who: Who; text: string; key: string; status?: CheckStatus; card?: { title: string; answer: string; body: string; raisedBy?: BoardBot }; raisedBy?: BoardBot };
 export type TopicQuestion = {
   uid: string; // unique on the page: one question renders once
   label?: string; // "Q4", "Q3b"
@@ -23,6 +24,7 @@ export type TopicQuestion = {
   suggestion?: string; // "Assistant suggests: ..." hint, never preselected
   options: import("./data/types").Option[];
   itemKey: string; // where the answer goes
+  raisedBy?: BoardBot;
   kind: "thread" | "plan" | "decision" | "finding";
   thread?: ReplyQuestion;
   decision?: Decision;
@@ -63,6 +65,7 @@ export type Topic = {
   answered: AnsweredQuestion[];
   history: HistoryMsg[];
   at: string;
+  raisedBy?: BoardBot;
 };
 
 type Labels = Record<string, { label: string; link?: string }>;
@@ -163,7 +166,7 @@ export function buildTopics(
       if (reply) answered.push({ uid: `${e.key}#${q.id}`, label, text: q.text, answer: reply });
       else
         open.push({
-          uid: `${e.key}#${q.id}`, label, text: q.text, context: q.context ?? e.text, image: e.image, image_alt: e.image_alt, suggestion: q.suggestion, itemKey: e.key, kind: "thread", thread: q,
+          uid: `${e.key}#${q.id}`, label, text: q.text, context: q.context ?? e.text, image: e.image, image_alt: e.image_alt, suggestion: q.suggestion, itemKey: e.key, kind: "thread", thread: q, raisedBy: raisedByFromId(e.key),
           ...(q.answers_comment ? { answers_comment: q.answers_comment } : {}),
           ...(q.post_text !== undefined ? { post_text: q.post_text } : {}),
           ...(q.current_text !== undefined ? { current_text: q.current_text } : {}),
@@ -219,7 +222,7 @@ export function buildTopics(
       );
       const already_decided = d.already_decided ?? (prior?.answer ? { answer: choiceText(prior.answer), source: prior.title ?? "earlier card", at: prior.answer.answered_at } : undefined);
       open.push({
-        uid: `decision:${d.id}`, text: d.question, context: d.context, itemKey: `decision:${d.id}`, kind: "decision", decision: d,
+        uid: `decision:${d.id}`, text: d.question, context: d.context, itemKey: `decision:${d.id}`, kind: "decision", decision: d, raisedBy: raisedByOf(d),
         ...(d.section === "assistant" ? { bot: d.bot, rule: d.rule, seen: d.seen, proposed_fix: d.proposed_fix, fixes: d.fixes, svg: d.svg } : {}),
         ...(d.answers_comment ? { answers_comment: d.answers_comment } : {}),
         ...(d.post_text !== undefined ? { post_text: d.post_text } : {}),
@@ -244,14 +247,14 @@ export function buildTopics(
     const history: HistoryMsg[] = [
       ...tAsks.map((a) => {
         const d = decisions.get(a.item_key);
-        return { at: a.at, who: "You" as Who, text: a.text, key: a.item_key, status: (a.status ?? "sent") as CheckStatus, ...(isCardAsk(a) ? { card: { title: a.label, answer: a.text, body: cardBody(d) } } : {}) };
+        return { at: a.at, who: "You" as Who, text: a.text, key: a.item_key, status: (a.status ?? "sent") as CheckStatus, ...(isCardAsk(a) ? { card: { title: a.label, answer: a.text, body: cardBody(d), raisedBy: d ? raisedByOf(d) : raisedByFromId(a.item_key) } } : {}) };
       }),
       ...tThread.filter((e) => e.text.trim() || e.question).map((e) => ({ at: e.at, who: whoOf(e), text: [e.text.trim(), e.question ? `**${e.question.text}**` : ""].filter(Boolean).join("\n\n"), key: e.key })),
       ...tDecisions.filter((d) => !collapsed.has(`decision:${d.id}`)).flatMap((d) => (d.created_at ? [{ at: d.created_at, who: "Assistant" as Who, text: `**${d.title ?? d.question}**\n\n${d.context}`, key: `decision:${d.id}` }] : [])),
       ...tDecisions.flatMap((d) => {
         const said = ansText(d);
         if (!d.answer || !said || cardAsks.some((a) => a.item_key === `decision:${d.id}`)) return [];
-        return [{ at: d.answer.answered_at ?? d.created_at ?? "", who: "You" as Who, text: `You chose: ${said}`, key: `decision:${d.id}`, card: { title: d.title ?? d.question, answer: said, body: cardBody(d) } }];
+        return [{ at: d.answer.answered_at ?? d.created_at ?? "", who: "You" as Who, text: `You chose: ${said}`, key: `decision:${d.id}`, card: { title: d.title ?? d.question, answer: said, body: cardBody(d), raisedBy: raisedByOf(d) } }];
       }),
     ].sort(byAt);
 
@@ -281,6 +284,7 @@ export function buildTopics(
     topics.push({
       key: tkey, keys: members, label, link: labels[tkey]?.link, summary: summary ? short(summary) : undefined, ball, statusLine,
       group: open.length ? "you" : ball === "Done" ? "done" : "progress", open, answered, history, at: last?.at ?? "",
+      raisedBy: tDecisions.map((d) => raisedByOf(d)).find(Boolean) ?? members.map((k) => raisedByFromId(k)).find(Boolean),
     });
   }
   const rank = { you: 0, progress: 1, done: 2 } as const;

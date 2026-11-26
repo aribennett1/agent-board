@@ -126,6 +126,10 @@ export type Decision = {
   multiSelect?: boolean;
   // Free-text answer field. Missing means true; only false hides it.
   allowCustom?: boolean;
+  // Who raised this card (ab raise --bot). Missing on older cards; the UI may infer it from the id prefix.
+  raised_by?: string;
+  // Occasional alias on older payloads; treated like raised_by when that is missing.
+  agent?: string;
   // Dr. Assistant assistant finding or proposed bot change (ab assistant). Missing means a Home decision (ab raise).
   section?: "assistant";
   // Required on section "assistant": which bot it is for, and a short rule/theme. seen and proposed_fix
@@ -299,7 +303,7 @@ export type BoardNotification = {
   next_update?: string | null;
   link?: string | null;
   created_at: string;
-  read_at?: string | null;
+  cleared_at?: string | null;
 };
 
 export type Board = {
@@ -312,7 +316,7 @@ export type Board = {
   asks?: Ask[];
   // Whether the server has a wake webhook right now; re-read on every live refresh (the page-load value can be stale).
   webhook_configured?: boolean;
-  // Status notes from the bots (ab notify). Never mixed into Conversation and never part of the red-dot count.
+  // Uncleared status notes from the bots (ab notify). Never mixed into Conversation and never part of the red-dot count.
   notifications?: BoardNotification[];
   // ab wipe: when the board was emptied. Local history from before it is not shown or re-sent.
   reset_at?: string;

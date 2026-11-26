@@ -119,7 +119,7 @@ function asksWithStatus(db: DatabaseSync, asks: Json[]): Json[] {
 /** The board the UI renders: the ab-written document plus derived task decisions and the project tab. */
 export function boardFeed(db: DatabaseSync): Json {
   const b: Json = doc(db, 'board') ?? EMPTY_BOARD();
-  const notifications = db.prepare('SELECT id, bot, text, next_update, link, created_at, read_at FROM ui_notifications ORDER BY id DESC').all();
+  const notifications = db.prepare('SELECT id, bot, text, next_update, link, created_at, cleared_at FROM ui_notifications WHERE cleared_at IS NULL ORDER BY id DESC').all();
   return { ...b, ...(Array.isArray(b.asks) ? { asks: asksWithStatus(db, b.asks) } : {}), decisions: [...(Array.isArray(b.decisions) ? b.decisions : []), ...derivedDecisions(db)], project: doc(db, 'project') ?? EMPTY_PROJECT(), notifications };
 }
 
@@ -195,8 +195,8 @@ export function mountUi(app: Hono, db: DatabaseSync, clock: Clock, o: UiOptions 
 
   app.get('/__ab/config', (c) => c.json({ assistantName: o.assistantName ?? 'your assistant', timeZone: o.timeZone ?? 'America/New_York', webhookConfigured: Boolean(o.webhook) }));
 
-  // Mark notifications read. Never forwards to the wake webhook: this is only for the human's feed.
-  app.post('/__ab/notifications/read', async (c) => {
+  // Clear a notification. Never forwards to the wake webhook: this is only for the human's feed.
+  app.post('/__ab/notifications/clear', async (c) => {
     const fail = (code: number) => c.json({ ok: false }, code as 200);
     if (!jsonOnly(c.req.header('Content-Type'))) return fail(415);
     const raw = await body(c.req.raw, MAX_AB_BODY);
@@ -210,12 +210,11 @@ export function mountUi(app: Hono, db: DatabaseSync, clock: Clock, o: UiOptions 
     if (!b || typeof b !== 'object' || Array.isArray(b)) return fail(400);
     const now = clock.now().toISOString();
     if (b.all === true) {
-      db.prepare('UPDATE ui_notifications SET read_at = ? WHERE read_at IS NULL').run(now);
+      db.prepare('UPDATE ui_notifications SET cleared_at = ? WHERE cleared_at IS NULL').run(now);
       return c.json({ ok: true }, 200);
     }
-    if (!Array.isArray(b.ids) || b.ids.length === 0 || !b.ids.every((n: unknown) => Number.isInteger(n) && (n as number) > 0)) return fail(400);
-    const upd = db.prepare('UPDATE ui_notifications SET read_at = ? WHERE id = ? AND read_at IS NULL');
-    for (const id of b.ids) upd.run(now, id);
+    if (!Number.isInteger(b.id) || b.id <= 0) return fail(400);
+    db.prepare('UPDATE ui_notifications SET cleared_at = ? WHERE id = ? AND cleared_at IS NULL').run(now, b.id);
     return c.json({ ok: true }, 200);
   });
 

@@ -12,6 +12,7 @@ import { FindingDraft, FindingStatusLine, type OnAnswerFinding } from "./ReviewF
 import { isFindingSettled } from "./reviewFindings";
 import { Markdown } from "./markdown";
 import { Checks } from "./Checks";
+import { botPillClass } from "./raisedBy";
 import type { HistoryMsg } from "./topics";
 
 // The landing view (t102u): one card per topic (ticket, PR or plan). Each card says what it is, what's happening and
@@ -104,7 +105,7 @@ function OpenQuestionBox({ q, a, onDone }: { q: TopicQuestion; a: Answerers; onD
   }
   return (
     <li className="tq" data-question-uid={q.uid}>
-      <p className="tq-text">{title}</p>
+      <p className="tq-text">{q.raisedBy && <span className={botPillClass(q.raisedBy)}>{q.raisedBy}</span>}{q.raisedBy ? " " : ""}{title}</p>
       {q.context && q.context.trim() && q.context.trim() !== q.text.trim() && <Context text={q.context} />}
       <CardSvg src={q.svg ?? q.decision?.svg} />
       <AssistantFacts bot={q.bot} rule={q.rule} seen={q.seen} proposed_fix={q.proposed_fix} />
@@ -242,6 +243,7 @@ function ThreadMessage({ m }: { m: HistoryMsg }) {
     return (
       <li className="msg msg-you msg-card" data-thread-card>
         <button type="button" className="msg-card-line" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          {m.card.raisedBy && <span className={botPillClass(m.card.raisedBy)}>{m.card.raisedBy}</span>}
           <span className="msg-card-title">{m.card.title}</span>
           <span className="msg-card-answer">{m.card.answer}</span>
           {checks}
@@ -284,9 +286,12 @@ function TopicCard({ t, a, onOpen, sent, markSent, brief, detail }: { t: Topic; 
   return (
     <article className={`topic topic-${t.group}`} data-topic={t.key}>
       <header className="topic-head">
-        <button type="button" className="topic-title" onClick={() => onOpen(t.keys.find((k) => k === t.key) ?? t.keys[0])} title="Open this item">
-          {t.label}
-        </button>
+        <div className="topic-head-left">
+          {t.raisedBy && <span className={botPillClass(t.raisedBy)}>{t.raisedBy}</span>}
+          <button type="button" className="topic-title" onClick={() => onOpen(t.keys.find((k) => k === t.key) ?? t.keys[0])} title="Open this item">
+            {t.label}
+          </button>
+        </div>
         <a className="topic-tab-link" href={`#${tabOf(t.key)[0]}`}>
           {tabOf(t.key)[1]}
         </a>

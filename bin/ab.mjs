@@ -34,6 +34,9 @@
 //     shows a highlighted diff of current_text against post_text, not two full copies. "what_happens_after"
 //     must say what actually happens on GitHub (edit, or delete and re-post), not that the answer only goes to ops.
 //     Recommendations are shown, never preselected. Dr. Assistant cards are not required to have triage fields.
+//   ab raise --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> '<json>'
+//                                                      optional. Stores raised_by on the card so the Conversation tab can
+//                                                      name who asked. Re-raise keeps it if --bot is left out.
 //   ab assistant '<json>' | ab assistant < finding.json
 //                                                      posts an assistant finding or proposed bot change on the Dr. Assistant tab
 //                                                      (#assistant). Same title/context/question rules as raise, plus required
@@ -164,6 +167,9 @@ function sql() {
   sqlDb = new DatabaseSync(DB_PATH, { timeout: 5000 });
   sqlDb.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
   sqlDb.exec(fs.readFileSync(path.join(ROOT, "schema.sql"), "utf8"));
+  const cols = sqlDb.prepare("PRAGMA table_info(ui_notifications)").all().map((c) => c.name);
+  if (cols.includes("read_at") && !cols.includes("cleared_at")) sqlDb.exec("ALTER TABLE ui_notifications RENAME COLUMN read_at TO cleared_at");
+  else if (cols.length && !cols.includes("cleared_at")) sqlDb.exec("ALTER TABLE ui_notifications ADD COLUMN cleared_at TEXT");
   return sqlDb;
 }
 const docGet = (key) => sql().prepare("SELECT json FROM ui_doc WHERE key = ?").get(key)?.json;
@@ -189,7 +195,8 @@ const LOG = path.join(APP_DIR, ".ab-log.jsonl");
 const A = "/* BOARD-JSON-START */", Z = "/* BOARD-JSON-END */";
 const PROJECT_FILE = process.env.AB_PROJECT_FILE || path.join(path.dirname(FILE), "project.ts");
 const PA = "/* PROJECT-JSON-START */", PZ = "/* PROJECT-JSON-END */";
-const ALLOWED = new Set(["id", "title", "card_ref", "context", "question", "what_happens_after", "details", "options", "multiSelect", "allowCustom", "priority", "pinned", "created_at", "section", "rule", "seen", "proposed_fix", "bot", "fixes", "svg", "tier", "estimate", "unblocks", "sha", "group", "glance", "joke", "recommendation", "draft", "superseded_by", "stale_reason", "severity", "answers_comment", "post_text", "current_text", "post_comments", "already_decided"]);
+const BOARD_BOTS = new Set(["Planner", "QA", "Engineer", "dr eggbot", "Grok Bot"]);
+const ALLOWED = new Set(["id", "title", "card_ref", "context", "question", "what_happens_after", "details", "options", "multiSelect", "allowCustom", "priority", "pinned", "created_at", "section", "rule", "seen", "proposed_fix", "bot", "fixes", "svg", "tier", "estimate", "unblocks", "sha", "group", "glance", "joke", "recommendation", "draft", "superseded_by", "stale_reason", "severity", "answers_comment", "post_text", "current_text", "post_comments", "already_decided", "raised_by"]);
 // Priority: missing (or anything else in a hand-edited file) means medium.
 const PRIORITIES = ["high", "medium", "low"];
 const isPriority = (v) => typeof v === "string" && PRIORITIES.includes(v);
@@ -946,6 +953,8 @@ function findingOnCard(d, id) {
 
 if (cmd === "raise" || cmd === "assistant") {
   const asAssistant = cmd === "assistant";
+  const raisedByFlag = flag(args, "--bot");
+  if (raisedByFlag !== undefined && !BOARD_BOTS.has(raisedByFlag)) die(2, (asAssistant ? "assistant" : "raise") + ": --bot must be Planner, QA, Engineer, dr eggbot or Grok Bot");
   const d = parseInput(input());
   if (!d || typeof d !== "object" || Array.isArray(d)) die(2, (asAssistant ? "assistant" : "raise") + ": input must be a JSON object");
   const link = d.link; delete d.link;                 // card-only field, not board schema
@@ -957,6 +966,8 @@ if (cmd === "raise" || cmd === "assistant") {
     die(2, "raise: Dr. Assistant findings use ab assistant '<json>', not raise");
   }
   for (const k of Object.keys(d)) if (!ALLOWED.has(k)) die(2, "unknown field " + k + " (allowed: " + [...ALLOWED].join(", ") + ", link)");
+  if (raisedByFlag) d.raised_by = raisedByFlag;
+  if (d.raised_by !== undefined && !BOARD_BOTS.has(d.raised_by)) die(2, (asAssistant ? "assistant" : "raise") + ": --bot / raised_by must be Planner, QA, Engineer, dr eggbot or Grok Bot");
   if (!/^[a-z0-9][a-z0-9-]{2,80}$/.test(d.id || "")) die(2, "id must be lowercase-kebab, 3-81 chars");
   if (!d.question || !d.what_happens_after) die(2, "need question and what_happens_after in plain words");
   if (isPerFindingReviewCard(d)) {
@@ -990,6 +1001,7 @@ if (cmd === "raise" || cmd === "assistant") {
   if (typeof d.svg === "string") d.svg = sanitizeSvg(d.svg);
   // A re-raise without priority keeps the stored one; a new card without it stays without it (medium).
   if (!("priority" in d) && k >= 0 && "priority" in f.b.decisions[k]) d.priority = f.b.decisions[k].priority;
+  if (!("raised_by" in d) && k >= 0 && f.b.decisions[k].raised_by) d.raised_by = f.b.decisions[k].raised_by;
   // created_at and updated_at go last, side by side. New: updated_at = created_at. Re-raise: updated_at = now,
   // and the stored created_at wins over a passed one (a passed one only fills a card that has none).
   const created = (k >= 0 && f.b.decisions[k].created_at) || d.created_at || (k >= 0 ? undefined : new Date().toISOString());
@@ -1423,12 +1435,11 @@ if (cmd === "raise" || cmd === "assistant") {
 } else if (cmd === "notify") {
   // ab notify --bot <name> --text "..." [--next "1:15 PM ET"] [--link url]: a status note on the Notifications tab.
   // Acknowledging it never wakes a bot. Short Markdown. Storage mode only.
-  const NOTIFY_BOTS = new Set(["Planner", "QA", "Engineer", "dr eggbot", "Grok Bot"]);
   const bot = flag(args, "--bot");
   const text = flag(args, "--text");
   const next = flag(args, "--next");
   const link = flag(args, "--link");
-  if (!NOTIFY_BOTS.has(bot)) die(2, "notify: usage: ab notify --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> --text \"...\" [--next \"1:15 PM ET\"] [--link url]");
+  if (!BOARD_BOTS.has(bot)) die(2, "notify: usage: ab notify --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> --text \"...\" [--next \"1:15 PM ET\"] [--link url]");
   const body = typeof text === "string" ? text.trim() : "";
   if (!body) die(2, "notify: --text is required");
   if (body.length > 800) die(2, "notify: --text is too long (800 characters or fewer)");

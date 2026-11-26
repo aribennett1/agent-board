@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS ui_item_read (
   read_at TEXT NOT NULL
 );
 
--- Status notes from the bots (ab notify). Acknowledging one never wakes a bot.
+-- Status notes from the bots (ab notify). Clearing one never wakes a bot.
 CREATE TABLE IF NOT EXISTS ui_notifications (
   id INTEGER PRIMARY KEY,
   bot TEXT NOT NULL,
@@ -161,5 +161,5 @@ CREATE TABLE IF NOT EXISTS ui_notifications (
   next_update TEXT,
   link TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-  read_at TEXT
+  cleared_at TEXT
 );

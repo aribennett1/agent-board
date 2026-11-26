@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Board, BoardNotification } from "../src/data/types";
-import { Notifications, noticeTime, READ_PATH } from "../src/Notifications";
+import { Notifications, noticeTime, CLEAR_PATH } from "../src/Notifications";
 import { badgeTitle } from "../src/needsYouBadge";
 import { POLL_MS, VERSION_PATH, BOARD_PATH, resetLiveFeed } from "../src/useLiveBoard";
 
@@ -14,7 +14,7 @@ const note = (id: number, extra: Partial<BoardNotification> = {}): BoardNotifica
   next_update: extra.next_update ?? null,
   link: extra.link ?? null,
   created_at: extra.created_at ?? `2026-11-26T17:0${id}:00.000Z`,
-  read_at: extra.read_at ?? null,
+  cleared_at: extra.cleared_at ?? null,
 });
 
 afterEach(() => {
@@ -25,10 +25,10 @@ afterEach(() => {
 });
 
 describe("Notifications feed", () => {
-  it("lists newest first with the bot, ET time, text, next update, and dims a read item", () => {
+  it("lists newest first with the bot, ET time, text, next update, and an X at the top right; nothing is grayed out", () => {
     const items = [
-      note(2, { bot: "QA", text: "Approved **PR #12** at `abc`.", next_update: null, created_at: "2026-11-26T17:10:00.000Z" }),
-      note(1, { bot: "Planner", text: "Starting now.", next_update: "1:15 PM ET", created_at: "2026-11-26T14:00:00.000Z", read_at: "2026-11-26T17:11:00.000Z" }),
+      note(2, { bot: "QA", text: "Approved **PR #12** at `abc`.", created_at: "2026-11-26T17:10:00.000Z" }),
+      note(1, { bot: "Planner", text: "Starting now.", next_update: "1:15 PM ET", created_at: "2026-11-26T14:00:00.000Z" }),
     ];
     render(<Notifications items={items} now={now} />);
     const rows = [...document.querySelectorAll<HTMLElement>("[data-notice-id]")];
@@ -37,13 +37,20 @@ describe("Notifications feed", () => {
     expect(within(rows[0]).getByText("12:10 PM ET")).toBeTruthy();
     expect(rows[0].querySelector(".notice-text")?.textContent).toContain("PR #12");
     expect(within(rows[1]).getByText("Next update by 1:15 PM ET")).toBeTruthy();
-    expect(rows[0].dataset.read).toBe("false");
-    expect(rows[1].dataset.read).toBe("true");
-    expect(rows[1].classList.contains("notice-read")).toBe(true);
+    expect(rows[0].querySelector(".notice-read")).toBeNull();
+    expect(rows[0].classList.contains("notice-read")).toBe(false);
+    const x = within(rows[0]).getByRole("button", { name: "Clear notification" });
+    expect(x.textContent).toBe("×");
+    const style = getComputedStyle(x);
+    // The class places it in the top right of the note.
+    expect(rows[0].className).toBe("notice");
+    expect(x.className).toBe("notice-clear");
     expect(noticeTime("2026-11-25T17:00:00.000Z", now)).toBe("Nov 25, 12:00 PM ET");
+    expect(screen.getByRole("button", { name: "Dismiss all" })).toBeTruthy();
+    void style;
   });
 
-  it("Mark all read posts only to the read route and dims every item, with no webhook POST", async () => {
+  it("the X posts a clear for that note, hides it, and never hits the webhook", async () => {
     const posted: { url: string; body: string }[] = [];
     vi.stubGlobal(
       "fetch",
@@ -54,14 +61,15 @@ describe("Notifications feed", () => {
     );
     render(<Notifications items={[note(1), note(2)]} now={now} />);
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Mark all read" }));
+      fireEvent.click(within(document.querySelector<HTMLElement>("[data-notice-id='1']")!).getByRole("button", { name: "Clear notification" }));
     });
-    expect(posted).toEqual([{ url: READ_PATH, body: JSON.stringify({ all: true }) }]);
-    expect(document.querySelectorAll('[data-read="true"]').length).toBe(2);
-    expect(screen.queryByRole("button", { name: "Mark all read" })).toBeNull();
+    expect(posted).toEqual([{ url: CLEAR_PATH, body: JSON.stringify({ id: 1 }) }]);
+    expect(document.querySelector("[data-notice-id='1']")).toBeNull();
+    expect(document.querySelector("[data-notice-id='2']")).not.toBeNull();
+    expect(screen.queryByText(/Webhook/)).toBeNull();
   });
 
-  it("marks a note read when it scrolls into view", async () => {
+  it("Dismiss all posts { all: true } and clears the feed", async () => {
     const posted: { url: string; body: string }[] = [];
     vi.stubGlobal(
       "fetch",
@@ -70,47 +78,13 @@ describe("Notifications feed", () => {
         return new Response(JSON.stringify({ ok: true }), { status: 200 });
       }),
     );
-    type Obs = { cb: IntersectionObserverCallback; els: Set<Element> };
-    const observers: Obs[] = [];
-    vi.stubGlobal(
-      "IntersectionObserver",
-      class {
-        cb: IntersectionObserverCallback;
-        els = new Set<Element>();
-        constructor(cb: IntersectionObserverCallback) {
-          this.cb = cb;
-          observers.push(this);
-        }
-        observe(el: Element) {
-          this.els.add(el);
-        }
-        unobserve(el: Element) {
-          this.els.delete(el);
-        }
-        disconnect() {
-          this.els.clear();
-        }
-        takeRecords() {
-          return [];
-        }
-      },
-    );
-    vi.useFakeTimers();
-    render(<Notifications items={[note(3, { text: "Visible now." })]} now={now} />);
-    expect(observers.length).toBeGreaterThan(0);
-    const obs = observers[0];
-    const el = document.querySelector("[data-notice-id='3']")!;
-    act(() => {
-      obs.cb(
-        [{ isIntersecting: true, target: el, intersectionRatio: 1, time: 0, boundingClientRect: {} as DOMRectReadOnly, intersectionRect: {} as DOMRectReadOnly, rootBounds: null }] as IntersectionObserverEntry[],
-        obs as unknown as IntersectionObserver,
-      );
-    });
+    render(<Notifications items={[note(1), note(2)]} now={now} />);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(60);
+      fireEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
     });
-    expect(posted).toEqual([{ url: READ_PATH, body: JSON.stringify({ ids: [3] }) }]);
-    expect(el.getAttribute("data-read")).toBe("true");
+    expect(posted).toEqual([{ url: CLEAR_PATH, body: JSON.stringify({ all: true }) }]);
+    expect(screen.getByText("No notifications yet.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Dismiss all" })).toBeNull();
   });
 });
 
@@ -153,7 +127,7 @@ describe("Notifications stay off Conversation and the red dot", () => {
     expect(window.location.hash).toBe("#notifications");
     expect(screen.getByRole("heading", { name: "Notifications" })).toBeTruthy();
     expect(screen.getByText(/Starting the plan now/)).toBeTruthy();
-    expect(screen.getByText("Next update by 1:15 PM ET")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Dismiss all" })).toBeTruthy();
   });
 });
 

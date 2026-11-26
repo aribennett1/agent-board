@@ -987,7 +987,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   const needsCount = (entries: Entry[]) => entries.filter((e) => statusOf(e).needs).length;
   const nav: { id: View; label: ReactNode; count?: number; urgent?: boolean }[] = [
     { id: "conversation", label: "Conversation", count: openQs, urgent: openQs > 0 },
-    { id: "notifications", label: "Notifications", count: (board.notifications ?? []).filter((n) => !n.read_at).length },
+    { id: "notifications", label: "Notifications", count: (board.notifications ?? []).filter((n) => !n.cleared_at).length },
     { id: "home", label: "Home", count: queue.length + assistantQueue.length, urgent },
     { id: "tickets", label: "My tickets", count: needsCount(ticketEntries) + needsCount(waitingEntries) },
     { id: "mine", label: "My PRs", count: needsCount(myEntries) },

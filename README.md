@@ -69,7 +69,7 @@ A React app in `ui/`, built into `ui/dist` and served by the same server. State 
 - **Explain this better** and **Not relevant anymore** on every card. Not-relevant cards are kept and can be restored with `ab restore`.
 - **Priority ordering.** High, medium and low sections; tap a card's level to change it.
 - **Tabs.** Conversation, Notifications, Home, My tickets, My PRs, Reviews, Others' PRs, and a Project tab (hidden until `ab project-refresh` has data). Each item opens in a focus view. Waiting on others lives under My tickets; Dr. Assistant findings sit on Home.
-- **Notifications.** Bots post short status notes with `ab notify`. They show on their own tab (newest first, unread count on the tab, dimmed once read). Scrolling one into view or tapping Mark all read records that you saw it; that never wakes a bot and never counts toward the red dot or Conversation.
+- **Notifications.** Bots post short status notes with `ab notify`. They show on their own tab (newest first, with a badge for how many are still open). An X on each note clears it from the feed; that never wakes a bot and never counts toward the red dot or Conversation.
 - **Glance sections, details and toggles.** Lists of waiting items, tickets and PRs, with expandable ticket briefs and review findings.
 - **Threads.** Reply thread per item with follow-up questions and one-click answers. Replies and images come from `ab reply`.
 - **Chat-style threads with checks.** Conversation is the one live inbox. Answered cards fold into a one-line summary inside their thread, with a link to the item's tab, which is a view of the same records. The human's messages carry WhatsApp-style checks: one gray = saved, two gray = delivered (the wake webhook returned 2xx), two blue = read. Read is set by `ab answer`, `ab reply` or `ab read <id|item>` on that item, with no AI involved.
@@ -112,7 +112,8 @@ The bots are `planner`, `engineer`, `qa`, `ops` and `chief`. `human` is you and 
 | `drift <file>` | Compare with a JSON array of `{task, linear: {status, labels}, github: {state, checks}}`. |
 | `report [--since ISO]` | Weekly bottleneck report in markdown. |
 | `node bin/ab.mjs <raise\|assistant\|answer\|read\|notify\|clear\|restore\|priority\|glance\|reply\|detail\|...>` | Write the board's decisions, glance lists, details, replies and notifications (run `ab.mjs` with no arguments for usage). |
-| `node --env-file=.env bin/ab.mjs notify --bot <Planner\|QA\|Engineer\|dr eggbot\|Grok Bot> --text "..."` | Post a short Markdown status note to the Notifications tab. Optional `--next "1:15 PM ET"` and `--link url`. Acknowledging it never wakes a bot. |
+| `node --env-file=.env bin/ab.mjs notify --bot <Planner\|QA\|Engineer\|dr eggbot\|Grok Bot> --text "..."` | Post a short Markdown status note to the Notifications tab. Optional `--next "1:15 PM ET"` and `--link url`. Clearing it never wakes a bot. |
+| `node --env-file=.env bin/ab.mjs raise --bot <Planner\|QA\|Engineer\|dr eggbot\|Grok Bot> '<json>'` | Optional. Stores `raised_by` on the card so Conversation can label who asked. Re-raise keeps it if `--bot` is left out. |
 | `dev-merge --repo <path>` | Merge the base branch into your open PR branches, check, and push. |
 
 Note kinds: `started answer question work review_pass review_changes pass_through info`.
