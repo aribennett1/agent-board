@@ -168,4 +168,12 @@ describe("Left nav", () => {
     });
     expect(current()).toEqual(["others"]);
   });
+
+  it("lets the sidebar width be restored from storage and exposes a drag handle", async () => {
+    window.localStorage.setItem("action-board:sidebar-width", "360");
+    await renderTabs();
+    const layout = document.querySelector(".layout") as HTMLElement;
+    expect(layout.style.getPropertyValue("--sidebar-width")).toBe("360px");
+    expect(screen.getByRole("separator", { name: "Resize sidebar" })).toBeTruthy();
+  });
 });

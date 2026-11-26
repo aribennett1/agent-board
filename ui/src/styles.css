@@ -1472,13 +1472,19 @@ a.item:hover {
 .layout {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width, 240px) minmax(0, 1fr);
 }
 
-.sidenav {
+.sidenav-shell {
   position: sticky;
   top: 0;
   height: 100vh;
+  min-width: 0;
+}
+
+.sidenav {
+  height: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
   background: var(--side);
   border-right: 1px solid var(--border);
@@ -1486,6 +1492,44 @@ a.item:hover {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.sidenav-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 8px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 2;
+}
+
+.sidenav-resize::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: transparent;
+  border-radius: 1px;
+}
+
+.sidenav-resize:hover::after,
+.sidenav-resize:focus-visible::after,
+.layout.is-resizing .sidenav-resize::after {
+  background: var(--cobalt, #1a56db);
+}
+
+.layout.is-resizing,
+.layout.is-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .sidenav-brand {
@@ -1687,9 +1731,15 @@ a.item:hover {
   .layout {
     grid-template-columns: 1fr;
   }
-  .sidenav {
+  .sidenav-shell {
     position: static;
     height: auto;
+  }
+  .sidenav {
+    height: auto;
+  }
+  .sidenav-resize {
+    display: none;
   }
   .panel.wide .list-head {
     display: none;
@@ -2928,16 +2978,17 @@ mark { background: #fff1a8; padding: 0 2px; border-radius: 3px; }
 .feed-dismiss:hover, .feed-dismiss:focus-visible { background: #e8edf4; }
 .feed-empty { margin: 0; padding: 0 6px; font-size: 13px; color: var(--quiet, #98a2b3); }
 .feed-list { flex: 1; min-height: 0; overflow-y: auto; list-style: none; margin: 0; padding: 0 4px 4px; display: flex; flex-direction: column; gap: 8px; scroll-behavior: smooth; }
-.notice { display: flex; align-items: flex-start; gap: 6px; }
+.notice { display: flex; align-items: flex-start; gap: 6px; min-width: 0; max-width: 100%; }
 .notice-avatar { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
-.notice-bubble { position: relative; flex: 1; min-width: 0; background: #fff; border: 1px solid var(--border); border-radius: 4px 12px 12px 12px; padding: 6px 24px 7px 9px; font-size: 12.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.notice-bubble { position: relative; flex: 1; min-width: 0; max-width: 100%; background: #fff; border: 1px solid var(--border); border-radius: 4px 12px 12px 12px; padding: 6px 24px 7px 9px; font-size: 12.5px; line-height: 1.4; overflow-wrap: anywhere; overflow-x: hidden; }
 .notice-clear { position: absolute; top: 2px; right: 3px; width: 20px; height: 20px; border: 0; padding: 0; background: none; font-size: 15px; line-height: 1; color: var(--muted, #667085); cursor: pointer; border-radius: 50%; }
 .notice-clear:hover, .notice-clear:focus-visible { background: #eef0f3; color: inherit; }
-.notice-meta { display: flex; gap: 6px; align-items: baseline; margin: 0 0 2px; font-size: 11px; color: var(--muted, #667085); }
-.notice-bot { font-size: 12px; background: none !important; }
-.notice-text { margin: 0; font-size: 12.5px; }
+.notice-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; margin: 0 0 2px; font-size: 11px; color: var(--muted, #667085); min-width: 0; }
+.notice-bot { font-size: 12px; background: none !important; overflow-wrap: anywhere; }
+.notice-text, .notice-text * { margin: 0; font-size: 12.5px; overflow-wrap: anywhere; min-width: 0; }
 .notice-text p { margin: 0 0 4px; }
-.notice-next, .notice-link { margin: 3px 0 0; font-size: 11px; color: var(--muted, #667085); }
+.notice-next, .notice-link, .notice-link a { margin: 3px 0 0; font-size: 11px; color: var(--muted, #667085); overflow-wrap: anywhere; min-width: 0; max-width: 100%; }
+.feed, .feed-list { min-width: 0; max-width: 100%; overflow-x: hidden; }
 
 
 /* Who raised a Conversation card or thread. One color per bot, small pill, top left. */

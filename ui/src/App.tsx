@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { board as bundledBoard } from "./data/board";
 import type { Board, Decision, ItemDetail, MyPR, Priority, ReviewDraft } from "./data/types";
 import { DecisionCard, type ClarifyState, type NotRelevantState } from "./DecisionCard";
@@ -65,6 +65,8 @@ import { useNeedsYouBadge } from "./needsYouBadge";
 import { sameSha, staleContext } from "./triage";
 import { TriageQueue } from "./TriageQueue";
 import { WEBHOOK_CONFIGURED } from "./config";
+import { useSidebarWidth } from "./useSidebarWidth";
+import { SIDEBAR_MIN } from "./sidebarWidth";
 
 const TOAST_MS = 5000;
 // The page never holds the webhook URL or auth: every send goes to the server's forwarder (FALLBACK_PATH).
@@ -154,6 +156,7 @@ function approvalChipOf(e: Entry, st: { needs: boolean; reason: string }, detail
 }
 
 export default function App({ view, onSelect, project, projectLabel, focus, onFocus }: AppProps = {}) {
+  const sidebar = useSidebarWidth();
   const board = useLiveBoard(bundledBoard);
   setTicketSummaries(board.ticket_summaries);
   // The live board says whether the webhook is on; the page-load value only covers the first paint.
@@ -1083,7 +1086,8 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   const navCurrent: View = view === "focus" ? (KIND_BACK[(focus ?? "").split("/")[0] as Kind]?.view ?? "home") : (view === "conversation" ? "home" : (view ?? "home"));
 
   return (
-    <div className="layout">
+    <div className={sidebar.dragging ? "layout is-resizing" : "layout"} style={{ "--sidebar-width": `${sidebar.width}px` } as CSSProperties}>
+      <div className="sidenav-shell">
       <nav className="sidenav" aria-label="Views">
         <div className="sidenav-brand">
           <span className="dot" aria-hidden="true" />
@@ -1108,6 +1112,20 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
         <Notifications items={board.notifications ?? []} />
         <div className="sidenav-foot">{headerDate(now)} · local</div>
       </nav>
+      <div
+        className="sidenav-resize"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        aria-valuenow={sidebar.width}
+        aria-valuemin={SIDEBAR_MIN}
+        onPointerDown={sidebar.onPointerDown}
+        onPointerMove={sidebar.onPointerMove}
+        onPointerUp={sidebar.onPointerUp}
+        onPointerCancel={sidebar.onPointerCancel}
+        onDoubleClick={sidebar.onDoubleClick}
+      />
+      </div>
 
       <div className="content">
         {markerEl && <div className="content-marker">{markerEl}</div>}
