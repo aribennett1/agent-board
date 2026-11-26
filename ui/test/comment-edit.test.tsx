@@ -23,6 +23,9 @@ function makeTempBoard() {
 }
 
 function runAb(boardFile: string, args: string[]) {
+  if ((args[0] === "raise" || args[0] === "assistant") && !args.includes("--bot")) {
+    args = [args[0], "--bot", "Planner", ...args.slice(1)];
+  }
   try {
     const out = execFileSync(process.execPath, [AB_MJS, ...args], {
       env: { ...process.env, AB_FILE: boardFile, AB_NO_SERVER: "1" },
@@ -139,7 +142,7 @@ describe("comment edit cards", () => {
 
 describe("ab raise and lint require current_text and an honest what_happens_after on edit cards", () => {
   const base = {
-    id: "test-edit-comment",
+    id: "planner-test-edit-comment",
     title: "Fix a code suggestion in your overtime comment",
     context: "You already posted a comment on the payroll export about overtime counting twice. Only the code box is broken.",
     question: "Swap the broken code box in your posted overtime comment for the clean one?",
@@ -167,7 +170,9 @@ describe("ab raise and lint require current_text and an honest what_happens_afte
     },
     tier: "quick",
     estimate: "20 seconds",
-    group: "pr:app/202",
+    group: "app#202",
+    card_ref: "https://github.com/ROWSHR/app/pull/202",
+    priority: "medium",
   };
 
   it("rejects an edit card with no current_text", () => {

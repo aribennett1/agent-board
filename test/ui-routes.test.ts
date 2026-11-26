@@ -186,20 +186,23 @@ test('ab CLI: raise writes a decision card with options and a diagram into SQLit
   const dbPath = join(dir, 'board.db');
   open(dbPath).close();
   const run = (...args: string[]) => execFileSync(process.execPath, [join(import.meta.dirname, '..', 'bin', 'ab.mjs'), ...args], { env: { ...process.env, AGENT_BOARD_DB: dbPath, AB_NO_SERVER: '1', AB_NO_GH: '1' }, encoding: 'utf8' });
-  run('raise', JSON.stringify(card('card-one', {
+  run('raise', '--bot', 'Planner', JSON.stringify(card('planner-card-one', {
     context: 'The checkout page is slow because it loads every product image at full size before the page can be used.',
     question: 'Should we compress the images?', what_happens_after: 'The assistant starts compressing them.',
     svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>',
+    priority: 'medium',
+    group: 'ROWS-5207',
+    card_ref: 'https://linear.app/rows/issue/ROWS-5207/checkout-images',
   })));
   const db = open(dbPath);
   const e = env();
   const app = createApp(db, e.clock);
   const feed = await (await app.request('/__ab/board')).json();
-  assert.equal(feed.decisions[0].id, 'card-one');
+  assert.equal(feed.decisions[0].id, 'planner-card-one');
   assert.match(feed.decisions[0].svg, /<svg/);
-  run('clear', 'card-one', '--reason', 'not relevant');
+  run('clear', 'planner-card-one', '--reason', 'not relevant');
   assert.equal((await (await app.request('/__ab/board')).json()).decisions.length, 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ui_tombstones').get()?.n, 1);
-  run('restore', 'card-one');
+  run('restore', 'planner-card-one');
   assert.equal((await (await app.request('/__ab/board')).json()).decisions.length, 1);
 });

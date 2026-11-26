@@ -64,21 +64,20 @@ describe("Left nav", () => {
     expect([...nav().querySelectorAll(".nav-item")].map((b) => b.getAttribute("data-view"))).toEqual([
       "conversation",
       "home",
-      "tickets",
       "mine",
       "others",
     ]);
     expect(item("notifications")).toBeNull();
     expect(item("reviews")).toBeNull();
+    expect(item("tickets")).toBeNull();
     expect(item("project")).toBeNull();
     expect(item("home").querySelector(".nav-count")?.textContent).toBe("1");
     expect(item("conversation").querySelector(".nav-count")?.textContent).toBe("1");
     // Sidebar badges and tab headers show only the Needs-you count; none when it's 0.
     // Others' PRs badges the review requests waiting on the owner (one here); the rest show none.
     expect(item("others").querySelector(".nav-count")?.textContent).toBe("1");
-    expect(item("tickets").querySelector(".nav-count")).toBeNull();
     expect(item("mine").querySelector(".nav-count")).toBeNull();
-    // Waiting on others and Dr. Assistant are folded into My tickets and Home; the old tabs are gone from the nav.
+    // Dr. Assistant is folded into Home; My tickets is hidden for now; the old tabs are gone from the nav.
     expect(item("assistant")).toBeNull();
     expect(item("waiting")).toBeNull();
     expect(current()).toEqual(["home"]);
@@ -97,10 +96,10 @@ describe("Left nav", () => {
 
   it("shows only the picked section, keeps it in the hash, and goes back to Conversation", async () => {
     await renderTabs();
-    fireEvent.click(item("tickets"));
-    expect(current()).toEqual(["tickets"]);
-    expect(window.location.hash).toBe("#tickets");
-    expect(screen.getByRole("heading", { name: "My tickets" })).toBeTruthy();
+    fireEvent.click(item("mine"));
+    expect(current()).toEqual(["mine"]);
+    expect(window.location.hash).toBe("#mine");
+    expect(screen.getByRole("heading", { name: "My PRs" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: /Needs you/ })).toBeNull();
 
     fireEvent.click(item("others"));
@@ -113,14 +112,19 @@ describe("Left nav", () => {
     expect(screen.queryByText("Docs pass")).toBeNull();
   });
 
-  it("keeps old #waiting and #assistant links working", async () => {
-    window.history.replaceState(null, "", "/#waiting");
-    await renderTabs();
-    expect(current()).toEqual(["tickets"]);
-    cleanup();
+  it("keeps old #assistant links working, and #tickets or #waiting (retired My tickets) open Conversation", async () => {
     window.history.replaceState(null, "", "/#assistant");
     await renderTabs();
     expect(current()).toEqual(["home"]);
+    cleanup();
+    window.history.replaceState(null, "", "/#tickets");
+    await renderTabs();
+    expect(current()).toEqual(["conversation"]);
+    expect(item("tickets")).toBeNull();
+    cleanup();
+    window.history.replaceState(null, "", "/#waiting");
+    await renderTabs();
+    expect(current()).toEqual(["conversation"]);
   });
 
   it("opens the section named in the hash on load", async () => {

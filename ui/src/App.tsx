@@ -104,10 +104,10 @@ const loadReviewLocals = (): ReviewLocals => {
 type Kind = "ticket" | "mypr" | "pr" | "waiting" | "decision";
 const KIND_LABEL: Record<Kind, string> = { ticket: "Ticket", mypr: "My PR", pr: "Pull request", waiting: "Waiting on others", decision: "Decision" };
 const KIND_BACK: Record<Kind, { view: View; label: string }> = {
-  ticket: { view: "tickets", label: "My tickets" },
+  ticket: { view: "conversation", label: "Conversation" },
   mypr: { view: "mine", label: "My PRs" },
   pr: { view: "others", label: "Others' PRs" },
-  waiting: { view: "tickets", label: "My tickets" },
+  waiting: { view: "conversation", label: "Conversation" },
   decision: { view: "home", label: "Home" },
 };
 // Quick actions when the item's detail names none. Each sends its label to the assistant as a message on the item.
@@ -990,7 +990,6 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
   const nav: { id: View; label: ReactNode; count?: number; urgent?: boolean }[] = [
     { id: "conversation", label: "Conversation", count: openQs, urgent: openQs > 0 },
     { id: "home", label: "Home", count: queue.length + assistantQueue.length, urgent },
-    { id: "tickets", label: "My tickets" },
     { id: "mine", label: "My PRs", count: live.mineNeeds },
     { id: "others", label: "Others' PRs", count: live.othersAsked },
     ...(project ? [{ id: "project" as const, label: projectLabel ?? "Project" }] : []),
@@ -1150,6 +1149,7 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
             </PrTable>
           </div>
         )}
+        {/* My tickets is hidden for now. Re-enable: add it back to the nav and BOARD_VIEWS, and set LINEAR_FEED_ENABLED. */}
         {view === "tickets" && <MyTickets items={(board.glance.tickets ?? []) as unknown as FeedTicket[]} meta={board.feed ?? undefined} />}
         {view === "mine" && <MyPrs items={(board.glance.mine ?? []) as unknown as FeedPr[]} meta={board.feed ?? undefined} />}
         {view === "others" && <OthersPrs

@@ -24,6 +24,9 @@ function makeTempBoard() {
 }
 
 function runAb(boardFile: string, args: string[]) {
+  if ((args[0] === "raise" || args[0] === "assistant") && !args.includes("--bot")) {
+    args = [args[0], "--bot", "Planner", ...args.slice(1)];
+  }
   try {
     const out = execFileSync(process.execPath, [AB_MJS, ...args], {
       env: { ...process.env, AB_FILE: boardFile, AB_NO_SERVER: "1" },
@@ -253,11 +256,15 @@ describe("ab.mjs structural rules", () => {
       const bad = runAb(boardFile, [
         "raise",
         JSON.stringify({
-          id: "test-post-missing",
+          id: "planner-test-post-missing",
           title: "Post on #9999?",
           context: "The time off PR has a Bugbot comment on the validation rule. Checking if you want to post a reply.",
           question: "Post this exact reply on Bugbot's thread on #9999?",
-          what_happens_after: "Posts reply.",
+          what_happens_after: "I post the reply on GitHub.",
+
+          group: "app#9999",
+          card_ref: "https://github.com/ROWSHR/app/pull/9999",
+          priority: "medium",
           options: [
             { id: "post", label: "Post it" },
             { id: "skip", label: "Skip" },
@@ -270,11 +277,15 @@ describe("ab.mjs structural rules", () => {
       const badNoPostText = runAb(boardFile, [
         "raise",
         JSON.stringify({
-          id: "test-post-missing-text",
+          id: "planner-test-post-missing-text",
           title: "Post on #9999?",
           context: "The time off PR has a Bugbot comment on the validation rule. Checking if you want to post a reply.",
           question: "Post this exact reply on Bugbot's thread on #9999?",
-          what_happens_after: "Posts reply.",
+          what_happens_after: "I post the reply on GitHub.",
+
+          group: "app#9999",
+          card_ref: "https://github.com/ROWSHR/app/pull/9999",
+          priority: "medium",
           answers_comment: {
             author: "cursor[bot]",
             pr: 9999,
@@ -293,11 +304,15 @@ describe("ab.mjs structural rules", () => {
       const good = runAb(boardFile, [
         "raise",
         JSON.stringify({
-          id: "test-post-ok",
+          id: "planner-test-post-ok",
           title: "Post on #9999?",
           context: "The time off PR has a Bugbot comment on the validation rule. Checking if you want to post a reply.",
           question: "Post this exact reply on Bugbot's thread on #9999?",
-          what_happens_after: "Posts reply.",
+          what_happens_after: "I post the reply on GitHub.",
+
+          group: "app#9999",
+          card_ref: "https://github.com/ROWSHR/app/pull/9999",
+          priority: "medium",
           answers_comment: {
             author: "cursor[bot]",
             pr: 9999,
@@ -319,11 +334,15 @@ describe("ab.mjs structural rules", () => {
       const goodThumb = runAb(boardFile, [
         "raise",
         JSON.stringify({
-          id: "test-thumb-ok",
+          id: "planner-test-thumb-ok",
           title: "👍 Bugbot on #9999?",
           context: "The time off PR has a Bugbot comment we agree with. Checking if you want to add a thumbs up.",
           question: "Put 👍 on Bugbot's thread on #9999?",
-          what_happens_after: "Adds thumbs up.",
+          what_happens_after: "I add a thumbs up on the thread.",
+
+          group: "app#9999",
+          card_ref: "https://github.com/ROWSHR/app/pull/9999",
+          priority: "medium",
           answers_comment: {
             author: "cursor[bot]",
             pr: 9999,
@@ -369,12 +388,14 @@ describe("ab.mjs structural rules", () => {
       const badPush = runAb(boardFile, [
         "raise",
         JSON.stringify({
-          id: "test-push-no-sha",
-          group: "pr:app/9998",
+          id: "planner-test-push-no-sha",
+          group: "app#9998",
+          card_ref: "https://github.com/ROWSHR/app/pull/9998",
+          priority: "medium",
           title: "Payroll fix (#9998): push branch",
           context: "Ready to push the payroll fix branch. Waiting for your go-ahead.",
           question: "Push #9998 now?",
-          what_happens_after: "Pushes.",
+          what_happens_after: "I push the branch to GitHub.",
           options: [
             { id: "push", label: "Push" },
             { id: "wait", label: "Wait" },
@@ -390,12 +411,14 @@ describe("ab.mjs structural rules", () => {
         runAb(boardFile, [
           "raise",
           JSON.stringify({
-            id: "test-push-1",
-            group: "pr:app/9998",
+            id: "planner-test-push-1",
+            group: "app#9998",
+          card_ref: "https://github.com/ROWSHR/app/pull/9998",
+          priority: "medium",
             title: "Payroll fix (#9998): push branch",
             context: "Ready to push the payroll fix branch. Waiting for your go-ahead.",
             question: "Push #9998 now?",
-            what_happens_after: "Pushes.",
+            what_happens_after: "I push the branch to GitHub.",
             sha: sha1,
             options: [
               { id: "push", label: "Push" },
@@ -409,12 +432,14 @@ describe("ab.mjs structural rules", () => {
         runAb(boardFile, [
           "raise",
           JSON.stringify({
-            id: "test-push-2",
-            group: "pr:app/9998",
+            id: "planner-test-push-2",
+            group: "app#9998",
+          card_ref: "https://github.com/ROWSHR/app/pull/9998",
+          priority: "medium",
             title: "Payroll fix (#9998): push branch",
             context: "New commit is ready on the payroll fix branch. Waiting for your go-ahead.",
             question: "Push #9998 now?",
-            what_happens_after: "Pushes.",
+            what_happens_after: "I push the branch to GitHub.",
             sha: sha2,
             options: [
               { id: "push", label: "Push" },
@@ -425,9 +450,9 @@ describe("ab.mjs structural rules", () => {
       ).toBe(0);
 
       const b2 = readBoard(boardFile);
-      const p1 = b2.decisions.find((d) => d.id === "test-push-1");
-      const p2 = b2.decisions.find((d) => d.id === "test-push-2");
-      expect(p1?.superseded_by).toBe("test-push-2");
+      const p1 = b2.decisions.find((d) => d.id === "planner-test-push-1");
+      const p2 = b2.decisions.find((d) => d.id === "planner-test-push-2");
+      expect(p1?.superseded_by).toBe("planner-test-push-2");
       expect(p2?.superseded_by).toBeUndefined();
       expect(p2?.sha).toBe(sha2);
     } finally {
@@ -475,12 +500,14 @@ describe("Review card options post_text and raw ticket inline lint rules", () =>
       const missingOptPostText = runAb(boardFile, [
         "raise",
         JSON.stringify({
-          id: "test-review-missing-post-text",
-          group: "pr:app/9997",
+          id: "planner-test-review-missing-post-text",
+          group: "app#9997",
+          card_ref: "https://github.com/ROWSHR/app/pull/9997",
+          priority: "medium",
           title: "ops review of #9997",
           context: "ops reviewed PR #9997 and found two issues on the export.",
           question: "Which comments should ops post?",
-          what_happens_after: "ops posts picked comments.",
+          what_happens_after: "ops posts the comments you picked.",
           multiSelect: true,
           options: [
             { id: "f1", label: "#1 Foo.php:10" },
@@ -494,11 +521,11 @@ describe("Review card options post_text and raw ticket inline lint rules", () =>
       const rawInline = runAb(boardFile, [
         "raise",
         JSON.stringify({
-          id: "test-raw-ticket-inline",
+          id: "planner-test-raw-ticket-inline",
           title: "Fix time off request",
           context: "## PROJ-2512: Endpoints for viewing\n\n- **Ticket:** [PROJ-2512](https://linear.app/acme/issue/PROJ-2512)",
           question: "Proceed?",
-          what_happens_after: "Continues.",
+          what_happens_after: "Work on the ticket continues from here.",
           options: [
             { id: "yes", label: "Yes" },
             { id: "no", label: "No" },

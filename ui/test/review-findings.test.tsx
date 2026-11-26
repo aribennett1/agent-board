@@ -36,6 +36,9 @@ function makeTempBoard() {
 }
 
 function runAb(boardFile: string, args: string[]) {
+  if ((args[0] === "raise" || args[0] === "assistant") && !args.includes("--bot")) {
+    args = [args[0], "--bot", "Planner", ...args.slice(1)];
+  }
   try {
     const out = execFileSync(process.execPath, [AB_MJS, ...args], {
       env: { ...process.env, AB_FILE: boardFile, AB_NO_SERVER: "1" },
@@ -385,8 +388,10 @@ describe("per-finding review card UI", () => {
 
 describe("ab raise and lint require the per-finding review shape", () => {
   const raiseBase = {
-    id: "test-review-per-finding",
-    group: "pr:app/9997",
+    id: "planner-test-review-per-finding",
+    group: "app#9997",
+    card_ref: "https://github.com/ROWSHR/app/pull/9997",
+    priority: "medium",
     title: "ops review of #9997",
     context: "ops reviewed PR #9997 and found two issues on the export.",
     question: "Should ops post each of these comments?",

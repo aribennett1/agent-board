@@ -4,7 +4,7 @@
 // `ab raise` writes the board, confirms the live server serves it, and only then prints
 // the chat-card payload. No board write => no card text => no chat-only decision.
 //
-//   ab raise '<json>' | ab raise < decision.json   -> prints {"card":{...}} on success
+//   ab raise --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> '<json>' | ab raise --bot Planner < decision.json
 //     Stored fields: id, title, context, question, ... ("link" is card-only: it fills card_ref).
 //     The user must understand the card cold, so raise refuses (exit 2, board untouched) a card that does not say what it is about:
 //     "context" (required, shown first): short paragraphs or bullets, each 3 lines or fewer (~280 chars), total 800 or fewer,
@@ -34,10 +34,17 @@
 //     shows a highlighted diff of current_text against post_text, not two full copies. "what_happens_after"
 //     must say what actually happens on GitHub (edit, or delete and re-post), not that the answer only goes to ops.
 //     Recommendations are shown, never preselected. Dr. Assistant cards are not required to have triage fields.
-//   ab raise '<json>' [--bot <Planner|QA|Engineer|dr eggbot|Grok Bot>]
-//                                                      --bot is never needed: the Conversation tab works out who raised a
-//                                                      card from the card's id, its ticket or plan, and task notes. If it
-//                                                      is given it is stored as raised_by and takes priority.
+//   ab raise --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> '<json>'
+//                                                      --bot (or raised_by in the JSON) is required. The card id must start
+//                                                      with that bot's prefix: planner-, qa-, engineer-, eggbot-, grok-.
+//                                                      Also required: what_happens_after (plain words); priority (high|medium|low);
+//                                                      group (ROWS-1234, or #1234, or repo#1234); card_ref/link (Linear URL
+//                                                      https://linear.app/rows/issue/<same key>/... or GitHub URL
+//                                                      https://github.com/ROWSHR/<repo>/pull/<same number>); at least two
+//                                                      options with unique ids and none preselected, unless this is a free-text
+//                                                      card (allowCustom: true and no options). svg is optional. Unknown fields
+//                                                      are rejected. A re-raise must pass the same checks; --bot may be omitted
+//                                                      only when the card already has a stored author.
 //   ab assistant '<json>' | ab assistant < finding.json
 //                                                      posts an assistant finding or proposed bot change on the Dr. Assistant tab
 //                                                      (#assistant). Same title/context/question rules as raise, plus required
@@ -958,6 +965,69 @@ function findingOnCard(d, id) {
   });
 }
 
+
+// Required shape for ab raise / ab assistant. Existing open cards are not rewritten to this shape; they still render.
+const BOT_ID_PREFIX = { Planner: "planner-", QA: "qa-", Engineer: "engineer-", "dr eggbot": "eggbot-", "Grok Bot": "grok-" };
+function prefixesFor(bot) {
+  if (bot === "dr eggbot") return ["eggbot-", "dr-eggbot-"];
+  const p = BOT_ID_PREFIX[bot];
+  return p ? [p] : [];
+}
+function parseGroup(g) {
+  const s = String(g ?? "").trim();
+  let m = /^(?:ticket:)?(ROWS-\d+)$/i.exec(s);
+  if (m) return { kind: "ticket", key: m[1].toUpperCase() };
+  m = /^#(\d+)$/.exec(s);
+  if (m) return { kind: "pr", number: m[1], repo: null };
+  m = /^([A-Za-z0-9._-]+)#(\d+)$/.exec(s);
+  if (m) return { kind: "pr", repo: m[1], number: m[2] };
+  return null;
+}
+function groupLinkError(d) {
+  const g = parseGroup(d.group);
+  if (!g) return "group is required and must be a ticket key (ROWS-1234) or a PR (#1234 or repo#1234)";
+  const url = typeof d.card_ref === "string" ? d.card_ref.trim() : "";
+  if (!url) return "card_ref (or link) is required: a Linear URL for a ticket group, or a GitHub URL for a PR group";
+  if (g.kind === "ticket") {
+    const m = /^https:\/\/linear\.app\/rows\/issue\/(ROWS-\d+)(?:\/|$|\?)/i.exec(url);
+    if (!m) return "card_ref must be a Linear URL starting with https://linear.app/rows/issue/" + g.key;
+    if (m[1].toUpperCase() !== g.key) return "card_ref ticket key must match group " + g.key;
+    return null;
+  }
+  const m = /^https:\/\/github\.com\/ROWSHR\/([^/]+)\/pull\/(\d+)(?:\/|$|\?)/i.exec(url);
+  if (!m) return "card_ref must be a GitHub URL of the form https://github.com/ROWSHR/<repo>/pull/<number>";
+  if (m[2] !== g.number) return "card_ref PR number must match group";
+  if (g.repo && g.repo.toLowerCase() !== m[1].toLowerCase()) return "card_ref repo must match group " + g.repo;
+  return null;
+}
+function afterError(t) {
+  if (typeof t !== "string" || !t.trim()) return "what_happens_after is required, in plain words";
+  if (words(t).length < 4) return "what_happens_after needs at least 4 plain words";
+  return null;
+}
+function optionsShapeError(d) {
+  const freeText = d.allowCustom === true && (!Array.isArray(d.options) || d.options.length === 0);
+  if (freeText) return null;
+  if (isPerFindingReviewCard(d) && (!Array.isArray(d.options) || d.options.length === 0)) return null;
+  if (!Array.isArray(d.options) || d.options.length < 2) return "need at least two options with unique ids (or a free-text card: allowCustom true and no options)";
+  if (d.options.some((o) => o && (o.selected === true || o.preselected === true || o.default === true))) return "options must not be preselected";
+  return null;
+}
+/** New-write / re-raise checks. Does not infer the author from the id prefix. */
+function raiseShapeError(d, cmd) {
+  if (!BOARD_BOTS.has(d.raised_by)) return cmd + ": --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> is required (or set raised_by in the JSON). A re-raise may omit it only when the card already has a stored author.";
+  const prefixes = prefixesFor(d.raised_by);
+  if (!prefixes.some((p) => String(d.id || "").startsWith(p))) return cmd + ": id must start with " + BOT_ID_PREFIX[d.raised_by] + " when the author is " + d.raised_by;
+  const after = afterError(d.what_happens_after);
+  if (after) return cmd + ": " + after;
+  const opts = optionsShapeError(d);
+  if (opts) return cmd + ": " + opts;
+  const gl = groupLinkError(d);
+  if (gl) return cmd + ": " + gl;
+  if (!isPriority(d.priority)) return cmd + ": priority is required and must be high, medium or low";
+  return null;
+}
+
 if (cmd === "raise" || cmd === "assistant") {
   const asAssistant = cmd === "assistant";
   const raisedByFlag = flag(args, "--bot");
@@ -976,14 +1046,12 @@ if (cmd === "raise" || cmd === "assistant") {
   if (raisedByFlag) d.raised_by = raisedByFlag;
   if (d.raised_by !== undefined && !BOARD_BOTS.has(d.raised_by)) die(2, (asAssistant ? "assistant" : "raise") + ": --bot / raised_by must be Planner, QA, Engineer, dr eggbot or Grok Bot");
   if (!/^[a-z0-9][a-z0-9-]{2,80}$/.test(d.id || "")) die(2, "id must be lowercase-kebab, 3-81 chars");
-  if (!d.question || !d.what_happens_after) die(2, "need question and what_happens_after in plain words");
-  if (isPerFindingReviewCard(d)) {
-    if (d.options !== undefined && !Array.isArray(d.options)) die(2, "options must be an array when set");
-    d.options = Array.isArray(d.options) ? d.options : [];
-  } else if (!Array.isArray(d.options) || !d.options.length) die(2, "need at least one option");
-  if (asAssistant && d.options.length < 2) die(2, "assistant: need at least two options (usual set: Apply it, Don't apply, Change it)");
+  if (d.options !== undefined && !Array.isArray(d.options)) die(2, "options must be an array when set");
+  d.options = Array.isArray(d.options) ? d.options : [];
+  const freeText = d.allowCustom === true && d.options.length === 0;
+  if (asAssistant && !freeText && !isPerFindingReviewCard(d) && d.options.length < 2) die(2, "assistant: need at least two options (usual set: Apply it, Don't apply, Change it)");
   const ids = d.options.map((o) => o.id);
-  if (d.options.some((o) => !o.id || !o.label || ("post_text" in o && typeof o.post_text !== "string")) || new Set(ids).size !== ids.length || ids.includes("custom")) die(2, "options need unique id+label (and string post_text when set); 'custom' is reserved");
+  if (d.options.length && (d.options.some((o) => !o.id || !o.label || ("post_text" in o && typeof o.post_text !== "string")) || new Set(ids).size !== ids.length || ids.includes("custom"))) die(2, "options need unique id+label (and string post_text when set); 'custom' is reserved");
   for (const k of ["multiSelect", "allowCustom", "pinned"]) if (k in d && typeof d[k] !== "boolean") die(2, k + " must be true or false");
   if ("details" in d) { const e = detailsError(d.details); if (e) die(2, e); }
   if ("priority" in d && !isPriority(d.priority)) die(2, "priority must be high, medium or low");
@@ -1006,9 +1074,9 @@ if (cmd === "raise" || cmd === "assistant") {
   if (k >= 0 && asAssistant && f.b.decisions[k].section !== "assistant") die(2, "assistant: " + d.id + " is already a Home decision; use a new id");
   d.card_ref = d.card_ref ?? null;
   if (typeof d.svg === "string") d.svg = sanitizeSvg(d.svg);
-  // A re-raise without priority keeps the stored one; a new card without it stays without it (medium).
-  if (!("priority" in d) && k >= 0 && "priority" in f.b.decisions[k]) d.priority = f.b.decisions[k].priority;
   if (!("raised_by" in d) && k >= 0 && f.b.decisions[k].raised_by) d.raised_by = f.b.decisions[k].raised_by;
+  const shape = raiseShapeError(d, asAssistant ? "assistant" : "raise");
+  if (shape) die(2, shape);
   // created_at and updated_at go last, side by side. New: updated_at = created_at. Re-raise: updated_at = now,
   // and the stored created_at wins over a passed one (a passed one only fills a card that has none).
   const created = (k >= 0 && f.b.decisions[k].created_at) || d.created_at || (k >= 0 ? undefined : new Date().toISOString());

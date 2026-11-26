@@ -15,7 +15,12 @@ const file = join(dir, "app/src/data/board.ts");
 mkdirSync(join(dir, "app/src/data"), { recursive: true });
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 const AB = join(process.cwd(), "..", "bin/ab.mjs");
-const ab = (args: string[]) => spawnSync("node", [AB, ...args], { encoding: "utf8", env: { ...process.env, AB_FILE: file, AB_NO_SERVER: "1" } });
+const ab = (args: string[]) => {
+  if ((args[0] === "assistant" || args[0] === "raise") && !args.includes("--bot")) {
+    args = [args[0], "--bot", "dr eggbot", ...args.slice(1)];
+  }
+  return spawnSync("node", [AB, ...args], { encoding: "utf8", env: { ...process.env, AB_FILE: file, AB_NO_SERVER: "1" } });
+};
 const read = (): Board => {
   const s = readFileSync(file, "utf8");
   return JSON.parse(s.slice(s.indexOf(A) + A.length, s.indexOf(Z)));
@@ -25,7 +30,7 @@ const seed = (b: Partial<Board>) =>
   writeFileSync(file, `export const board = ${A}\n${JSON.stringify({ updated_at: at, decisions: [], glance: { waiting: [], tickets: [], others: [] }, ...b })}\n${Z};\n`);
 
 const finding = {
-  id: "assistant-sample-finding",
+  id: "eggbot-sample-finding",
   title: "Assistant skipped the context paragraph",
   context: "The ops bot audited Assistant against the question format rules. One finding is ready for you to accept or change.",
   bot: "Assistant",
@@ -34,6 +39,9 @@ const finding = {
   proposed_fix: "Refuse a question with no context, and re-ask that one with a short paragraph.",
   question: "Apply this Assistant fix?",
   what_happens_after: "If you apply the fix, the profile is updated as proposed. If you do not, Assistant stays as is.",
+  priority: "medium",
+  group: "ROWS-5207",
+  card_ref: "https://linear.app/rows/issue/ROWS-5207/assistant-audit",
   options: [
     { id: "apply", label: "Apply it" },
     { id: "dont", label: "Don't apply" },
@@ -47,7 +55,7 @@ describe("ab assistant", () => {
     const r = ab(["assistant", JSON.stringify(finding)]);
     expect(r.status, r.stderr || r.stdout).toBe(0);
     const out = JSON.parse(r.stdout);
-    expect(out).toMatchObject({ ok: true, card: { section: "assistant", decision_id: "assistant-sample-finding", bot: "Assistant" } });
+    expect(out).toMatchObject({ ok: true, card: { section: "assistant", decision_id: "eggbot-sample-finding", bot: "Assistant" } });
     expect(out.card.footer).toMatch(/#assistant/);
     const d = read().decisions[0];
     expect(d.section).toBe("assistant");
@@ -55,7 +63,7 @@ describe("ab assistant", () => {
     const check = JSON.parse(ab(["check"]).stdout);
     expect(check.ok).toBe(true);
     expect(check.open_on_board).toEqual([]);
-    expect(check.assistant_open).toEqual(["assistant-sample-finding"]);
+    expect(check.assistant_open).toEqual(["eggbot-sample-finding"]);
     expect(ab(["lint"]).status).toBe(0);
   });
 
@@ -70,13 +78,16 @@ describe("ab assistant", () => {
   it("stores a grouped fixes table and multi-select options", () => {
     seed({});
     const grouped = {
-      id: "assistant-audit-root-causes",
+      id: "eggbot-audit-root-causes",
       title: "Root causes R1-R5 from today's audit",
       context: "The ops bot audited Assistant and ops against your rules today. Five root causes sat underneath the repeated questions.",
       bot: "Assistant and ops",
       rule: "Root causes behind today's board and profile drift",
       question: "Which of these root-cause fixes should be applied?",
       what_happens_after: "Picked rows are applied; the rest stay. Apply none leaves the bots as they are.",
+  priority: "medium",
+  group: "ROWS-5207",
+  card_ref: "https://linear.app/rows/issue/ROWS-5207/assistant-audit",
       multiSelect: true,
       fixes: [
         { id: "R1", seen: "The nickname slipped into a heading.", proposed: "Never write that nickname; rename the heading." },
@@ -90,7 +101,7 @@ describe("ab assistant", () => {
       ],
     };
     expect(ab(["assistant", JSON.stringify(grouped)]).status, ab(["assistant", JSON.stringify(grouped)]).stderr).toBe(0);
-    const d = read().decisions.find((x) => x.id === "assistant-audit-root-causes")!;
+    const d = read().decisions.find((x) => x.id === "eggbot-audit-root-causes")!;
     expect(d.multiSelect).toBe(true);
     expect(d.fixes?.map((f) => f.id)).toEqual(["R1", "R2"]);
     expect(ab(["lint"]).status).toBe(0);
@@ -99,14 +110,14 @@ describe("ab assistant", () => {
   it("stores a sanitized svg diagram and refuses a non-SVG", () => {
     seed({});
     const dirty = '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script><text>Roots</text></svg>';
-    const r = ab(["assistant", JSON.stringify({ ...finding, id: "assistant-svg", svg: dirty })]);
+    const r = ab(["assistant", JSON.stringify({ ...finding, id: "eggbot-svg", svg: dirty })]);
     expect(r.status, r.stderr || r.stdout).toBe(0);
-    const d = read().decisions.find((x) => x.id === "assistant-svg")!;
+    const d = read().decisions.find((x) => x.id === "eggbot-svg")!;
     expect(d.svg).toContain("<svg");
     expect(d.svg).toContain("Roots");
     expect(d.svg).not.toMatch(/script|onload/i);
     expect(ab(["lint"]).status).toBe(0);
-    expect(ab(["assistant", JSON.stringify({ ...finding, id: "assistant-not-svg", svg: "just a sketch" })]).status).toBe(2);
+    expect(ab(["assistant", JSON.stringify({ ...finding, id: "eggbot-not-svg", svg: "just a sketch" })]).status).toBe(2);
   });
 });
 

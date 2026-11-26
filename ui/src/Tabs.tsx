@@ -5,21 +5,22 @@ import { ProjectTab, ProjectTabLabel } from "./ProjectTab";
 import { useLiveProject } from "./useLiveBoard";
 import type { Project } from "./data/types";
 
-const BOARD_VIEWS: View[] = ["conversation", "home", "tickets", "mine", "others"];
+const BOARD_VIEWS: View[] = ["conversation", "home", "mine", "others"]; // "tickets" is hidden for now; add it back with LINEAR_FEED_ENABLED to restore My tickets.
 const views = (project: Project | null): View[] => (project && hasProject(project) ? [...BOARD_VIEWS, "project"] : BOARD_VIEWS);
 const FOCUS_KINDS = ["ticket", "mypr", "pr", "waiting", "decision"];
 
 type Route = { view: View; focus?: string };
 
 // The hash picks the section (#reviews, #project, ...) or one item in focus mode (#ticket/PROJ-12,
-// #pr/app/101). No hash or anything unknown is the Conversation view; #waiting opens My tickets, #assistant opens Home.
+// #pr/app/101). No hash or anything unknown is the Conversation view; #assistant opens Home.
+// #tickets and #waiting used to open My tickets, which is hidden for now.
 const fromHash = (project: Project | null = null): Route => {
   const h = decodeURIComponent(window.location.hash.slice(1));
   const slash = h.indexOf("/");
   if (slash > 0 && FOCUS_KINDS.includes(h.slice(0, slash)) && h.length > slash + 1) return { view: "focus", focus: h };
   const allowed = views(project);
-  // Retired tabs keep their links: Waiting on others lives under My tickets; Dr. Assistant findings sit on Home; Reviews is part of Others' PRs. #notifications is the sidebar feed now.
-  const name = h === "waiting" ? "tickets" : h === "assistant" ? "home" : h === "reviews" ? "others" : h;
+  // Retired tabs keep their links: Dr. Assistant findings sit on Home; Reviews is part of Others' PRs; #notifications is the sidebar feed. #tickets and #waiting (My tickets) go to Conversation until that tab is restored.
+  const name = h === "assistant" ? "home" : h === "reviews" ? "others" : h;
   return { view: allowed.includes(name as View) ? (name as View) : "conversation" };
 };
 

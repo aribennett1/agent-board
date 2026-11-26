@@ -9,9 +9,11 @@ type Json = Record<string, any>;
 
 export type Gh = (args: string[]) => Promise<string>;
 export type LinearFetch = (query: string, key: string) => Promise<Json>;
-export type FeedDeps = { gh?: Gh; linear?: LinearFetch; linearKey?: string | null; now?: () => Date };
+export type FeedDeps = { gh?: Gh; linear?: LinearFetch; linearKey?: string | null; now?: () => Date; /** Test hook: override LINEAR_FEED_ENABLED. */ linearEnabled?: boolean };
 
 export const FEED_INTERVAL_MS = 120_000;
+// My tickets is hidden for now. Set this to true (and put "tickets" back in the sidebar and BOARD_VIEWS) to fetch Linear again.
+export const LINEAR_FEED_ENABLED = false;
 const BODY_MAX = 6000;
 const THREAD_BODY_MAX = 400;
 
@@ -182,17 +184,24 @@ export async function refreshFeed(db: DatabaseSync, deps: FeedDeps = {}): Promis
   } catch (e) {
     feed.github.error = errText(e);
   }
-  const key = deps.linearKey ?? process.env.LINEAR_API_KEY?.trim() ?? '';
-  if (!key) {
-    feed.linear = { ok: false, configured: false, error: 'LINEAR_API_KEY is not set in the board .env', last_ok: null };
+  // Linear is off while My tickets is hidden. The fetch, normalizeTicket and LINEAR_QUERY stay so this is one flag to turn back on.
+  if (!(deps.linearEnabled ?? LINEAR_FEED_ENABLED)) {
     feed.tickets = [];
+    feed.linear = { ok: false, configured: false, enabled: false, error: null, last_ok: null };
   } else {
-    feed.linear.configured = true;
-    try {
-      feed.tickets = await fetchLinear(deps.linear ?? linearExec, key);
-      feed.linear = { ok: true, configured: true, error: null, last_ok: iso };
-    } catch (e) {
-      feed.linear.error = errText(e);
+    const key = deps.linearKey ?? process.env.LINEAR_API_KEY?.trim() ?? '';
+    if (!key) {
+      feed.linear = { ok: false, configured: false, enabled: true, error: 'LINEAR_API_KEY is not set in the board .env', last_ok: null };
+      feed.tickets = [];
+    } else {
+      feed.linear.configured = true;
+      feed.linear.enabled = true;
+      try {
+        feed.tickets = await fetchLinear(deps.linear ?? linearExec, key);
+        feed.linear = { ok: true, configured: true, enabled: true, error: null, last_ok: iso };
+      } catch (e) {
+        feed.linear.error = errText(e);
+      }
     }
   }
   db.prepare('INSERT INTO ui_feed (key, json, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at')

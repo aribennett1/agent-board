@@ -58,32 +58,45 @@ test('normalizeTicket keeps the Linear status, priority, project, labels and lin
   assert.deepEqual([t.id, t.status, t.priority_label, t.project, t.prs], ['ROWS-9', 'In Review', 'High', 'Payroll', ['https://github.com/a/b/pull/3']]);
 });
 
-test('refreshFeed fetches GitHub with gh and Linear with the key, no bot involved, and stores both lists', async () => {
+const linearIssues = async (query: string, key: string, asked: { query: string; key: string }[]) => (asked.push({ query, key }), { issues: { nodes: [{ identifier: 'ROWS-1', title: 'T', url: 'u', priority: 1, priorityLabel: 'Urgent', state: { name: 'In Progress', type: 'started' }, updatedAt: 'x' }] } });
+
+test('refreshFeed fetches GitHub with gh, no bot involved, and does not call Linear while My tickets is hidden', async () => {
   const e = env();
   const gh = fakeGh([prNode(1), prNode(2)], [prNode(3)]);
   const asked: { query: string; key: string }[] = [];
-  const f = await refreshFeed(e.db, { gh, now: NOW, linearKey: 'lin_key', linear: async (query, key) => (asked.push({ query, key }), { issues: { nodes: [{ identifier: 'ROWS-1', title: 'T', url: 'u', priority: 1, priorityLabel: 'Urgent', state: { name: 'In Progress', type: 'started' }, updatedAt: 'x' }] } }) });
-  assert.deepEqual([f.mine.length, f.others.length, f.tickets.length], [2, 1, 1]);
-  assert.ok(f.github.ok && f.linear.ok);
-  assert.equal(asked.length, 1);
-  assert.match(asked[0].query, /isMe/);
+  const f = await refreshFeed(e.db, { gh, now: NOW, linearKey: 'lin_key', linear: (query, key) => linearIssues(query, key, asked) });
+  assert.deepEqual([f.mine.length, f.others.length, f.tickets.length], [2, 1, 0]);
+  assert.ok(f.github.ok);
+  assert.equal(f.linear.enabled, false);
+  assert.equal(asked.length, 0);
   assert.ok(gh.calls.every((c) => c[0] === 'api'), 'only read-only gh api calls');
   const qs = gh.calls.filter((c) => c.includes('graphql')).map((c) => c.find((a) => a.startsWith('q=')) ?? '');
   assert.equal(qs.length, 2);
   assert.ok(qs.every((q) => q.includes('org:ROWSHR')), 'only PRs in the ROWSHR org');
   assert.ok(qs.some((q) => q.includes('author:aribennett1') && !q.includes('-author')));
   assert.ok(qs.some((q) => q.includes('involves:aribennett1') && q.includes('-author:aribennett1')));
-  assert.equal(readFeed(e.db)!.tickets[0].id, 'ROWS-1');
   // the stored JSON holds no secret
   assert.ok(!JSON.stringify(readFeed(e.db)).includes('lin_key'));
 });
 
-test('without a Linear key tickets are empty and say why; GitHub still fills', async () => {
+test('Linear still fetches when linearEnabled is turned back on', async () => {
   const e = env();
-  const f = await refreshFeed(e.db, { gh: fakeGh([prNode(1)], []), now: NOW, linearKey: '' });
+  const asked: { query: string; key: string }[] = [];
+  const f = await refreshFeed(e.db, { gh: fakeGh([prNode(1)], []), now: NOW, linearKey: 'lin_key', linearEnabled: true, linear: (query, key) => linearIssues(query, key, asked) });
+  assert.deepEqual([f.tickets.length, f.linear.ok, f.linear.enabled], [1, true, true]);
+  assert.equal(asked.length, 1);
+  assert.match(asked[0].query, /isMe/);
+  assert.equal(readFeed(e.db)!.tickets[0].id, 'ROWS-1');
+});
+
+test('when Linear is on and no key is set, tickets are empty and say why; GitHub still fills', async () => {
+  const e = env();
+  const f = await refreshFeed(e.db, { gh: fakeGh([prNode(1)], []), now: NOW, linearKey: '', linearEnabled: true });
   assert.equal(f.linear.configured, false);
+  assert.equal(f.linear.enabled, true);
   assert.match(f.linear.error, /LINEAR_API_KEY/);
   assert.equal(f.mine.length, 1);
+  assert.equal(f.tickets.length, 0);
 });
 
 test('a source that fails keeps its last good list and records the error', async () => {

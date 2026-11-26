@@ -27,23 +27,26 @@ const at = new Date().toISOString();
 const seed = (b: Partial<Board>) =>
   writeFileSync(file, `export const board = ${A}\n${JSON.stringify({ updated_at: at, decisions: [], glance: { waiting: [], tickets: [], others: [] }, ...b })}\n${Z};\n`);
 const card = (options: { id: string; label: string }[]) => ({
-  id: "plan-x",
+  id: "planner-plan-x",
   title: "Missing PTO entry plan",
   context: "Assistant wrote the missing PTO entry plan and has nine questions for you to answer.",
   question: "How do you want to answer the missing PTO entry plan questions?",
   what_happens_after: "I pass your answers to Assistant.",
   options,
+  priority: "medium",
+  group: "ROWS-5207",
+  card_ref: "https://linear.app/rows/issue/ROWS-5207/missing-pto",
 });
 
 describe("no bulk accept (t103u)", () => {
   it("ab raise refuses a bulk-accept option or a (pick) label", () => {
     seed({});
     for (const label of ["Accept all 9 of Assistant's picks", "Take the recommendations", "Accept all recommendations", "Yes, do it (pick)"]) {
-      const r = ab(["raise", JSON.stringify(card([{ id: "a", label }, { id: "b", label: "I'll answer each one under Details" }]))]);
+      const r = ab(["raise", "--bot", "Planner", JSON.stringify(card([{ id: "a", label }, { id: "b", label: "I'll answer each one under Details" }]))]);
       expect(r.status, label).not.toBe(0);
       expect(r.stdout + r.stderr).toMatch(/bulk accept or marks a pick/);
     }
-    expect(ab(["raise", JSON.stringify(card([{ id: "b", label: "I'll answer each one under Details" }, { id: "c", label: "Have Assistant rework the plan" }]))]).status).toBe(0);
+    expect(ab(["raise", "--bot", "Planner", JSON.stringify(card([{ id: "b", label: "I'll answer each one under Details" }, { id: "c", label: "Have Assistant rework the plan" }]))]).status).toBe(0);
   });
 
   it("ab reply refuses them; ab lint flags old ones; drop-bulk-options cleans them up", () => {

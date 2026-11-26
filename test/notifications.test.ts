@@ -40,6 +40,9 @@ const raiseCard = (id: string, extra: object = {}) => ({
   context: 'The checkout page is slow because it loads every product image at full size before the page can be used.',
   question: 'Should we compress the images?', what_happens_after: 'The assistant starts compressing them.',
   options: [{ id: 'a', label: 'Yes' }, { id: 'b', label: 'Hold' }],
+  priority: 'medium',
+  group: 'ROWS-5207',
+  card_ref: 'https://linear.app/rows/issue/ROWS-5207/checkout-images',
   ...extra,
 });
 
@@ -123,7 +126,7 @@ test('ab raise --bot stores raised_by and a re-raise keeps it; a bad name is ref
   const dir = mkdtempSync(join(tmpdir(), 'ab-raise-bot-'));
   const dbPath = join(dir, 'board.db');
   open(dbPath).close();
-  const payload = JSON.stringify(raiseCard('compress-images'));
+  const payload = JSON.stringify(raiseCard('planner-compress-images'));
   const bad = ab(dbPath, 'raise', '--bot', 'ops', payload);
   assert.equal(bad.code, 2);
   const ok = ab(dbPath, 'raise', '--bot', 'Planner', payload);
@@ -131,7 +134,7 @@ test('ab raise --bot stores raised_by and a re-raise keeps it; a bad name is ref
   const db = open(dbPath);
   const row = JSON.parse((db.prepare("SELECT json FROM ui_doc WHERE key = 'board'").get() as { json: string }).json);
   assert.equal(row.decisions[0].raised_by, 'Planner');
-  const again = ab(dbPath, 'raise', JSON.stringify(raiseCard('compress-images', { context: 'The checkout page is still slow because full-size images load before the page can be used.' })));
+  const again = ab(dbPath, 'raise', JSON.stringify(raiseCard('planner-compress-images', { context: 'The checkout page is still slow because full-size images load before the page can be used.' })));
   assert.equal(again.code, 0, String(again.stderr ?? ''));
   const row2 = JSON.parse((open(dbPath).prepare("SELECT json FROM ui_doc WHERE key = 'board'").get() as { json: string }).json);
   assert.equal(row2.decisions[0].raised_by, 'Planner');

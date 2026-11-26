@@ -292,7 +292,7 @@ function ThreadMessage({ m }: { m: HistoryMsg }) {
 }
 
 // The read-only view of the same record in its own tab (same board payload, filtered there).
-const TAB_OF: Record<string, [string, string]> = { ticket: ["tickets", "My tickets"], waiting: ["tickets", "My tickets"], mypr: ["mine", "My PRs"], pr: ["others", "Others' PRs"], decision: ["home", "Home"] };
+const TAB_OF: Record<string, [string, string]> = { ticket: ["conversation", "Conversation"], waiting: ["conversation", "Conversation"], mypr: ["mine", "My PRs"], pr: ["others", "Others' PRs"], decision: ["home", "Home"] };
 const tabOf = (key: string) => TAB_OF[key.split(":")[0]] ?? TAB_OF.decision;
 
 const BALL_CLASS = (ball: string) => (ball === "You" ? "you" : ball === "Done" ? "done" : ball === "Assistant" ? "bot" : "others");
