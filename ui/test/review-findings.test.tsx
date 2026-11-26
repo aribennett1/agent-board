@@ -238,7 +238,7 @@ describe("per-finding review card UI", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Post" })[0]);
     await waitFor(() => expect(onAnswerFinding).toHaveBeenCalled());
     await waitFor(() => expect(document.querySelector('[data-finding="1"]')?.className).toMatch(/finding-answered/));
-    expect(document.querySelector('[data-finding="1"]')?.querySelectorAll("button")).toHaveLength(0);
+    expect(document.querySelector('[data-finding="1"]')?.querySelectorAll("button:not(.collapse-chevron)")).toHaveLength(0);
     expect(screen.getByText(/You said “Post”|You said "Post"/)).toBeTruthy();
 
     cleanup();

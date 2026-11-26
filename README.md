@@ -58,6 +58,8 @@ The screenshots below use example data, not live work.
 - Every card has Explain this better, which asks the bot to reword it without answering, and Not relevant anymore, which clears the card.
 - The latest bot note on a topic shows as a callout; the rest of the back-and-forth is under Show the thread.
 - Topics that are underway or finished sit under collapsible In progress and Show done groups.
+- Every PR review comment has a chevron that folds it to one header line; the choice is remembered in the browser. Posted and skipped comments start folded, open ones start expanded, and a folded skipped comment never has answer boxes.
+- A finding Eric already skipped on a PR is remembered per PR. If a later review pass writes the same finding again (same file with the same title, the same suggestion, or a nearby line with a similar body), the board files it as skipped with his earlier note, so it never comes back as an open question.
 - Every card has a free-text field, with the mic, so the dev can answer in their own words even when there are buttons.
 - A card can include a small SVG diagram, sanitized before it renders. Recommendations are shown, never preselected.
 - The dev's messages in a thread show WhatsApp-style checks: one gray for saved, two gray for delivered, two blue for read.

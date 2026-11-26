@@ -5,6 +5,7 @@ import type { ReviewComment, ReviewDraft } from "./data/types";
 import type { ReviewAction } from "./delivery";
 import { clockTime, NoteBox } from "./ItemExpand";
 import { Markdown } from "./markdown";
+import { CollapseChevron, useCollapsed } from "./collapse";
 
 // Per-comment state in the app: an answer in flight, the last answer that went through, or a failed send.
 export type ReviewLocal = {
@@ -105,24 +106,32 @@ function CommentCard({
   const status = commentStatus(draft, comment, locals);
   const sending = local?.status === "sending";
   const where = comment.line ? `${comment.path}:${comment.line}` : comment.path;
+  // Posted and skipped comments start collapsed, open ones expanded; his own toggle wins.
+  const [collapsed, toggle] = useCollapsed(`review:${reviewKey(draft, comment.id)}`, status !== "pending");
   const post = async (edited?: string) => {
     const ok = await onReview(draft, comment, "post", edited);
     if (ok) setEditing(false);
   };
   return (
     <article
-      className={`review-comment ${status}`}
+      className={`review-comment ${status}${collapsed ? " is-collapsed" : ""}`}
       data-comment-id={comment.id}
     >
       <header className="review-comment-head">
+        <CollapseChevron collapsed={collapsed} onToggle={toggle} label={`comment on ${where}`} />
         <span className={`sev sev-${comment.severity}`}>
           {comment.severity}
         </span>
         <code className="review-where">{where}</code>
+        {collapsed && comment.title && (
+          <span className="review-collapsed-title">{decodeEntities(comment.title)}</span>
+        )}
         {status !== "pending" && (
           <span className={`review-flag ${status}`}>{statusLabel(status, comment, local)}</span>
         )}
       </header>
+      {collapsed ? null : (
+        <>
       {comment.title && (
         <h4 className="review-comment-title">{decodeEntities(comment.title)}</h4>
       )}
@@ -203,6 +212,7 @@ function CommentCard({
           )}
         </div>
       )}
+      {status !== "skipped" && (
       <NoteBox
         label="Private note to Assistant, not posted (e.g. soften this, also mention X)"
         button="Send to assistant"
@@ -212,6 +222,9 @@ function CommentCard({
         sentLabel="Sent to assistant"
         onSend={(t) => onReview(draft, comment, "note", t)}
       />
+      )}
+        </>
+      )}
     </article>
   );
 }

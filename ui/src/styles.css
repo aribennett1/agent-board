@@ -3183,3 +3183,28 @@ a.live-title:hover { text-decoration: underline; }
 .topic-explain { margin: 8px 0 12px; padding: 10px 12px; background: #f3f6fb; border-radius: 8px; border-left: 3px solid var(--cobalt); }
 .topic-explain .msg-who { margin: 0 0 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
 .card-title .bot-pill { margin-right: 6px; vertical-align: middle; }
+
+/* Collapse chevron on every PR review comment */
+.collapse-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  flex: none;
+}
+.collapse-chevron:hover { background: #f3f4f6; color: inherit; }
+.collapse-chevron svg { transition: transform 0.12s ease; }
+.collapse-chevron.collapsed svg { transform: rotate(-90deg); }
+.review-comment.is-collapsed { padding-top: 8px; padding-bottom: 8px; }
+.review-collapsed-title,
+.finding-collapsed-where { font-size: 0.92rem; }
+.review-collapsed-title { font-weight: 650; min-width: 0; overflow-wrap: anywhere; }
+.post-comment-draft.is-collapsed .post-approval-head { margin-bottom: 0; }
+.post-comment-draft.is-collapsed .finding-post-status.inline { margin: 0; }

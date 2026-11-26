@@ -192,6 +192,7 @@ import { cardTicketLinkError, ticketLinkError } from "../src/ticket-links.ts";
 import { applyCodeFences, fenceBareCode } from "../src/code-fences.ts";
 import { isSlackDraft, normalizeSlack, slackDraftError } from "../src/slack-draft.ts";
 import { applyQuietSwap, quietSwapText } from "../src/quiet-swap.ts";
+import { carryDeclined, declinedForPr, declinedOf } from "../src/declined.ts";
 
 // Storage: the agent-board SQLite file (AGENT_BOARD_DB, default ./agent-board.db) unless AB_FILE names a board.ts
 // file (the file mode is kept for the UI's own tests and for importing an old board.ts).
@@ -1153,6 +1154,8 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   lock();
   if (isCleared(d.id)) die(4, "refusing: " + d.id + " was cleared before; use a new id only for a genuinely new decision");
   const f = load();
+  const prGroup = /^pr:([^/]+)\/(\d+)$/.exec(d.group || "");
+  if (prGroup && Array.isArray(d.post_comments)) d.post_comments = carryDeclined(declinedForPr(f.b, prGroup[1], Number(prGroup[2])), d.post_comments).comments;
   const k = f.b.decisions.findIndex((x) => x.id === d.id);
   if (k >= 0 && f.b.decisions[k].answer) die(4, "refusing: " + d.id + " is already answered; never restore an answered decision");
   if (k >= 0 && !asAssistant && f.b.decisions[k].section === "assistant") die(2, "raise: " + d.id + " is a Dr. Assistant card; use ab assistant");
@@ -1341,6 +1344,14 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
     });
   });
   lock(); const f = load();
+  // A finding Eric already skipped on this PR comes back skipped, never open (see src/declined.ts).
+  for (const d of list) {
+    const prev = (Array.isArray(f.b.reviews) ? f.b.reviews : []).find((r) => r.repo === d.repo && r.pr === d.pr);
+    const known = declinedOf(prev);
+    d.comments = carryDeclined(known, d.comments).comments;
+    const all = declinedOf({ declined: known, comments: d.comments });
+    if (all.length) d.declined = all;
+  }
   const keep = replace ? [] : (Array.isArray(f.b.reviews) ? f.b.reviews : []).filter((r) => !list.some((d) => d.repo === r.repo && d.pr === r.pr));
   f.b.reviews = [...keep, ...list];
   if (ghEnabled() && !args.includes("--no-gh")) { unlock(); const got = ghCollect(f.b, { mine: false }); lock(); const g = load(); g.b.reviews = f.b.reviews; ghApply(g.b, got); Object.assign(f, g); }

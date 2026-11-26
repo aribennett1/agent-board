@@ -41,6 +41,7 @@ export function FindingStatusLine({
 }
 
 import { Markdown } from "./markdown";
+import { CollapseChevron, useCollapsed } from "./collapse";
 import { NoteBox } from "./ItemExpand";
 import { AlreadyDecidedBanner } from "./PostApprovalBlock";
 import {
@@ -104,9 +105,12 @@ export function FindingDraft({
       : `"${rawSaid}"`
     : null;
   const closed = Boolean(settled) || isFindingSettled(finding, rawSaid);
+  // Settled findings start collapsed, open ones expanded; his own toggle wins.
+  const [collapsed, toggle] = useCollapsed(`finding:${cardId}:${finding.n}`, closed);
   return (
-    <div className={`post-comment-draft${closed ? " finding-answered" : ""}`} data-finding={finding.n}>
+    <div className={`post-comment-draft${closed ? " finding-answered" : ""}${collapsed ? " is-collapsed" : ""}`} data-finding={finding.n}>
       <div className="post-approval-head">
+        <CollapseChevron collapsed={collapsed} onToggle={toggle} label={`finding #${finding.n}`} />
         <strong>{finding.label}</strong>
         {finding.severity && (
           <span className={`severity-chip severity-${finding.severity.toLowerCase()}`}>{finding.severity}</span>
@@ -116,7 +120,12 @@ export function FindingDraft({
             View on GitHub
           </Link>
         )}
+        {collapsed && loc && <code className="finding-collapsed-where">{loc}</code>}
+        {collapsed && (
+          <FindingStatusLine status={finding.status} postedUrl={finding.posted_url} note={finding.note} inline />
+        )}
       </div>
+      {collapsed ? null : <>
       {loc && (
         <p className="post-approval-meta">
           <code>{loc}</code>
@@ -177,6 +186,7 @@ export function FindingDraft({
           />
         </>
       )}
+      </>}
     </div>
   );
 }
