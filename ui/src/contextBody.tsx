@@ -1,4 +1,4 @@
-import { inline } from "./markdown";
+import { inline, hasFence, Markdown } from "./markdown";
 
 export type ContextBlock = { type: "p"; text: string } | { type: "list"; items: string[] };
 
@@ -22,6 +22,7 @@ export function contextBlocks(text: string): ContextBlock[] {
 export function ContextBody({ text }: { text?: string }) {
   const raw = text?.trim();
   if (!raw) return null;
+  if (hasFence(raw)) return <Markdown text={raw} className="md context" />;
   const blocks = contextBlocks(raw);
   return (
     <div className="context">

@@ -2186,20 +2186,133 @@ a.item:hover {
   padding: 1px 5px;
 }
 
-.md .md-code {
-  background: #f6f8fa;
-  border: 1px solid var(--border);
+/* Fenced code: VS Code Dark+ colors on a dark block, so snippets read as code
+   on the light board. Inline `code` above stays on the light chip. */
+.md-code {
+  position: relative;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border: 1px solid #2a2a2a;
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 14px 14px 12px;
   overflow-x: auto;
+  margin: 0;
 }
 
-.md .md-code code {
+.md-code-lang {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-family: var(--code);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  color: #858585;
+  pointer-events: none;
+}
+
+.md-code code {
+  display: block;
   background: none;
   padding: 0;
+  color: inherit;
+  font-family: var(--code);
   font-size: 12.5px;
-  line-height: 1.5;
+  line-height: 1.55;
   white-space: pre;
+  tab-size: 4;
+}
+
+.md-code .hljs-comment,
+.md-code .hljs-quote {
+  color: #6a9955;
+  font-style: italic;
+}
+.md-code .hljs-keyword,
+.md-code .hljs-selector-tag,
+.md-code .hljs-literal,
+.md-code .hljs-name,
+.md-code .hljs-tag,
+.md-code .hljs-section,
+.md-code .hljs-link {
+  color: #569cd6;
+}
+.md-code .hljs-built_in,
+.md-code .hljs-type,
+.md-code .hljs-title.class_ {
+  color: #4ec9b0;
+}
+.md-code .hljs-string,
+.md-code .hljs-attr,
+.md-code .hljs-template-tag,
+.md-code .hljs-meta-string {
+  color: #ce9178;
+}
+.md-code .hljs-number,
+.md-code .hljs-regexp {
+  color: #b5cea8;
+}
+.md-code .hljs-title,
+.md-code .hljs-title.function_,
+.md-code .hljs-function {
+  color: #dcdcaa;
+}
+.md-code .hljs-variable,
+.md-code .hljs-template-variable,
+.md-code .hljs-params,
+.md-code .hljs-attribute {
+  color: #9cdcfe;
+}
+.md-code .hljs-meta,
+.md-code .hljs-meta-keyword {
+  color: #c586c0;
+}
+.md-code .hljs-addition {
+  color: #b5cea8;
+}
+.md-code .hljs-deletion {
+  color: #f14c4c;
+}
+.md-code .hljs-emphasis {
+  font-style: italic;
+}
+.md-code .hljs-strong {
+  font-weight: 700;
+}
+
+/* A fenced block used as (or inside) a list item, e.g. a details bullet. */
+.md-frag,
+.md-li {
+  min-width: 0;
+}
+.md-frag > p:only-child,
+.md-li > p:only-child {
+  margin: 0;
+}
+.md-frag > * + *,
+.md-li > * + * {
+  margin-top: 8px;
+}
+.details li .md-frag,
+.details li .md-li,
+.context .md-code,
+.details .md-code {
+  margin-top: 6px;
+}
+.details li .md-frag:first-child,
+.details li .md-code:first-child {
+  margin-top: 0;
+}
+
+.context .md-code code,
+.details .md-code code,
+.notice-text .md-code code,
+.thread-text .md-code code {
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: 12.5px;
 }
 
 .md .md-h {

@@ -161,6 +161,25 @@ describe("DecisionCard: details", () => {
     const r = render(<DecisionCard decision={notArray} index={1} onAnswer={vi.fn()} />);
     expect(r.container.querySelector(".details")).toBeNull();
   });
+
+  it("renders a fenced php details item as a highlighted code block, not flattened inline text", () => {
+    const snippet = "```php\n$code = DeductionPayCode::query()->lockForUpdate()->findOrFail($id);\nif (($validated['amount'] ?? $code->amount) === null) {\n    throw ValidationException::withMessages(['amount' => 'An amount is required for this deduction code.']);\n}\n```";
+    const decision = {
+      ...base,
+      details: [
+        { label: "The small change for #3", items: ["After the locked re-read, run the same required checks.", snippet] },
+      ],
+    };
+    const { container } = render(<DecisionCard decision={decision} index={1} onAnswer={vi.fn()} />);
+    const lis = container.querySelectorAll(".details li");
+    expect(lis).toHaveLength(2);
+    const pre = lis[1].querySelector("pre.md-code")!;
+    expect(pre.getAttribute("data-lang")).toBe("php");
+    expect(pre.querySelector("code")!.textContent).toContain("lockForUpdate");
+    expect(pre.querySelector(".hljs-variable")).not.toBeNull();
+    expect(lis[1].textContent).not.toMatch(/^php\s+\$code/);
+    expect(lis[0].querySelector("pre")).toBeNull();
+  });
 });
 
 describe("DecisionCard: context", () => {

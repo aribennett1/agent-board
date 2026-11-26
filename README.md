@@ -32,6 +32,7 @@ The board is private. It is not a hosted product, and it is not on GitHub Pages.
 5. Bots follow instructions inconsistently, so important rules are enforced in code (strict card validation, the git push guard), not just written in prompts.
 6. Waking a bot to check for nothing wastes usage, so everything is event-driven over polling.
 7. The dev's attention is the bottleneck, so cards are built to decide in seconds: a plain explanation, a visual, and what happens after.
+8. Agent context is scarce, so anything that can be done through deterministic code is done that way instead of leaving it for a bot to remember.
 
 ## What it looks like
 

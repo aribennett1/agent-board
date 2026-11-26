@@ -1,10 +1,20 @@
 import { annotateTickets } from "./ticketRefs";
+import { highlightCode } from "./highlight";
 import type { ReactNode } from "react";
 
 // A small Markdown renderer for plans and review comments: headings, paragraphs, lists, block quotes, tables,
 // fenced code, rules, and inline code, bold, italic and links. Builds React elements only (no HTML injection).
 
 const SAFE_URL = /^(https?:\/\/|mailto:)/i;
+
+export function hasFence(text: string): boolean {
+  return /^\s*(```|~~~)/m.test(text);
+}
+
+export function RichText({ text, k = "t", className = "md md-frag" }: { text: string; k?: string; className?: string }) {
+  if (hasFence(text)) return <Markdown text={text} className={className} />;
+  return <>{inline(text, k)}</>;
+}
 
 // Inline: `code`, **bold**, *italic* / _italic_, ++underline++ or <u>underline</u>, ==highlight==, [text](url) and
 // bare http(s) URLs.
@@ -54,6 +64,10 @@ const cells = (row: string) =>
 
 type ListItem = { depth: number; text: string; ordered: boolean };
 
+function itemBody(text: string, key: string): ReactNode {
+  return hasFence(text) ? <Markdown text={text} className="md-li" /> : inline(text, key);
+}
+
 function renderList(items: ListItem[], ordered: boolean, key: string): ReactNode {
   // Nest by indentation: deeper items belong to the item above them.
   const roots: { text: string; children: ListItem[] }[] = [];
@@ -67,11 +81,25 @@ function renderList(items: ListItem[], ordered: boolean, key: string): ReactNode
     <Tag key={key}>
       {roots.map((r, i) => (
         <li key={i}>
-          {inline(r.text, `${key}-${i}`)}
+          {itemBody(r.text, `${key}-${i}`)}
           {r.children.length > 0 && renderList(r.children, r.children[0].ordered, `${key}-${i}-c`)}
         </li>
       ))}
     </Tag>
+  );
+}
+
+function fenceOpen(line: string): { close: string; lang: string } | null {
+  const m = line.match(/^\s*(```+|~~~+)\s*([\w+-]*)/);
+  return m ? { close: m[1], lang: m[2] } : null;
+}
+
+function codeBlock(key: string, lang: string, body: string): ReactNode {
+  return (
+    <pre key={key} className="md-code" data-lang={lang || undefined}>
+      {lang ? <span className="md-code-lang">{lang}</span> : null}
+      <code className={lang ? `language-${lang}` : undefined}>{highlightCode(body, lang, key)}</code>
+    </pre>
   );
 }
 
@@ -85,18 +113,13 @@ export function Markdown({ text: raw, className = "md" }: { text: string; classN
   while (i < lines.length) {
     const line = lines[i];
     const key = `b${b++}`;
-    const fence = line.match(/^\s*(```+|~~~+)\s*([\w+-]*)/);
+    const fence = fenceOpen(line);
     if (fence) {
-      const close = fence[1];
       const body: string[] = [];
       i++;
-      while (i < lines.length && !lines[i].trim().startsWith(close)) body.push(lines[i++]);
+      while (i < lines.length && !lines[i].trim().startsWith(fence.close)) body.push(lines[i++]);
       i++;
-      blocks.push(
-        <pre key={key} className="md-code" data-lang={fence[2] || undefined}>
-          <code>{body.join("\n")}</code>
-        </pre>,
-      );
+      blocks.push(codeBlock(key, fence.lang, body.join("\n")));
       continue;
     }
     if (!line.trim()) {
@@ -173,11 +196,37 @@ export function Markdown({ text: raw, className = "md" }: { text: string; classN
     if (isList(line)) {
       const ordered = /^\s*\d+[.)]/.test(line);
       const items: ListItem[] = [];
-      while (i < lines.length && (isList(lines[i]) || (/^\s{2,}\S/.test(lines[i]) && items.length))) {
-        const m = lines[i].match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
-        if (m) items.push({ depth: m[1].length, text: m[3], ordered: /\d/.test(m[2]) });
-        else items[items.length - 1].text += " " + lines[i].trim();
-        i++;
+      let close: string | null = null;
+      const dropListIndent = (s: string) => (s.startsWith("  ") ? s.slice(2) : s);
+      while (i < lines.length) {
+        if (close) {
+          items[items.length - 1].text += "\n" + dropListIndent(lines[i]);
+          if (lines[i].trim().startsWith(close)) close = null;
+          i++;
+          continue;
+        }
+        if (isList(lines[i])) {
+          const m = lines[i].match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
+          if (!m) break;
+          items.push({ depth: m[1].length, text: m[3], ordered: /\d/.test(m[2]) });
+          const open = fenceOpen(m[3]);
+          if (open) close = open.close;
+          i++;
+          continue;
+        }
+        if (/^\s{2,}\S/.test(lines[i]) && items.length) {
+          const trimmed = dropListIndent(lines[i]);
+          const open = fenceOpen(trimmed);
+          if (open) {
+            items[items.length - 1].text += "\n" + trimmed.trimStart();
+            close = open.close;
+          } else {
+            items[items.length - 1].text += " " + lines[i].trim();
+          }
+          i++;
+          continue;
+        }
+        break;
       }
       blocks.push(renderList(items, ordered, key));
       continue;

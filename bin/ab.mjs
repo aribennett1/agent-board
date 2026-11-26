@@ -189,6 +189,7 @@ import { approvalState, changesFacts, ciReport, myReviewComments, prData, review
 import { buildContext } from "../src/context.ts";
 import { applyPrune, boardAfter, countsOf, planPrune } from "../src/prune.ts";
 import { cardTicketLinkError, ticketLinkError } from "../src/ticket-links.ts";
+import { applyCodeFences, cardCodeFenceError, fenceBareCode, unfencedCodeError } from "../src/code-fences.ts";
 import { isSlackDraft, normalizeSlack, slackDraftError } from "../src/slack-draft.ts";
 
 // Storage: the agent-board SQLite file (AGENT_BOARD_DB, default ./agent-board.db) unless AB_FILE names a board.ts
@@ -1140,6 +1141,9 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   }
   const problems = storedProblems(d);
   if (problems.length) die(2, problems.join("\nab: "));
+  applyCodeFences(d);
+  const fences = cardCodeFenceError(d);
+  if (fences) die(2, fences);
   const links = cardTicketLinkError(d);
   if (links) die(2, links);
   d.context = d.context.trim();
@@ -1605,9 +1609,12 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   const next = flag(args, "--next");
   const link = flag(args, "--link");
   if (!BOARD_BOTS.has(bot)) die(2, "notify: usage: ab notify --bot <Planner|QA|Engineer|dr eggbot|Grok Bot> --text \"...\" [--next \"1:15 PM ET\"] [--link url]");
-  const body = typeof text === "string" ? text.trim() : "";
+  let body = typeof text === "string" ? text.trim() : "";
   if (!body) die(2, "notify: --text is required");
+  body = fenceBareCode(body);
   if (body.length > 800) die(2, "notify: --text is too long (800 characters or fewer)");
+  const notifyFences = unfencedCodeError(body, "notify");
+  if (notifyFences) die(2, notifyFences);
   const notifyLinks = ticketLinkError(body, "notify");
   if (notifyLinks) die(2, notifyLinks);
   if (next !== undefined && !nonBlank(next)) die(2, "notify: --next, if given, cannot be blank");

@@ -10,7 +10,7 @@ import type { AppChoice } from "./delivery";
 import { isSlackDraft, SlackDraftBlock } from "./SlackDraft";
 import { ASSISTANT_NAME } from "./config";
 import { bareUrl, Link, linkify } from "./linkify";
-import { inline } from "./markdown";
+import { inline, RichText } from "./markdown";
 import { effectivePriority, PRIORITIES, PRIORITY_LABEL } from "./priority";
 import { sanitizeSvg } from "./sanitizeSvg";
 import { formatPostedTime, stampOf } from "./stamp";
@@ -337,7 +337,7 @@ export function DecisionCard({
                 )}
                 <List>
                   {b.items.map((t, j) => (
-                    <li key={j}>{inline(t, `d-${i}-${j}`)}</li>
+                    <li key={j}><RichText text={t} k={`d-${i}-${j}`} /></li>
                   ))}
                 </List>
               </div>
