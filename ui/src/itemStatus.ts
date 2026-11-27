@@ -3,8 +3,8 @@ import { latestStatus, openThreadQuestions, statusText } from "./convoModel";
 import { hasUnread } from "./Thread";
 
 // Whether an item needs the owner now, or not, with a short reason for the row. Needs you ONLY when there is something
-// he can act on: an open question or option set in the thread, plan questions, draft comments, a PR ready to
-// approve, changes requested or failing CI on his PR. A review request is not "Ready to approve" just because
+// he can act on: an open question or option set in the thread, plan questions, draft comments (not ones he sent a
+// note on, which wait on QA's rewrite), a PR ready to approve, changes requested or failing CI on his PR. A review request is not "Ready to approve" just because
 // checks are green and no threads are open; park it as "Review running" until there is a draft, written details,
 // or a question. Once the review is done and those checks still pass, it is ready to approve. A bot reply with
 // no question (an ack, a status, an FYI) never puts an item in Needs you; its unread dot still shows. A reply
@@ -16,6 +16,8 @@ export type StatusInput = {
   detail?: ItemDetail;
   // Pending review drafts on a PR asked of the owner (undefined when there is no draft).
   pendingDrafts?: number;
+  // Review drafts he sent a note on that wait for QA's rewrite (pending_bot). Never his turn.
+  waitingDrafts?: number;
   // A PR that asks for the owner's review.
   reviewRequested?: boolean;
   // My PR: its state and CI.
@@ -34,6 +36,7 @@ export function itemStatus(x: StatusInput): ItemStatus {
   const parked = latestStatus(d.thread);
   if (parked) return { needs: false, reason: statusText(parked).label };
   if ((x.pendingDrafts ?? 0) > 0) return { needs: true, reason: `${x.pendingDrafts} draft comment${x.pendingDrafts === 1 ? "" : "s"} to post` };
+  if ((x.waitingDrafts ?? 0) > 0) return { needs: false, reason: "Waiting on QA" };
   if (d.review_facts) return { needs: true, reason: d.review_questions ? "Changes requested: questions for you" : "Changes requested" };
   if (d.ci_report) return { needs: true, reason: "CI failing" };
   if ((d.questions?.length ?? 0) > 0) return { needs: true, reason: `Plan to approve: ${d.questions!.length} questions` };

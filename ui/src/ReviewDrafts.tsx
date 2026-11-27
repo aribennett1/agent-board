@@ -73,18 +73,22 @@ export type OnReview = (
   text?: string,
 ) => Promise<boolean>;
 
-// "2 of 3 to answer", or Done.
+// "2 to answer", "With QA" or Done. pending counts only comments on his turn; a comment he sent a note on
+// (pending_bot) waits on QA's rewrite and is counted in waiting instead.
 export function draftSummary(
   d: ReviewDraft,
   locals: ReviewLocals,
-): { label: string; done: boolean } {
-  const pending = d.comments.filter(
+): { label: string; done: boolean; pending: number; waiting: number } {
+  const open = d.comments.filter(
     (c) => commentStatus(d, c, locals) === "pending",
-  ).length;
-  if (d.done || (d.comments.length > 0 && pending === 0))
-    return { label: "Done", done: true };
-  if (d.comments.length === 0) return { label: "Nothing new", done: false };
-  return { label: `${pending} to answer`, done: false };
+  );
+  const waiting = open.filter((c) => Boolean(c.pending_bot)).length;
+  const pending = open.length - waiting;
+  if (d.done || (d.comments.length > 0 && open.length === 0))
+    return { label: "Done", done: true, pending: 0, waiting: 0 };
+  if (d.comments.length === 0) return { label: "Nothing new", done: false, pending: 0, waiting: 0 };
+  if (pending === 0) return { label: "With QA", done: false, pending, waiting };
+  return { label: `${pending} to answer`, done: false, pending, waiting };
 }
 
 function CommentCard({

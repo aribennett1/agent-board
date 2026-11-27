@@ -746,7 +746,8 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
       draft,
       status: {
         reviewRequested: isReviewRequest(o),
-        pendingDrafts: sum ? (sum.done ? 0 : draft!.comments.length ? Number.parseInt(sum.label, 10) || 0 : 0) : undefined,
+        pendingDrafts: sum ? sum.pending : undefined,
+        waitingDrafts: sum ? sum.waiting : undefined,
       },
     };
   };
