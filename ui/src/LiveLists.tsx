@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Markdown } from "./markdown";
 import { TIME_ZONE } from "./config";
 import { prRef } from "./others";
-import { ago, groupMine, groupOthers, groupTickets, isReviewRequested, linesChanged, mineOpenReasons, priorityName, readyToApprove, type FeedLabel, type FeedMeta, type FeedPr, type FeedTicket, type Group } from "./liveLists";
+import { ago, groupMine, groupOthers, groupTickets, isQaDrafted, isReviewRequested, linesChanged, mineOpenReasons, priorityName, readyToApprove, type FeedLabel, type FeedMeta, type FeedPr, type FeedTicket, type Group } from "./liveLists";
 
 // My tickets, My PRs and Others' PRs: compact rows grouped under plain headings, filled by the server's own timer.
 // A row shows the facts on two lines; the chevron opens the description and anything left to address.
@@ -91,7 +91,7 @@ function PrRow({ p: raw, others, x }: { p: FeedPr; others: boolean; x: PrExtras 
         </div>
         <div className="live-line2">
           {others && <span>{p.author}</span>}
-          {others && <span className={isReviewRequested(p) ? "strong" : undefined}>{p.who}</span>}
+          {others && <span className={isReviewRequested(p) || isQaDrafted(p) ? "strong" : undefined}>{p.who}</span>}
           <Labels labels={p.labels} />
           <span title="Comments">{p.comments ?? 0} comments</span>
           {(p.unresolved_count ?? 0) > 0 && <span className="strong">{p.unresolved_count} unresolved</span>}
@@ -147,7 +147,7 @@ export function OthersPrs({ items, meta, x = {} }: { items: FeedPr[]; meta?: Fee
     <div className="view live">
       <header className="view-head">
         <h1>Others' PRs</h1>
-        <p>Other people's open PRs waiting on your review or that you are part of.</p>
+        <p>Other people's open PRs waiting on your review, that QA drafted a review for, or that you are part of.</p>
         <Source meta={meta} which="github" />
       </header>
       <Groups groups={groupOthers(items)} empty="No open PRs from others involve you." row={(p) => <PrRow key={p.link} p={p} others x={x} />} />

@@ -24,6 +24,8 @@ export type FeedPr = {
   base?: string;
   body?: string;
   updated_at?: string;
+  /** Set by the server for a PR it added only because QA stored review drafts for it. */
+  qa_drafted?: boolean;
 };
 export type FeedTicket = {
   id: string;
@@ -48,6 +50,8 @@ export type FeedMeta = {
 export type Group<T> = { key: string; title: string; items: T[] };
 
 export const isReviewRequested = (p: Pick<FeedPr, "who">) => /review requested/i.test(p.who);
+/** A PR on the list only because QA drafted a review for it; GitHub does not ask for Eric's review. */
+export const isQaDrafted = (p: Pick<FeedPr, "who" | "qa_drafted">) => p.qa_drafted === true || /QA drafted/i.test(p.who);
 
 /** My PR that has work still open on GitHub (not a board "needs you" signal). */
 export const mineHasOpenItems = (p: FeedPr) => !isDraft(p) && (p.state === "changes requested" || p.ci === "failing" || (p.unresolved_count ?? 0) > 0);
@@ -83,9 +87,11 @@ export function groupMine(items: FeedPr[]): Group<FeedPr>[] {
 
 export function groupOthers(items: FeedPr[]): Group<FeedPr>[] {
   const asked = items.filter(isReviewRequested);
-  const rest = items.filter((p) => !isReviewRequested(p));
+  const drafted = items.filter((p) => !isReviewRequested(p) && isQaDrafted(p));
+  const rest = items.filter((p) => !isReviewRequested(p) && !isQaDrafted(p));
   return [
     ...keep("asked", "Your review requested", asked),
+    ...keep("qa", "Not requested, QA drafted", drafted),
     ...keep("involved", "You're involved", rest.filter((p) => !isDraft(p))),
     ...keep("draft", "Drafts", rest.filter(isDraft)),
   ];

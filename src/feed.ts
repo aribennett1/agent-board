@@ -13,6 +13,8 @@ export type LinearFetch = (query: string, key: string) => Promise<Json>;
 export type FeedDeps = { gh?: Gh; linear?: LinearFetch; linearKey?: string | null; now?: () => Date; /** Test hook: override LINEAR_FEED_ENABLED. */ linearEnabled?: boolean; /** Wake Engineer when a PR is flagged (tests inject a fake). */ attentionWake?: AttentionWake };
 
 export const FEED_INTERVAL_MS = 120_000;
+/** How often the timer checks the stored QA drafts (a local read, no GitHub call) for a PR it has not fetched yet. */
+export const DRAFT_CHECK_MS = 10_000;
 // My tickets is hidden for now. Set this to true (and put "tickets" back in the sidebar and BOARD_VIEWS) to fetch Linear again.
 export const LINEAR_FEED_ENABLED = false;
 const BODY_MAX = 6000;
@@ -52,9 +54,11 @@ const PR_FIELDS = `
 `;
 
 // One search per request: a combined query for both lists is heavy enough for GitHub to answer 504.
-const GH_QUERY = `query($q: String!) {
-  search(query: $q, type: ISSUE, first: 30) { nodes { ... on PullRequest { ${PR_FIELDS} } } }
+// Pages of 30 with a cursor: a list longer than one page (Eric is on 35 open PRs) used to drop the oldest rows.
+const GH_QUERY = `query($q: String!, $after: String) {
+  search(query: $q, type: ISSUE, first: 30, after: $after) { pageInfo { hasNextPage endCursor } nodes { ... on PullRequest { ${PR_FIELDS} } } }
 }`;
+const MAX_PAGES = 5;
 
 function checksOf(pr: Json) {
   const roll = pr.commits?.nodes?.[0]?.commit?.statusCheckRollup;
@@ -112,12 +116,11 @@ export function normalizePr(pr: Json, me: string): Json {
 
 const byUpdated = (a: Json, b: Json) => String(b.updated_at).localeCompare(String(a.updated_at));
 
-async function searchPrs(gh: Gh, q: string, me: string): Promise<Json[]> {
+async function searchPage(gh: Gh, q: string, after: string | null): Promise<Json> {
   let last: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const out = JSON.parse(await gh(['api', 'graphql', '-f', `query=${GH_QUERY}`, '-f', `q=${q}`]));
-      return (out.data?.search?.nodes ?? []).filter((n: Json) => n?.number).map((n: Json) => normalizePr(n, me)).sort(byUpdated);
+      return JSON.parse(await gh(['api', 'graphql', '-f', `query=${GH_QUERY}`, '-f', `q=${q}`, ...(after ? ['-f', `after=${after}`] : [])])).data?.search ?? {};
     } catch (e) {
       last = e;
     }
@@ -125,14 +128,66 @@ async function searchPrs(gh: Gh, q: string, me: string): Promise<Json[]> {
   throw last;
 }
 
-async function fetchGithub(gh: Gh) {
+async function searchPrs(gh: Gh, q: string, me: string): Promise<Json[]> {
+  const nodes: Json[] = [];
+  let after: string | null = null;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const s = await searchPage(gh, q, after);
+    nodes.push(...(s.nodes ?? []));
+    if (!s.pageInfo?.hasNextPage || !s.pageInfo.endCursor) break;
+    after = String(s.pageInfo.endCursor);
+  }
+  const seen = new Set<number>();
+  return nodes.filter((n: Json) => n?.number && !seen.has(n.number) && seen.add(n.number)).map((n: Json) => normalizePr(n, me)).sort(byUpdated);
+}
+
+// A PR QA drafted a review for gets a row on Others' PRs even when GitHub does not ask for Eric's review and he is
+// not otherwise involved. Membership comes from the stored drafts (board.reviews), never from a card.
+export const QA_DRAFTED_WHO = 'Not requested, QA drafted';
+
+const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { pullRequest(number: $number) { state ${PR_FIELDS} } }
+}`;
+
+/** "rows-backend/2004" for every ROWSHR draft with a finding still pending and the review not marked done. */
+export function draftedPrKeys(db: DatabaseSync): { repo: string; number: number }[] {
+  const row = db.prepare("SELECT json FROM ui_doc WHERE key = 'board'").get() as { json: string } | undefined;
+  let reviews: unknown = [];
+  try { reviews = row ? JSON.parse(row.json)?.reviews : []; } catch { reviews = []; }
+  if (!Array.isArray(reviews)) return [];
+  const out: { repo: string; number: number }[] = [];
+  for (const d of reviews as Json[]) {
+    if (!d || typeof d !== 'object' || d.done === true) continue;
+    const repo = String(d.repo ?? '').replace(/^ROWSHR\//i, '');
+    if (!/^[\w.-]+$/.test(repo) || !Number.isInteger(d.pr) || d.pr < 1) continue;
+    if (!(Array.isArray(d.comments) ? d.comments : []).some((c: Json) => c?.status === 'pending')) continue;
+    if (!out.some((k) => k.repo === repo && k.number === d.pr)) out.push({ repo, number: d.pr });
+  }
+  return out;
+}
+
+/** One ROWSHR PR by number, normalized like the search rows; null when it is closed, merged, gone or by Eric. */
+async function fetchPr(gh: Gh, repo: string, number: number, me: string): Promise<Json | null> {
+  const out = JSON.parse(await gh(['api', 'graphql', '-f', `query=${PR_QUERY}`, '-f', 'owner=ROWSHR', '-f', `name=${repo}`, '-F', `number=${number}`]));
+  const pr = out.data?.repository?.pullRequest;
+  if (!pr?.number || pr.state !== 'OPEN' || pr.author?.login === me) return null;
+  const row = normalizePr(pr, me);
+  // Keep what GitHub says when it asks for Eric's review or he reviewed; label it only when nothing else ties him to it.
+  return row.who === 'Involves you' ? { ...row, who: QA_DRAFTED_WHO, qa_drafted: true } : row;
+}
+
+async function fetchGithub(gh: Gh, drafted: { repo: string; number: number }[] = []) {
   const me = (await gh(['api', 'user', '--jq', '.login'])).trim();
   if (!me) throw new Error('gh is not signed in');
   const [mine, others] = await Promise.all([
     searchPrs(gh, `org:ROWSHR is:pr is:open archived:false author:${me}`, me),
     searchPrs(gh, `org:ROWSHR is:pr is:open archived:false involves:${me} -author:${me}`, me),
   ]);
-  return { login: me, mine, others };
+  const have = new Set([...mine, ...others].map((p) => `${p.repo}/${p.number}`));
+  const missing = drafted.filter((k) => !have.has(`${k.repo}/${k.number}`));
+  // One PR failing to load drops only that row; the rest of the feed stays good.
+  const extra = await Promise.all(missing.map((k) => fetchPr(gh, k.repo, k.number, me).catch((e) => (console.error(`drafted PR ${k.repo}#${k.number}: ${errText(e)}`), null))));
+  return { login: me, mine, others: [...others, ...extra.filter((p): p is Json => p !== null)] };
 }
 
 const LINEAR_QUERY = `{
@@ -179,7 +234,7 @@ export async function refreshFeed(db: DatabaseSync, deps: FeedDeps = {}): Promis
   };
   const iso = now.toISOString();
   try {
-    const g = await fetchGithub(deps.gh ?? ghExec);
+    const g = await fetchGithub(deps.gh ?? ghExec, draftedPrKeys(db));
     feed.mine = g.mine; feed.others = g.others;
     feed.github = { ok: true, login: g.login, error: null, last_ok: iso };
   } catch (e) {
@@ -228,7 +283,7 @@ export function readFeed(db: DatabaseSync): Json | null {
 }
 
 /** Start the timer. Overlapping runs are skipped; the first run starts at once. Returns a stop function. */
-export function startFeedTimer(db: DatabaseSync, deps: FeedDeps = {}, everyMs = FEED_INTERVAL_MS): () => void {
+export function startFeedTimer(db: DatabaseSync, deps: FeedDeps = {}, everyMs = FEED_INTERVAL_MS, draftCheckMs = DRAFT_CHECK_MS): () => void {
   let running = false;
   const tick = async () => {
     if (running) return;
@@ -244,5 +299,16 @@ export function startFeedTimer(db: DatabaseSync, deps: FeedDeps = {}, everyMs = 
   void tick();
   const t = setInterval(tick, everyMs);
   t.unref?.();
-  return () => clearInterval(t);
+  // A new QA draft on a PR the last fetch did not cover gets its row within seconds, not at the next two-minute run.
+  let seen = draftSig(db);
+  const w = setInterval(() => {
+    const sig = draftSig(db);
+    if (sig === seen) return;
+    seen = sig;
+    void tick();
+  }, draftCheckMs);
+  w.unref?.();
+  return () => { clearInterval(t); clearInterval(w); };
 }
+
+const draftSig = (db: DatabaseSync) => draftedPrKeys(db).map((k) => `${k.repo}/${k.number}`).sort().join(',');

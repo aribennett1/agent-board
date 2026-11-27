@@ -35,6 +35,17 @@ describe("grouping", () => {
     expect(readyToApprove(pr(2, { state: "changes requested" }))).toBe(false);
   });
 
+  it("Others' PRs: a PR QA drafted a review for gets its own group even when Eric's review was not requested", () => {
+    const items = [pr(1), pr(2, { who: "Your review requested" }), pr(2004, { who: "Not requested, QA drafted", qa_drafted: true })];
+    expect(groupOthers(items).map((g) => [g.key, g.title, g.items.map((p) => p.number)])).toEqual([
+      ["asked", "Your review requested", [2]], ["qa", "Not requested, QA drafted", [2004]], ["involved", "You're involved", [1]],
+    ]);
+    render(<OthersPrs items={items} meta={ok} />);
+    const row = document.querySelector<HTMLElement>('[data-pr="rows-backend/2004"]')!;
+    expect(within(row).getByText("Not requested, QA drafted").className).toBe("strong");
+    expect(within(row).queryByText("Ready to approve")).toBeNull();
+  });
+
   it("tickets group by Linear status in the order given", () => {
     expect(groupTickets([ticket("A-1", "In Progress"), ticket("A-2", "In Progress"), ticket("A-3", "Todo")]).map((g) => [g.title, g.items.length])).toEqual([["In Progress", 2], ["Todo", 1]]);
   });

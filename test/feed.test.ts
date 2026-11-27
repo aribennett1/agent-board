@@ -173,3 +173,95 @@ test('ab ask keeps who the answer was sent to (to_bot) and ignores an unknown na
   assert.equal(byId.m1.to_bot, 'QA');
   assert.equal(byId.m2.to_bot, undefined);
 });
+
+// QA drafts on a PR where GitHub does not ask for Eric's review: the server adds the row itself, from the stored drafts.
+const putBoard = (db: any, reviews: unknown[]) => db.prepare("INSERT INTO ui_doc (key, json, updated_at) VALUES ('board', ?, 'now') ON CONFLICT(key) DO UPDATE SET json = excluded.json").run(JSON.stringify({ decisions: [], glance: { waiting: [], tickets: [], others: [], mine: [] }, reviews }));
+const draft = (pr: number, statuses: string[], extra: Record<string, unknown> = {}) => ({ repo: 'rows-backend', pr, verdict: 'comment', comments: statuses.map((status, i) => ({ id: `c${i + 1}`, severity: 'medium', path: 'a.php', line: 1, body: 'x', status })), ...extra });
+const ghWithPrs = (others: any[], byNumber: Record<number, any>): Gh & { calls: string[][] } => {
+  const base = fakeGh([], others);
+  const f = (async (args: string[]) => {
+    const n = args.find((a) => a.startsWith('number='));
+    if (n) { f.calls.push(args); const pr = byNumber[Number(n.slice(7))]; if (pr instanceof Error) throw pr; return JSON.stringify({ data: { repository: { pullRequest: pr ?? null } } }); }
+    return base(args);
+  }) as Gh & { calls: string[][] };
+  f.calls = base.calls;
+  return f;
+};
+
+test('a PR with pending QA drafts gets a "Not requested, QA drafted" row even when Eric is not a requested reviewer', async () => {
+  const e = env();
+  putBoard(e.db, [
+    draft(2004, ['pending', 'pending']),
+    draft(3, ['pending']), // already on the list through involves:
+    draft(1737, ['pending']), // merged since: no row
+    draft(1900, ['posted', 'skipped']), // nothing left pending: no row
+    draft(1901, ['pending'], { done: true }), // review marked done: no row
+    draft(1902, ['pending']), // gh fails for this one: only this row is missing
+  ]);
+  const gh = ghWithPrs([prNode(3, { reviewRequests: { nodes: [{ requestedReviewer: { __typename: 'User', login: 'aribennett1' } }] } })], {
+    2004: { ...prNode(2004, { reviewRequests: { nodes: [{ requestedReviewer: { __typename: 'User', login: 'joelsaxton1' } }, { requestedReviewer: { __typename: 'User', login: 'zachflower' } }] } }), state: 'OPEN' },
+    1737: { ...prNode(1737), state: 'MERGED' },
+    1902: new Error('HTTP 502'),
+  });
+  const f = await refreshFeed(e.db, { gh, now: NOW });
+  assert.ok(f.github.ok);
+  assert.deepEqual(f.others.map((p: any) => [p.number, p.who, p.qa_drafted ?? false]), [[3, 'Your review requested', false], [2004, 'Not requested, QA drafted', true]]);
+  const asked = gh.calls.filter((c) => c.some((a) => a.startsWith('number='))).map((c) => [c.find((a) => a.startsWith('owner=')), c.find((a) => a.startsWith('name=')), c.find((a) => a.startsWith('number='))]);
+  assert.deepEqual(asked, [['owner=ROWSHR', 'name=rows-backend', 'number=2004'], ['owner=ROWSHR', 'name=rows-backend', 'number=1737'], ['owner=ROWSHR', 'name=rows-backend', 'number=1902']]);
+  assert.ok(gh.calls.every((c) => c[0] === 'api'), 'read-only gh api calls only');
+  // The board the UI reads carries the row, with the same facts as a search row.
+  const app = createApp(e.db, e.clock, { ui: { timeZone: 'UTC' } });
+  const b = await (await app.request('/__ab/board')).json() as any;
+  const row = b.glance.others.find((p: any) => p.number === 2004);
+  assert.equal(row.who, 'Not requested, QA drafted');
+  assert.deepEqual([row.ci, row.additions, row.labels[0].name], ['passing', 120, 'Ready For Review!']);
+});
+
+test('the timer picks up a new QA draft within seconds instead of waiting for the next two-minute run', async () => {
+  const e = env();
+  let users = 0;
+  const gh: Gh = async (args) => (args[1] === 'user' ? (users++, 'aribennett1') : JSON.stringify({ data: { search: { nodes: [] }, repository: { pullRequest: null } } }));
+  const stop = startFeedTimer(e.db, { gh }, 60_000, 10);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(users, 1);
+  putBoard(e.db, [draft(2004, ['pending'])]);
+  await new Promise((r) => setTimeout(r, 45));
+  stop();
+  assert.ok(users >= 2, 'a changed draft list triggers a run');
+});
+
+test('ab reviews stores drafts for a PR that does not request Eric\'s review', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ab-reviews-'));
+  const dbPath = join(dir, 'board.db');
+  open(dbPath).close();
+  execFileSync(process.execPath, [join(import.meta.dirname, '..', 'bin', 'ab.mjs'), 'reviews', '-'], { env: { ...process.env, AGENT_BOARD_DB: dbPath, AB_NO_SERVER: '1', AB_NO_GH: '1' }, input: JSON.stringify([draft(2004, ['pending', 'pending'])]), encoding: 'utf8' });
+  const db = open(dbPath);
+  const board = JSON.parse((db.prepare("SELECT json FROM ui_doc WHERE key = 'board'").get() as { json: string }).json);
+  assert.deepEqual(board.reviews.map((r: any) => [r.pr, r.comments.length]), [[2004, 2]]);
+});
+
+test('the involves search follows every page, so a list longer than 30 keeps its oldest rows', async () => {
+  const e = env();
+  const pages: Record<string, any> = {
+    '': { pageInfo: { hasNextPage: true, endCursor: 'c1' }, nodes: Array.from({ length: 30 }, (_, i) => prNode(100 + i)) },
+    c1: { pageInfo: { hasNextPage: false, endCursor: 'c2' }, nodes: [prNode(200), prNode(129)] },
+  };
+  const gh: Gh = async (args) => {
+    if (args[1] === 'user') return 'aribennett1';
+    const q = args.find((a) => a.startsWith('q='))!;
+    if (!q.includes('-author')) return JSON.stringify({ data: { search: { nodes: [] } } });
+    const after = args.find((a) => a.startsWith('after='))?.slice(6) ?? '';
+    return JSON.stringify({ data: { search: pages[after] } });
+  };
+  const f = await refreshFeed(e.db, { gh, now: NOW });
+  assert.equal(f.others.length, 31, 'both pages, a repeat counted once');
+  assert.ok(f.others.some((p: any) => p.number === 200));
+});
+
+test('a drafted PR the search missed keeps "Your review requested" when GitHub does ask for Eric', async () => {
+  const e = env();
+  putBoard(e.db, [draft(1796, ['pending'])]);
+  const gh = ghWithPrs([], { 1796: { ...prNode(1796, { reviewRequests: { nodes: [{ requestedReviewer: { __typename: 'User', login: 'aribennett1' } }] } }), state: 'OPEN' } });
+  const f = await refreshFeed(e.db, { gh, now: NOW });
+  assert.deepEqual(f.others.map((p: any) => [p.number, p.who, p.qa_drafted ?? false]), [[1796, 'Your review requested', false]]);
+});
