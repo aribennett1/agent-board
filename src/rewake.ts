@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { askTarget } from './context.ts';
+import { hydrateRows } from './review-rows.ts';
 import { deliverToBot, type DeliverOpts } from './deliver.ts';
 import type { BoardBot } from '../ui/src/raisedBy.ts';
 
@@ -49,7 +50,7 @@ const clip = (s: unknown, n = TEXT_CLIP) => {
 function boardDoc(db: DatabaseSync): Json {
   const row = db.prepare("SELECT json FROM ui_doc WHERE key = 'board'").get() as { json: string } | undefined;
   try {
-    return row ? JSON.parse(row.json) : {};
+    return row ? hydrateRows(JSON.parse(row.json)) : {};
   } catch {
     return {};
   }

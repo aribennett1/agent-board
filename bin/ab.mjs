@@ -129,6 +129,9 @@
 //                                                      text. Status can be omitted when only those flags are set. Never
 //                                                      leave the card showing only "You said" plus the old comment text.
 //   ab review-status <repo>#<pr> --done|--undone      marks a drafted review done (not used on per-comment cards)
+//   ab review-rows [--dry-run]                       one row per review comment: card findings become references to their
+//                                                      Reviews-tab row (save() does this on every write), and closes rows
+//                                                      he already answered Post / Don't post on -> {"ok","linked","closed"}
 //   ab detail <key> [json|-] | ab detail <key> --clear
 //                                                      merges {"summary"?,"plan"?,"discussion"?:[{"author","body","at"?,"link"?}],"actions"?:[...],
 //                                                      "questions"?:[{"id","question","body"?,"recommendation"?}]} into the item's chevron.
@@ -206,6 +209,7 @@ import { contextInBodyError, missingContext, missingContextError, recoverBoardCo
 import { carryDeclined, declinedForPr, declinedOf } from "../src/declined.ts";
 import { healAnswers, settleDecision } from "../src/answered.ts";
 import { carryPendingBot, findingNumber, healNotes, markNotePending } from "../src/finding-notes.ts";
+import { backfillAnswers, hydrateRows, markAnswered, storeRows } from "../src/review-rows.ts";
 
 // Storage: the agent-board SQLite file (AGENT_BOARD_DB, default ./agent-board.db) unless AB_FILE names a board.ts
 // file (the file mode is kept for the UI's own tests and for importing an old board.ts).
@@ -649,7 +653,7 @@ function load(soft) {
   if (SQL) {
     const json = docGet("board");
     if (json === undefined) return { b: EMPTY_BOARD() };
-    try { return { b: JSON.parse(json) }; } catch (e) { return soft ? { error: "board is corrupt in " + DB_PATH } : die(2, "board is corrupt in " + DB_PATH + "; refusing to read or write it"); }
+    try { return { b: hydrateRows(JSON.parse(json)) }; } catch (e) { return soft ? { error: "board is corrupt in " + DB_PATH } : die(2, "board is corrupt in " + DB_PATH + "; refusing to read or write it"); }
   }
   const s = fs.readFileSync(FILE, "utf8");
   const bad = (m) => soft ? { error: "board is corrupt: " + m + " in " + FILE } : die(2, "board is corrupt: " + m + " in " + FILE + "; refusing to read or write it");
@@ -658,7 +662,7 @@ function load(soft) {
   const i = s.indexOf(A) + A.length, j = s.indexOf(Z);
   if (j < i) return bad("BOARD-JSON-END comes before BOARD-JSON-START");
   if (!/^\s*;?\s*$/.test(s.slice(j + Z.length))) return bad("unexpected text after BOARD-JSON-END");
-  try { return { s, i, j, b: JSON.parse(s.slice(i, j)) }; } catch (e) { return bad("board JSON does not parse (" + e.message + ")"); }
+  try { return { s, i, j, b: hydrateRows(JSON.parse(s.slice(i, j))) }; } catch (e) { return bad("board JSON does not parse (" + e.message + ")"); }
 }
 // Atomic replace: unique temp file in the same directory, fsync, rename over file.
 function writeAtomic(file, text) {
@@ -671,9 +675,13 @@ function writeAtomic(file, text) {
 }
 function save({ s, i, j }, b) {
   b.updated_at = new Date().toISOString();
-  if (SQL) { docPut("board", JSON.stringify(b)); return b.updated_at; }
-  writeAtomic(FILE, s.slice(0, i) + "\n" + JSON.stringify(b, null, 2) + "\n" + s.slice(j));
-  return b.updated_at;
+  // One row per review comment: card findings are stored as references to their Reviews-tab row (src/review-rows.ts).
+  storeRows(b);
+  try {
+    if (SQL) { docPut("board", JSON.stringify(b)); return b.updated_at; }
+    writeAtomic(FILE, s.slice(0, i) + "\n" + JSON.stringify(b, null, 2) + "\n" + s.slice(j));
+    return b.updated_at;
+  } finally { hydrateRows(b); }
 }
 // project.ts: the JSON between the PROJECT markers. Missing file, bad markers or bad JSON: exit 2.
 function loadProject() {
@@ -919,7 +927,7 @@ function allFindingsSettled(d, b = {}) {
   if (ans.get("all")) return true;
   return comments.every((c, i) => {
     const n = (Number.isInteger(c.n) && c.n > 0 ? c.n : (/#(\d+)\b/.exec(c.label ?? "")?.[1])) ?? (i + 1);
-    if (c.status === "posted" || c.status === "skipped") return true;
+    if (c.status === "posted" || c.status === "skipped" || c.answered) return true;
     const said = (ans.get(String(n)) ?? "").trim();
     return /^don't post(?: any)?$/i.test(said) || /^post$/i.test(said);
   });
@@ -1177,6 +1185,11 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   if (k < 0 && SQL && sql().prepare("SELECT 1 FROM archive_cards WHERE card_id = ?").get(d.id)) die(4, "refusing: " + d.id + " was answered and archived; use a new id only for a genuinely new decision");
   if (k >= 0 && f.b.decisions[k].answer) die(4, "refusing: " + d.id + " is already answered; never restore an answered decision");
   if (Array.isArray(d.post_comments)) carryPendingBot(k >= 0 ? f.b.decisions[k].post_comments : undefined, d.post_comments, findingNumber, new Date(), true);
+  // A re-raise updates the finding's existing row: keep each finding's row reference by number (same file).
+  if (k >= 0 && Array.isArray(d.post_comments)) d.post_comments.forEach((c, i) => {
+    const was = (f.b.decisions[k].post_comments ?? []).find((q, j) => findingNumber(q, j) === findingNumber(c, i));
+    if (was && typeof was.review === "string" && !c.review && was.path === c.path) c.review = was.review;
+  });
   if (k >= 0 && !asAssistant && f.b.decisions[k].section === "assistant") die(2, "raise: " + d.id + " is a Dr. Assistant card; use ab assistant");
   if (k >= 0 && asAssistant && f.b.decisions[k].section !== "assistant") die(2, "assistant: " + d.id + " is already a Home decision; use a new id");
   d.card_ref = d.card_ref ?? null;
@@ -1372,6 +1385,12 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
     const known = declinedOf(prev);
     d.comments = carryDeclined(known, d.comments).comments;
     carryPendingBot(prev?.comments, d.comments, (c) => c.id, new Date(), true);
+    // Row-only state (answered on either view, the head it was drafted at, the reply to his question) survives a re-send.
+    for (const c of d.comments) {
+      const was = (prev?.comments ?? []).find((q) => q.id === c.id); if (!was) continue;
+      if (was.answered && was.body === c.body && c.status === "pending") c.answered = was.answered;
+      for (const k of ["head", "answer_to_question"]) if (was[k] !== undefined && c[k] === undefined && was.body === c.body) c[k] = was[k];
+    }
     const all = declinedOf({ declined: known, comments: d.comments });
     if (all.length) d.declined = all;
   }
@@ -1513,7 +1532,7 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   const asks = Array.isArray(f.b.asks) ? f.b.asks : [];
   // A card answer is stored on the card here, in the same write that records the ask, so the answer survives a refresh,
   // another browser and a bot re-raise. A browser re-sending an answer the board already has heals a card that missed it.
-  const noted = markNotePending(f.b, p);
+  const noted = markNotePending(f.b, p) || markAnswered(f.b, p);
   const settled = settleDecision(f.b.decisions?.find((x) => x.id === p.decision_id), p) || noted;
   if (asks.some((x) => x.id === a.id)) {
     if (settled) { save(f, f.b); log({ op: noted ? "note-pending" : "answer", id: p.decision_id, by: "app", healed: true }); }
@@ -1548,6 +1567,18 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   const missing = missingContext(f.b);
   log({ op: "split-context", count: moved.length, recovered: recovered.length, missing: missing.length, dry });
   console.log(JSON.stringify({ ok: true, moved, recovered, missing, dry_run: dry }));
+} else if (cmd === "review-rows") {
+  // ab review-rows [--dry-run]: stores every per-comment review card finding as a reference to its Reviews-tab row
+  // (one row per comment; both views render it). save() does this on every write; this runs it once. Safe to rerun.
+  // -> {"ok","linked":["repo#pr:cN"],"dry_run"}
+  const dry = args.includes("--dry-run");
+  lock(); const f = load();
+  const linked = storeRows(f.b); hydrateRows(f.b);
+  // Answers he gave before rows kept them: his latest Post / Don't post on either view closes the row on both.
+  const closed = backfillAnswers(f.b);
+  if ((linked.length || closed.length) && !dry) save(f, f.b);
+  log({ op: "review-rows", count: linked.length, closed: closed.length, dry });
+  console.log(JSON.stringify({ ok: true, linked, closed, dry_run: dry }));
 } else if (cmd === "heal-answers") {
   // ab heal-answers: closes every card he answered that the board never marked answered (an answer ask exists, the card
   // has no answer, and the answer came after the card's latest revision) and parks findings whose last word from him is a

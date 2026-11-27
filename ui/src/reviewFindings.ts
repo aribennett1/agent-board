@@ -109,8 +109,10 @@ export function answersFromAsks(asks: Ask[] | undefined, cardId: string, finding
 // Settled (grayed out, no buttons): posted/skipped on GitHub, or the owner tapped Post / Don't post.
 // A free-text note parks the finding with the bot (pending_bot) until the bot rewrites the draft; the rewrite
 // brings Post / Don't post back. Fully settled cards drop off the board.
-export function isFindingSettled(finding: Pick<ReviewFinding, "status" | "pending_bot">, answer?: string): boolean {
+export function isFindingSettled(finding: Pick<ReviewFinding, "status" | "pending_bot" | "answered">, answer?: string): boolean {
   if (finding.status === "posted" || finding.status === "skipped") return true;
+  // Answered on the Reviews tab or this card: one shared row, so it is settled on both.
+  if (finding.answered) return true;
   // His note is with the bot: off his turn until the bot rewrites the draft (the board clears pending_bot then).
   if (finding.pending_bot) return true;
   const a = (answer ?? "").trim();

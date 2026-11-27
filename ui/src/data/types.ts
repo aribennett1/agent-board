@@ -51,7 +51,14 @@ export type PostCommentDraft = {
   revision_at?: string;
   // Set by the board when he sent a free-text note: the finding waits for the bot's rewrite and is off his turn.
   pending_bot?: { at: string; note: string };
+  // Eric's Post / Don't post on either view (the card or the Reviews tab), stored on the one shared row.
+  answered?: ReviewAnswered;
+  // The Reviews-tab row this finding is (src/review-rows.ts): both views render that one row.
+  review?: string;
+  // The PR head the comment was last drafted against.
+  head?: string;
 };
+export type ReviewAnswered = { at: string; action: "post" | "skip" };
 
 export type AlreadyDecided = {
   answer: string;
@@ -231,6 +238,10 @@ export type ReviewComment = {
   note?: string;
   // Set by the board when he sent a free-text note: waits for the bot's rewrite and is off his turn.
   pending_bot?: { at: string; note: string };
+  // Eric's Post / Don't post from either view; the bot then posts it and sets status.
+  answered?: ReviewAnswered;
+  // The PR head the comment was last drafted against.
+  head?: string;
 };
 export type ReviewDraft = {
   repo: string;

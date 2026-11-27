@@ -8,6 +8,7 @@ import { OWNERS, addNote, getTask, type Clock } from './board.ts';
 import type { WebhookConfig } from './config.ts';
 import { routeWebhook } from './routing.ts';
 import { slimPayload } from './context.ts';
+import { hydrateRows } from './review-rows.ts';
 import { deliveryLogEntry } from './deliver.ts';
 import { readFeed, refreshFeed, type FeedDeps } from './feed.ts';
 import { boardDeltas, doneView, liveView, prDetail } from './board-view.ts';
@@ -53,7 +54,8 @@ function doc(db: DatabaseSync, key: 'board' | 'project'): Json | null {
   const row = db.prepare('SELECT json FROM ui_doc WHERE key = ?').get(key) as { json: string } | undefined;
   if (!row) return null;
   try {
-    return JSON.parse(row.json);
+    // A card finding and its Reviews-tab draft are one row; both views render it (src/review-rows.ts).
+    return key === 'board' ? hydrateRows(JSON.parse(row.json)) : JSON.parse(row.json);
   } catch {
     return null;
   }

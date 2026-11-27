@@ -42,8 +42,10 @@ function statusLabel(status: "posted" | "skipped", comment: ReviewComment, local
           </a>
         </>
       );
-    return comment.status === "posted" ? "Posted to GitHub" : `Sent to assistant to post on GitHub${at}`;
+    const sent = local?.at ? at : comment.answered ? ` · ${clockTime(new Date(comment.answered.at))}` : "";
+    return comment.status === "posted" ? "Posted to GitHub" : `Sent to assistant to post on GitHub${sent}`;
   }
+  if (comment.status !== "skipped" && comment.answered) return `Marked Don't post · ${clockTime(new Date(comment.answered.at))}`;
   return `Skipped${comment.note ? ` · ${comment.note}` : at}`;
 }
 export type ReviewLocals = Record<string, ReviewLocal>;
@@ -60,6 +62,8 @@ export function commentStatus(
   locals: ReviewLocals,
 ): "pending" | "posted" | "skipped" {
   if (c.status === "posted" || c.status === "skipped") return c.status;
+  // Answered on the review card or here: the same row, so it is closed on both.
+  if (c.answered) return c.answered.action === "post" ? "posted" : "skipped";
   const l = locals[reviewKey(d, c.id)];
   return l?.status === "posted" || l?.status === "skipped"
     ? l.status

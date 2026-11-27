@@ -204,7 +204,7 @@ export function buildTopics(
           const uid = `decision:${d.id}#f${f.n}`;
           const text = f.summary ? f.summary : f.label;
           const settled = Boolean(skippedAll) || isFindingSettled(f, reply);
-          if (settled && (reply || f.status || f.pending_bot)) answered.push({ uid, label: `#${f.n}`, text, answer: reply ?? (f.pending_bot ? f.pending_bot.note : f.status === "skipped" ? "Don't post" : f.note || "Post"), ...(f.status ? { status: f.status } : {}), ...(f.posted_url ? { posted_url: f.posted_url } : {}), ...(f.note ? { note: f.note } : {}) });
+          if (settled && (reply || f.status || f.pending_bot || f.answered)) answered.push({ uid, label: `#${f.n}`, text, answer: reply ?? (f.pending_bot ? f.pending_bot.note : f.status === "skipped" || (f.status !== "posted" && f.answered?.action === "skip") ? "Don't post" : f.note || "Post"), ...(f.status ? { status: f.status } : {}), ...(f.posted_url ? { posted_url: f.posted_url } : {}), ...(f.note ? { note: f.note } : {}) });
           else if (!d.answer && isOpenDecision(d))
             open.push({
               uid, label: `#${f.n}`, text, context: d.context, itemKey: `decision:${d.id}`, kind: "finding", decision: d, finding: f,
