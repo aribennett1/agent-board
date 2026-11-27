@@ -231,7 +231,7 @@ export async function runRewakes(db: DatabaseSync, now: Date, send: RewakeSend):
     }
     if (ok) {
       const words = clip(asks.map((a) => a.text).join(' / '), 200);
-      const noteId = notify(db, `Re-woke ${bot} on ${label}: no reply ${Math.round(REWAKE_AFTER_MS / 60_000)} minutes after you said "${words}". Nothing needed from you.`, link, at);
+      const noteId = notify(db, `Re-woke ${bot} on ${label}: no reply ${Math.round(REWAKE_AFTER_MS / 60_000)} minutes after you said "${words}". Nothing needed from you. (This action was performed via scheduled script, not a bot.)`, link, at);
       for (const a of asks) {
         db.prepare("INSERT INTO ask_rewakes (ask_id, bot, item_key, state, attempts, woken_at, notification_id, updated_at) VALUES (?, ?, ?, 'woken', ?, ?, ?, ?) ON CONFLICT(ask_id) DO UPDATE SET state = 'woken', attempts = excluded.attempts, woken_at = excluded.woken_at, notification_id = excluded.notification_id, updated_at = excluded.updated_at")
           .run(a.id, bot, it.key, (done.get(a.id)?.attempts ?? 0) + 1, at, noteId, at);
@@ -241,7 +241,7 @@ export async function runRewakes(db: DatabaseSync, now: Date, send: RewakeSend):
     }
     const attempts = Math.max(...asks.map((a) => done.get(a.id)?.attempts ?? 0)) + 1;
     const state = attempts >= MAX_SEND_ATTEMPTS ? 'failed' : 'retry';
-    const noteId = state === 'failed' ? notify(db, `Could not re-wake ${bot} on ${label}: its webhook did not accept the reminder after ${attempts} tries. Nothing needed from you.`, link, at) : null;
+    const noteId = state === 'failed' ? notify(db, `Could not re-wake ${bot} on ${label}: its webhook did not accept the reminder after ${attempts} tries. Nothing needed from you. (This action was performed via scheduled script, not a bot.)`, link, at) : null;
     for (const a of asks) {
       db.prepare('INSERT INTO ask_rewakes (ask_id, bot, item_key, state, attempts, notification_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(ask_id) DO UPDATE SET state = excluded.state, attempts = excluded.attempts, notification_id = excluded.notification_id, updated_at = excluded.updated_at')
         .run(a.id, bot, it.key, state, attempts, noteId, at);

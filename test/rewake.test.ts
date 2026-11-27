@@ -44,7 +44,7 @@ test('no bot write 30 minutes after his answer: that bot is re-woken once, he ge
   assert.match(p.instruction, /only reminder/);
   const n = e.notes();
   assert.equal(n.length, 1);
-  assert.match(n[0].text, /^Re-woke Engineer on Push the cap fix: .*"Push 7d4f3f241"\. Nothing needed from you\.$/);
+  assert.match(n[0].text, /^Re-woke Engineer on Push the cap fix: .*"Push 7d4f3f241"\. Nothing needed from you\. \(This action was performed via scheduled script, not a bot\.\)$/);
   await e.run(T0 + 3 * REWAKE_AFTER_MS);
   const again = await runRewakes(open(':memory:'), new Date(T0), e.send); // an unrelated board does nothing
   assert.deepEqual(again, []);
