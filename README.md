@@ -49,7 +49,7 @@ The screenshots below use example data, not live work.
 - Voice to text: a mic on card and other text fields uses the browser's Web Speech API. Click once to start (the icon turns red and pulses), click again to stop; heard words are inserted at the cursor and are never sent on their own. It works in Chrome and Safari; other browsers see a short hint instead of the button.
 - Each card is labeled with the bot that raised it.
 - Each card shows when it was posted, in ET: time only if it was today, otherwise the date too.
-- Notifications sit in a feed under the sidebar tabs, newest at the top. The list stays put and does not auto-scroll, and an X or Dismiss all clears notes without waking a bot.
+- Notifications sit in a feed under the sidebar tabs, oldest at the top and newest at the bottom, so a new note never pushes down what you are reading. The list stays put and does not auto-scroll, and an X or Dismiss all clears notes without waking a bot.
 - The send button reads "Send to <bot>" for the bot that raised the card, with a picker beside it to send to a different bot.
 - After the dev sends an answer, the board scrolls back to the top.
 - Home groups cards into collapsible sections, one per raising bot.

@@ -112,7 +112,7 @@ describe("scroll anchor", () => {
   it("anchors the notifications list on its own, new notices arriving at the top", () => {
     document.body.innerHTML = `<ol id="page">${rows(ids(0, 5))}</ol><ol class="feed-list">${rows(ids(0, 10, "n"), 60)}</ol>`;
     const feed = document.querySelector(".feed-list") as HTMLElement;
-    feed.scrollTop = 0; // reading the newest notice, at the top of the list
+    feed.scrollTop = 0; // reading the top of the list
     const snaps = captureAnchors();
     const box = snaps.find((s) => s.box === feed)!;
     expect(box.items[0].el).toBe(byId("n0"));

@@ -5,7 +5,8 @@ import { Markdown } from "./markdown";
 import { isBoardBot, botPillClass } from "./raisedBy";
 
 // The notifications feed in the bottom of the sidebar: status notes the bots posted with `ab notify`, as chat bubbles,
-// newest at the top and oldest at the bottom. The list starts at the top and never moves the scroll on its own.
+// oldest at the top and newest at the bottom, so a new note lands below what he is reading and nothing shifts. The list
+// starts at the top and never moves the scroll on its own.
 // An X on a bubble, or Dismiss all, clears it through /__ab/notifications/clear.
 // That call never hits the wake webhook; the bots are not notified. Cleared notes leave the feed.
 
@@ -16,14 +17,14 @@ const DAY = new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, month: "shor
 const TODAY = new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, year: "numeric", month: "numeric", day: "numeric" });
 const plain = (s: string) => s.replace(/[\u202f\u00a0]/g, " ");
 
-/** Newest created_at first; later id wins a tie. Does not mutate the input. */
-export function newestFirst<T extends { id: number; created_at: string }>(items: T[]): T[] {
+/** Oldest created_at first; lower id first on a tie. Does not mutate the input. */
+export function oldestFirst<T extends { id: number; created_at: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => {
     const tb = Date.parse(b.created_at);
     const ta = Date.parse(a.created_at);
     const nb = Number.isNaN(tb) ? 0 : tb;
     const na = Number.isNaN(ta) ? 0 : ta;
-    return nb - na || b.id - a.id;
+    return na - nb || a.id - b.id;
   });
 }
 
@@ -51,8 +52,8 @@ export function Notifications({ items, now = new Date() }: { items: BoardNotific
   const [hidden, setHidden] = useState<Set<number>>(() => new Set());
   const pending = useRef(new Set<number>());
 
-  // Newest first, so later times sit at the top.
-  const visible = newestFirst(items.filter((n) => !n.cleared_at && !hidden.has(n.id)));
+  // Oldest first, so a new note is added at the bottom.
+  const visible = oldestFirst(items.filter((n) => !n.cleared_at && !hidden.has(n.id)));
 
   const hide = (ids: number[]) =>
     setHidden((s) => {

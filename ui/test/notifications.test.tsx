@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Board, BoardNotification } from "../src/data/types";
-import { Notifications, noticeTime, newestFirst, CLEAR_PATH } from "../src/Notifications";
+import { Notifications, noticeTime, oldestFirst, CLEAR_PATH } from "../src/Notifications";
 import { badgeTitle } from "../src/needsYouBadge";
 import { POLL_MS, VERSION_PATH, BOARD_PATH, resetLiveFeed } from "../src/useLiveBoard";
 
@@ -25,14 +25,15 @@ afterEach(() => {
 });
 
 describe("Notifications feed", () => {
-  it("lists newest first, with the bot, ET time, text, next update, and an X on each bubble; nothing is grayed out", () => {
+  it("lists oldest first, newest at the bottom, with the bot, ET time, text, next update, and an X on each bubble; nothing is grayed out", () => {
     const items = [
       note(2, { bot: "QA", text: "Approved **PR #12** at `abc`.", created_at: "2026-11-26T17:10:00.000Z" }),
       note(1, { bot: "Planner", text: "Starting now.", next_update: "1:15 PM ET", created_at: "2026-11-26T14:00:00.000Z" }),
     ];
     render(<Notifications items={items} now={now} />);
     const rows = [...document.querySelectorAll<HTMLElement>("[data-notice-id]")];
-    expect(rows.map((r) => r.dataset.noticeId)).toEqual(["2", "1"]);
+    expect(rows.map((r) => r.dataset.noticeId)).toEqual(["1", "2"]);
+    [rows[0], rows[1]] = [rows[1], rows[0]];
     expect(within(rows[0]).getByText("QA", { selector: ".notice-bot" })).toBeTruthy();
     expect(rows[0].querySelector(".notice-avatar")?.className).toContain("bot-pill-qa");
     expect(within(rows[0]).getByText("12:10 PM ET")).toBeTruthy();
@@ -51,16 +52,16 @@ describe("Notifications feed", () => {
     void style;
   });
 
-  it("puts a 4:39 note above a 4:37 note even when the payload is oldest first", () => {
+  it("puts a 4:39 note below a 4:37 note even when the payload is newest first", () => {
     const engineer = note(32, { bot: "Engineer", text: "The 5 cleanups are ready.", created_at: "2026-11-26T21:37:44.887Z" });
     const grok = note(33, { bot: "Grok Bot", text: "PR #2076 needs work.", created_at: "2026-11-26T21:39:36.311Z" });
-    expect(newestFirst([engineer, grok]).map((n) => n.id)).toEqual([33, 32]);
-    const { container } = render(<Notifications items={[engineer, grok]} now={now} />);
+    expect(oldestFirst([grok, engineer]).map((n) => n.id)).toEqual([32, 33]);
+    const { container } = render(<Notifications items={[grok, engineer]} now={now} />);
     const rows = [...container.querySelectorAll<HTMLElement>("[data-notice-id]")];
-    expect(rows.map((r) => r.dataset.noticeId)).toEqual(["33", "32"]);
-    expect(rows[0].querySelector(".notice-bot")!.textContent).toBe("Grok Bot");
-    expect(rows[0].querySelector("time")!.textContent).toBe("4:39 PM ET");
-    expect(rows[1].querySelector("time")!.textContent).toBe("4:37 PM ET");
+    expect(rows.map((r) => r.dataset.noticeId)).toEqual(["32", "33"]);
+    expect(rows[1].querySelector(".notice-bot")!.textContent).toBe("Grok Bot");
+    expect(rows[0].querySelector("time")!.textContent).toBe("4:37 PM ET");
+    expect(rows[1].querySelector("time")!.textContent).toBe("4:39 PM ET");
     expect(container.querySelector(".feed-list")).not.toBeNull();
   });
 
@@ -147,7 +148,7 @@ describe("Notifications stay off Conversation and the red dot", () => {
 });
 
 describe("feed scrolling", () => {
-  it("starts at the top and does not move the scroll when a new note arrives", () => {
+  it("starts at the top, adds a new note at the bottom, and does not move the scroll", () => {
     const { rerender } = render(<Notifications items={[note(1), note(2)]} now={now} />);
     const list = document.querySelector<HTMLElement>(".feed-list")!;
     Object.defineProperty(list, "scrollHeight", { configurable: true, get: () => 500 });
@@ -156,7 +157,7 @@ describe("feed scrolling", () => {
     list.scrollTop = 80;
     rerender(<Notifications items={[note(1), note(2), note(3)]} now={now} />);
     expect(list.scrollTop).toBe(80);
-    expect([...document.querySelectorAll<HTMLElement>("[data-notice-id]")].map((r) => r.dataset.noticeId)).toEqual(["3", "2", "1"]);
+    expect([...document.querySelectorAll<HTMLElement>("[data-notice-id]")].map((r) => r.dataset.noticeId)).toEqual(["1", "2", "3"]);
   });
 });
 

@@ -136,3 +136,27 @@ describe("Send to <bot> split button", () => {
     expect(line.join(" ")).toContain("QA");
   });
 });
+
+describe("card order inside a bot section", () => {
+  const at = (h: number) => `2026-11-26T${String(h).padStart(2, "0")}:00:00.000Z`;
+  const order = (name: string) => [...section(name)!.querySelectorAll<HTMLElement>("[data-topic]")].map((t) => t.dataset.topic);
+
+  it("lists oldest first, so a new card lands at the bottom and a new reply on an old card does not move it", () => {
+    const b = board(
+      [d("planner-new", { created_at: at(12) }), d("planner-old", { created_at: at(9) }), d("planner-mid", { created_at: at(11) })],
+      { "decision:planner-old": { thread: [{ at: at(13), from: "bot", text: "A newer reply on the oldest card." }] } } as Board["details"],
+    );
+    show(b);
+    expect(order("Planner")).toEqual(["decision:planner-old", "decision:planner-mid", "decision:planner-new"]);
+    cleanup();
+
+    // A card raised later is added below the others; the ones already there keep their places.
+    show(board([...b.decisions, d("planner-newest", { created_at: at(14) })], b.details));
+    expect(order("Planner")).toEqual(["decision:planner-old", "decision:planner-mid", "decision:planner-new", "decision:planner-newest"]);
+  });
+
+  it("keeps the bot sections in their fixed order whatever was raised most recently", () => {
+    show(board([d("qa-a", { created_at: at(8) }), d("engineer-a", { created_at: at(15) }), d("planner-a", { created_at: at(16) })]));
+    expect([...document.querySelectorAll<HTMLElement>("[data-bot-section]")].map((s) => s.dataset.botSection)).toEqual(["Planner", "QA", "Engineer"]);
+  });
+});

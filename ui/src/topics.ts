@@ -66,6 +66,8 @@ export type Topic = {
   answered: AnsweredQuestion[];
   history: HistoryMsg[];
   at: string;
+  /** When the topic began: its first card or message. Sets its place in the section, so new activity never moves it. */
+  startedAt: string;
   raisedBy?: BoardBot;
 };
 
@@ -285,11 +287,15 @@ export function buildTopics(
     topics.push({
       key: tkey, keys: members, label, link: labels[tkey]?.link, summary: summary ? short(summary) : undefined, ball, statusLine,
       group: open.length ? "you" : ball === "Done" ? "done" : "progress", open, answered, history, at: last?.at ?? "",
+      startedAt: [...tDecisions.map((d) => d.created_at ?? ""), history[0]?.at ?? ""].filter(Boolean).sort()[0] ?? "",
       raisedBy: tDecisions.map((d) => raisedByOf(d, details)).find(Boolean) ?? members.map((k) => raisedByFromId(k)).find(Boolean),
     });
   }
+  // Within a group, oldest first by when the topic began: a new card lands at the bottom of its group, and a new reply on
+  // an older card does not move that card.
   const rank = { you: 0, progress: 1, done: 2 } as const;
-  return topics.sort((a, b) => rank[a.group] - rank[b.group] || (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  const started = (t: Topic) => t.startedAt || t.at;
+  return topics.sort((a, b) => rank[a.group] - rank[b.group] || (started(a) < started(b) ? -1 : started(a) > started(b) ? 1 : 0) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }
 
 export const openCount = (topics: Topic[]) => topics.reduce((n, t) => n + t.open.length, 0);
