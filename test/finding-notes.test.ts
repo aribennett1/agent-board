@@ -173,3 +173,50 @@ test('heal-answers parks open findings whose last word from him is a note, and l
   assert.equal(finding(db, 2).pending_bot, undefined);
   assert.deepEqual(ab(db, 'heal-answers').out.parked, []);
 });
+
+test('heal-answers does not park a drafted comment the bot already answered on that PR after his note (rows-backend#1994 c3)', () => {
+  const dbPath = join(mkdtempSync(join(tmpdir(), 'ab-notes-')), 'board.db'); open(dbPath).close();
+  const draft = JSON.stringify([{ repo: 'rows-backend', pr: 1994, verdict: 'v', comments: [
+    { id: 'c3', severity: 'low', path: 'tests/T.php', line: 833, body: '`updateQuietly()`', status: 'pending' },
+    { id: 'c4', severity: 'low', path: 'tests/U.php', line: 9, body: 'Other.', status: 'pending' },
+  ] }]);
+  assert.equal(ab(dbPath, 'reviews', draft, '--no-gh').code, 0);
+  const board = boardOf(dbPath);
+  const at = (s: number) => new Date(Date.now() - 60_000 + s * 1000).toISOString();
+  const ask = (id: string, when: string) => ({ id: `review:rows-backend#1994:${id}:note:${when}`, at: when, item_key: 'pr:rows-backend/1994', label: 'x', kind: 'review', text: `Note on ${id} (x): we only say updateQuietly()`, ref: `rows-backend#1994:${id}` });
+  board.asks = [ask('c3', at(1)), ask('c4', at(5))];
+  board.details = { 'pr:rows-backend/1994': { thread: [{ at: at(3), from: 'bot', text: 'c3 is trimmed. Hit Post when ready.' }] } };
+  open(dbPath).prepare("UPDATE ui_doc SET json = ? WHERE key = 'board'").run(JSON.stringify(board));
+  const r = ab(dbPath, 'heal-answers');
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(r.out.parked, ['rows-backend#1994:c4'], 'only the note with no bot reply after it parks');
+  const cs = boardOf(dbPath).reviews[0].comments;
+  assert.equal(cs[0].pending_bot, undefined);
+  assert.ok(cs[1].pending_bot);
+});
+
+test('ab review-status --body on a drafted review comment rewrites it and clears his parked note', () => {
+  const dbPath = join(mkdtempSync(join(tmpdir(), 'ab-notes-')), 'board.db'); open(dbPath).close();
+  const draft = JSON.stringify([{ repo: 'rows-backend', pr: 1990, verdict: 'v', comments: [{ id: 'c1', severity: 'low', path: 'app/A.php', line: 5, body: 'Long text.', status: 'pending' }] }]);
+  assert.equal(ab(dbPath, 'reviews', draft, '--no-gh').code, 0);
+  const p = { event: 'review.answer', decision_id: 'review:rows-backend#1990:c1', repo: 'rows-backend', pr: 1990, comment_id: 'c1', action: 'note', text: 'shorter please', answered_at: later() };
+  ab(dbPath, 'ask', JSON.stringify(p));
+  const c = () => boardOf(dbPath).reviews[0].comments[0];
+  assert.ok(c().pending_bot);
+  const r = ab(dbPath, 'review-status', 'rows-backend#1990', 'c1', '--body', 'Short.');
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(c().body, 'Short.');
+  assert.equal(c().pending_bot, undefined);
+  assert.ok(c().revision_at);
+  assert.deepEqual(ab(dbPath, 'heal-answers').out.parked, [], 'the stamped rewrite keeps heal from parking it again');
+});
+
+test('carryPendingBot stamps every rewrite fresh and keeps the stamp on an unchanged body', () => {
+  const prev = [{ n: 1, body: 'a', revision_at: '2026-01-01T00:00:00.000Z' }];
+  const copied: Record<string, any>[] = [{ n: 1, body: 'b', revision_at: '2026-01-01T00:00:00.000Z' }];
+  carryPendingBot(prev, copied, (c) => c.n, new Date('2026-11-27T12:00:00Z'), true);
+  assert.equal(copied[0].revision_at, '2026-11-27T12:00:00.000Z');
+  const same: Record<string, any>[] = [{ n: 1, body: 'a' }];
+  carryPendingBot(prev, same, (c) => c.n, new Date(), true);
+  assert.equal(same[0].revision_at, '2026-01-01T00:00:00.000Z');
+});

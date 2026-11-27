@@ -51,7 +51,9 @@ export function carryPendingBot(prev: Json[] | undefined, next: Json[], keyOf: (
     if (!was) return;
     if (was.body === c.body) {
       if (was.pending_bot && c.status !== 'posted' && c.status !== 'skipped') c.pending_bot = was.pending_bot;
-    } else if (stampRewrite && !c.revision_at) c.revision_at = now.toISOString();
+      // The bot's copy may drop the stamp; keep it so a later heal still knows the note was handled.
+      if (was.revision_at && !c.revision_at) c.revision_at = was.revision_at;
+    } else if (stampRewrite) c.revision_at = now.toISOString(); // always now: a stamp the bot copied back would be stale
   });
 }
 
@@ -62,8 +64,12 @@ export function healNotes(board: Json): string[] {
   const asks: Json[] = (Array.isArray(board.asks) ? board.asks : []).filter((a: Json) => a.kind === 'review' && typeof a.id === 'string').sort(sortAt);
   const parked: string[] = [];
   const lastWord = (prefix: string) => asks.filter((a) => a.id.startsWith(prefix)).pop();
-  const parkFrom = (c: Json, ask: Json | undefined, label: string) => {
-    if (!ask || !/:note:/.test(ask.id) || c.pending_bot) return;
+  // A bot reply on the same item after his note means the bot took that batch; drafts rewritten before revision_at
+  // existed carry no stamp, and parking them hid a finding that was already his turn again (rows-backend#1994 c3).
+  const repliedAfter = (key: string, at: string) =>
+    (board.details?.[key]?.thread ?? []).some((t: Json) => t?.from === 'bot' && typeof t.at === 'string' && t.at > at);
+  const parkFrom = (c: Json, ask: Json | undefined, label: string, key: string) => {
+    if (!ask || !/:note:/.test(ask.id) || c.pending_bot || repliedAfter(key, ask.at)) return;
     const tail = String(ask.text).includes(': ') ? String(ask.text).slice(String(ask.text).indexOf(': ') + 2) : String(ask.text);
     if (park(c, { answered_at: ask.at, text: tail })) parked.push(label);
   };
@@ -73,11 +79,11 @@ export function healNotes(board: Json): string[] {
       const n = findingNumber(c, i);
       const word = lastWord(`${d.id}:${n}:`);
       const all = asks.find((a) => a.id.startsWith(`${d.id}:all:`));
-      if (!all) parkFrom(c, word, `${d.id}:${n}`);
+      if (!all) parkFrom(c, word, `${d.id}:${n}`, `decision:${d.id}`);
     });
   }
   for (const r of Array.isArray(board.reviews) ? board.reviews : []) {
-    for (const c of r.comments ?? []) parkFrom(c, lastWord(`review:${r.repo}#${r.pr}:${c.id}:`), `${r.repo}#${r.pr}:${c.id}`);
+    for (const c of r.comments ?? []) parkFrom(c, lastWord(`review:${r.repo}#${r.pr}:${c.id}:`), `${r.repo}#${r.pr}:${c.id}`, `pr:${r.repo}/${r.pr}`);
   }
   return parked;
 }

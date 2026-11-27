@@ -66,7 +66,10 @@ export type Route = { webhook: WebhookConfig | null; bot: BoardBot | null; via: 
 /** Where to send this payload: the picked bot (to_bot), else the card's author, else Grok Bot's webhook. */
 export function routeWebhook(db: DatabaseSync, p: Json, derived: () => Json[], defaultHook: WebhookConfig | null, envFile?: string): Route {
   const picked = isBoardBot(p.to_bot) ? p.to_bot : undefined;
-  const bot = picked ?? authorOfPayload(db, p, derived());
+  // A note or post on a drafted review (Reviews tab, no card) is QA's: QA writes the drafts. Without this it fell back to
+  // Grok Bot's webhook, and QA only saw it if someone passed it on.
+  const drafted = p.event === 'review.answer' && !p.card_id ? 'QA' : undefined;
+  const bot = picked ?? authorOfPayload(db, p, derived()) ?? drafted;
   const key = bot ? BOT_KEY[bot] : undefined;
   if (bot && key) {
     const vars = envVars(envFile);

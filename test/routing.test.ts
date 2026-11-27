@@ -119,3 +119,11 @@ test('the bot webhook gets a slim payload: the answer and the card, not the brow
   assert.equal(sent.junk, undefined);
   assert.equal(sent.read_more, 'ab context --bot Planner');
 });
+
+test('a note or post on a drafted review (no card) goes to QA, not to Grok Bot', async () => {
+  const e = setup(BOTS);
+  e.put({ decisions: [], reviews: [{ repo: 'rows-backend', pr: 1994, verdict: 'v', comments: [] }], glance: { waiting: [], tickets: [] } });
+  await e.post({ event: 'review.answer', decision_id: 'review:rows-backend#1994:c3', repo: 'rows-backend', pr: 1994, comment_id: 'c3', action: 'note', text: 'only updateQuietly()', answered_at: new Date().toISOString() });
+  assert.equal(e.up[0].url, BOTS.AB_WEBHOOK_URL_QA);
+  assert.equal(e.up[0].auth, BOTS.AB_WEBHOOK_SECRET_QA);
+});

@@ -1404,6 +1404,10 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
       const c = drafted.comments.find((x) => x.id === id);
       if (c) {
         if (status !== undefined) { c.status = status; delete c.pending_bot; }
+        // A rewrite answers his note: --body replaces the draft, and either flag takes it off QA's plate.
+        if (bodyFlag !== undefined) c.body = quietSwapText(bodyFlag.trim());
+        if (answerQFlag !== undefined) c.answer_to_question = answerQFlag.trim();
+        if (hasRewrite) { delete c.pending_bot; c.revision_at = new Date().toISOString(); }
         if (urlFlag !== undefined) c.url = urlFlag;
         if (noteFlag !== undefined) { if (noteFlag.trim()) c.note = noteFlag.trim(); else delete c.note; }
         hit = true;
