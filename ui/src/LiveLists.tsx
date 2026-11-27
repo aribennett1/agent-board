@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Markdown } from "./markdown";
 import { TIME_ZONE } from "./config";
 import { prRef } from "./others";
+import { PR_DETAIL_PATH } from "./useLiveBoard";
 import { ago, groupMine, groupOthers, groupTickets, isQaDrafted, isReviewRequested, linesChanged, mineOpenReasons, priorityName, readyToApprove, type FeedLabel, type FeedMeta, type FeedPr, type FeedTicket, type Group } from "./liveLists";
 
 // My tickets, My PRs and Others' PRs: compact rows grouped under plain headings, filled by the server's own timer.
@@ -61,9 +62,36 @@ const withRef = (p: FeedPr): FeedPr => {
   return m ? { ...p, repo: m[1], number: Number(m[2]) } : p;
 };
 
+// The description and open comments of a row the board sent without them, loaded the first time the row opens.
+type PrDetail = Pick<FeedPr, "body" | "unresolved">;
+const prDetails = new Map<string, PrDetail>();
+function usePrDetail(p: FeedPr, open: boolean): { detail?: PrDetail; failed: boolean } {
+  const key = `${p.link}@${p.updated_at ?? ""}`;
+  const [, setTick] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const need = open && !!p.detail_deferred && !!p.link && !prDetails.has(key);
+  useEffect(() => {
+    if (!need) return;
+    let live = true;
+    fetch(`${PR_DETAIL_PATH}?link=${encodeURIComponent(p.link)}`, { cache: "no-store", signal: AbortSignal.timeout(15000) })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: PrDetail) => {
+        prDetails.set(key, { body: d.body, unresolved: d.unresolved });
+        if (live) setTick((n) => n + 1);
+      })
+      .catch(() => live && setFailed(true));
+    return () => {
+      live = false;
+    };
+  }, [need, key, p.link]);
+  return { detail: prDetails.get(key), failed };
+}
+
 function PrRow({ p: raw, others, x }: { p: FeedPr; others: boolean; x: PrExtras }) {
-  const p = withRef(raw);
   const [open, setOpen] = useState(false);
+  const lazy = usePrDetail(raw, open);
+  const p = withRef(lazy.detail ? { ...raw, ...lazy.detail } : raw);
+  const waiting = !!raw.detail_deferred && !lazy.detail;
   const failing = p.checks?.failing ?? [];
   const unresolved = p.unresolved ?? [];
   const ready = others && isReviewRequested(p) && readyToApprove(p);
@@ -119,7 +147,13 @@ function PrRow({ p: raw, others, x }: { p: FeedPr; others: boolean; x: PrExtras 
               </div>
             )}
             <h4>Description</h4>
-            {p.body?.trim() ? <Markdown text={p.body} className="md live-desc" /> : <p className="live-empty">No description.</p>}
+            {waiting ? (
+              <p className="live-empty">{lazy.failed ? "Could not load the description." : "Loading…"}</p>
+            ) : p.body?.trim() ? (
+              <Markdown text={p.body} className="md live-desc" />
+            ) : (
+              <p className="live-empty">No description.</p>
+            )}
             {x.extra?.(p)}
             <p className="live-branch">{p.branch} → {p.base} · {linesChanged(p)}</p>
           </div>

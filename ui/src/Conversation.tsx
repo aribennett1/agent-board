@@ -15,6 +15,7 @@ import { Checks } from "./Checks";
 import { botPillClass, type BoardBot } from "./raisedBy";
 import { DEFAULT_BOT, RecipientPicker } from "./sendTo";
 import type { HistoryMsg } from "./topics";
+import { loadMoreDone, useDoneInfo } from "./useLiveBoard";
 
 // The landing view (t102u): one card per topic (ticket, PR or plan). Each card says what it is, what's happening and
 // who has the ball, then "Your turn" with only the open questions (context inline, options, own words + mic), answered
@@ -508,9 +509,19 @@ export function scrollToTop() {
 function BotSection({ name, open, collapsed, onToggle, topics, card }: { name: string; open: number; collapsed: boolean; onToggle: () => void; topics: Topic[]; card: (t: Topic) => ReactNode }) {
   const [showProgress, setShowProgress] = useState(false);
   const [showDone, setShowDone] = useState(false);
+  const info = useDoneInfo();
   const mine = topics.filter((t) => t.group === "you");
   const progress = topics.filter((t) => t.group === "progress");
   const done = topics.filter((t) => t.group === "done");
+  // The board leaves most done topics out until he opens Show done; count those the server kept back too.
+  const kept = info.summary?.by_bot?.[name] ?? 0;
+  const doneCount = done.filter((t) => !info.loaded.has(t.key)).length + kept;
+  const page = info.page(name);
+  const more = kept > 0 && page.has_more;
+  const toggleDone = () => {
+    if (!showDone && more && !page.started) void loadMoreDone(name);
+    setShowDone((x) => !x);
+  };
   return (
     <section className="bot-section" aria-label={name} data-bot-section={name}>
       <button type="button" className="bot-section-head" aria-expanded={!collapsed} onClick={onToggle}>
@@ -529,12 +540,17 @@ function BotSection({ name, open, collapsed, onToggle, topics, card }: { name: s
               {showProgress && progress.map(card)}
             </div>
           )}
-          {done.length > 0 && (
+          {doneCount > 0 && (
             <div className="topic-group">
-              <button type="button" className="group-toggle" aria-expanded={showDone} onClick={() => setShowDone((x) => !x)}>
-                {showDone ? "Hide done" : `Show done (${done.length})`}
+              <button type="button" className="group-toggle" aria-expanded={showDone} onClick={toggleDone}>
+                {showDone ? "Hide done" : `Show done (${doneCount})`}
               </button>
               {showDone && done.map(card)}
+              {showDone && more && (
+                <button type="button" className="link-btn done-more" disabled={page.loading} onClick={() => void loadMoreDone(name)}>
+                  {page.loading ? "Loading…" : page.started ? "Show older done" : "Load done"}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -565,7 +581,8 @@ export function Conversation({ topics, onOpen, briefs, details, chrome, ...a }: 
   const live = topics.map((t) => ({ ...t, open: t.open.filter((q) => !(q.uid in sent)) }));
   const card = (t: Topic) => <TopicCard key={t.key} t={t} a={a} onOpen={onOpen} sent={sent} sentTo={sentTo} markSent={markSent} brief={briefs?.[t.key]} detail={details?.[t.key] ?? t.keys.map((k) => details?.[k]).find(Boolean)} chrome={chrome} />;
   const nameOf = (t: Topic) => t.raisedBy ?? UNKNOWN;
-  const names = SECTION_ORDER.filter((n) => topics.some((t) => nameOf(t) === n));
+  const doneInfo = useDoneInfo();
+  const names = SECTION_ORDER.filter((n) => topics.some((t) => nameOf(t) === n) || (doneInfo.summary?.by_bot?.[n] ?? 0) > 0);
   return (
     <div className="view convo">
       <p className="convo-summary" role="status">

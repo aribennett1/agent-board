@@ -44,7 +44,9 @@ test('decision cards with options, priority, glance sections and the project tab
   assert.equal(feed.decisions[0].options.length, 2);
   assert.equal(feed.decisions[0].priority, 'high');
   assert.equal(feed.glance.waiting[0].title, 'PR 1');
-  assert.ok(feed.details['ticket:PROJ-1']);
+  // A detail no card, row or topic points at is not rendered, so the live board leaves it out; ?view=all keeps it.
+  assert.equal(feed.details['ticket:PROJ-1'], undefined);
+  assert.ok((await (await e.app.request('/__ab/board?view=all')).json()).details['ticket:PROJ-1']);
   assert.equal(feed.project.title, 'Relaunch');
   assert.equal((await e.app.request('/__ab/board')).headers.get('cache-control'), 'no-store');
 });

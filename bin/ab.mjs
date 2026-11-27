@@ -871,7 +871,7 @@ const lastTomb = (id) => tombstones().filter((t) => t.id === id).pop();
 const isCleared = (id) => { const t = lastTomb(id); return !!t && !t.restored; };
 async function served() {
   if (process.env.AB_NO_SERVER) return null;
-  try { const r = await fetch(URL_ + "/__ab/board", { cache: "no-store" }); return r.ok ? await r.json() : null; } catch { return null; }
+  try { const r = await fetch(URL_ + "/__ab/board?view=all", { cache: "no-store" }); return r.ok ? await r.json() : null; } catch { return null; }
 }
 async function waitServed(pred, ms = 4000) {
   unlock();                                           // written already; don't block other writers while polling

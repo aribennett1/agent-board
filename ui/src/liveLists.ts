@@ -26,6 +26,8 @@ export type FeedPr = {
   updated_at?: string;
   /** Set by the server for a PR it added only because QA stored review drafts for it. */
   qa_drafted?: boolean;
+  /** The board left out body and unresolved; the row loads them from /__ab/pr-detail when it opens. */
+  detail_deferred?: boolean;
 };
 export type FeedTicket = {
   id: string;

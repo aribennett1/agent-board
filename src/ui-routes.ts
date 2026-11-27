@@ -10,6 +10,7 @@ import { routeWebhook } from './routing.ts';
 import { slimPayload } from './context.ts';
 import { deliveryLogEntry } from './deliver.ts';
 import { readFeed, refreshFeed, type FeedDeps } from './feed.ts';
+import { boardDeltas, doneView, liveView, prDetail } from './board-view.ts';
 
 // The action board UI's server side, ported from the original local board's dev-server routes (/__ab/*):
 // the live board feed, the webhook forwarder, the conversation record, delivery log, priority and "Not relevant".
@@ -197,7 +198,26 @@ export function mountUi(app: Hono, db: DatabaseSync, clock: Clock, o: UiOptions 
     return Buffer.byteLength(text) > limit ? null : text;
   }
 
-  app.get('/__ab/board', (c) => c.json({ ...boardFeed(db), webhook_configured: Boolean(o.webhook) }, 200, { 'Cache-Control': 'no-store' }));
+  // The live board: only what Eric sees without opening Show done (src/board-view.ts), and with ?since=<rev> only what
+  // changed since that one. ?view=all is the whole board, unchanged, for bin/ab.mjs and anything else that reads it.
+  const deltas = boardDeltas();
+  const fullFeed = () => ({ ...boardFeed(db), webhook_configured: Boolean(o.webhook) });
+  app.get('/__ab/board', (c) => {
+    const full = fullFeed();
+    if (c.req.query('view') === 'all') return c.json(full, 200, { 'Cache-Control': 'no-store' });
+    return c.json(deltas(liveView(full), c.req.query('since') ?? null), 200, { 'Cache-Control': 'no-store' });
+  });
+  // Done topics the live board leaves out, a page at a time, for one bot section's Show done.
+  app.get('/__ab/board/done', (c) => {
+    const offset = Number(c.req.query('offset')) || 0;
+    const limit = Number(c.req.query('limit')) || 20;
+    return c.json(doneView(fullFeed(), { bot: c.req.query('bot') || undefined, offset, limit }), 200, { 'Cache-Control': 'no-store' });
+  });
+  // A PR row's description and open comments, which the live board leaves out until the row is opened.
+  app.get('/__ab/pr-detail', (c) => {
+    const d = prDetail(fullFeed(), c.req.query('link') ?? '');
+    return d ? c.json(d, 200, { 'Cache-Control': 'no-store' }) : c.json({ error: 'no such PR row' }, 404);
+  });
 
   // Closed cards, asks and details the daily prune moved out of the live board, newest first. Read only.
   app.get('/__ab/archive', (c) => {
