@@ -3,6 +3,14 @@ import { registerHooks } from 'node:module';
 // The server reuses the UI's pure board logic (ui/src/topics.ts and what it imports) so "done" means exactly what
 // the Home tab shows as done. Those files import each other without a file extension, the way Vite expects; this
 // resolve hook adds ".ts" for relative imports made from inside ui/src, and nothing else.
+//
+// WARNING: Node runs these UI files directly with type stripping, so the server breaks at startup if any of them
+// (topics, visibility, triage, delivery, messages, others, boardDelta, and everything they import) gains:
+//   - a runtime import of a .tsx file or a React/DOM module (`import type` is fine, it is erased),
+//   - TypeScript-only syntax that cannot just be erased: enum, namespace, constructor parameter properties,
+//     `import x = require()`, or JSX,
+//   - a top-level read of Vite-only values such as import.meta.env.X without a guard.
+// test/board-view.test.ts imports this module, so `npm test` catches it before a restart does.
 const UI_SRC = new URL('../ui/src/', import.meta.url).href;
 registerHooks({
   resolve(specifier, context, next) {
