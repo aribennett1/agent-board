@@ -1,3 +1,4 @@
+import { postableBody } from './comment-context.ts';
 import { quietSwapText } from './quiet-swap.ts';
 import { isBoardBot, raisedByOf, type BoardBot } from '../ui/src/raisedBy.ts';
 
@@ -138,7 +139,8 @@ export function slimPayload(p: Json, bot: BoardBot | null): Json {
     if (p[k] === undefined) continue;
     out[k] = typeof p[k] === 'string' && k !== 'text' && k !== 'custom_text' && k !== 'body' ? clip(p[k], PAYLOAD_CLIP) : p[k];
   }
-  if (p.event === 'review.answer' && typeof out.body === 'string') out.body = quietSwapText(out.body);
+  // The drafted body is all that gets posted: a leading context story for Eric is cut off here too.
+  if (p.event === 'review.answer' && typeof out.body === 'string') out.body = quietSwapText(postableBody(out.body));
   if (bot) out.read_more = `ab context --bot ${bot}`;
   return out;
 }

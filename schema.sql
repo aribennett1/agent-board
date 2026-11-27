@@ -219,3 +219,22 @@ CREATE TABLE IF NOT EXISTS pr_attention (
   notification_id INTEGER,
   woken_at TEXT
 );
+
+-- Answers Eric gave that waited on a bot (src/rewake.ts): one row per ask once its outcome is known. state is handled
+-- (a bot wrote on the item in time), closed (item closed first), woken (re-woken once; woken-answered after the bot
+-- wrote), retry (the webhook refused; tried again next pass) or failed (gave up after MAX_SEND_ATTEMPTS).
+CREATE TABLE IF NOT EXISTS ask_rewakes (
+  ask_id TEXT PRIMARY KEY,
+  bot TEXT NOT NULL,
+  item_key TEXT NOT NULL,
+  state TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  woken_at TEXT,
+  notification_id INTEGER,
+  updated_at TEXT NOT NULL
+);
+-- since: when the re-wake backstop first ran; only answers after it count.
+CREATE TABLE IF NOT EXISTS ask_rewake_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);

@@ -81,6 +81,7 @@
 //   ab answer <id> --custom "text" --by chat|app [--at ISO]
 //   ab answer <id> --action send --text "final text" --by chat|app [--at ISO]
 //   ab answer <id> --action decline --by chat|app [--at ISO]
+//   ab split-context [--dry-run]                         moves a leading context story out of open drafted comment bodies into context
 //   ab heal-answers                                      closes cards he answered that the board never marked answered
 //   ab clear <id> --reason "why"                    (tombstoned: raise refuses it later) -> {"ok","status":"cleared","id"}
 //                                                      the tombstone line in .ab-cleared.jsonl is {id, reason, at, card}: card is
@@ -105,9 +106,16 @@
 //                                                      (ab glance keeps My PRs)
 //   ab reviews [--replace] [-] < drafts.json        upserts drafted reviews by repo+pr: [{"repo","pr","verdict","notes"?,"done"?,
 //                                                      "comments":[{"id","severity":"high|medium|low","title"?,"path","line":<int>|null,
-//                                                      "body","status":"pending|posted|skipped"}]}] -> {"ok","live","set","total"}
+//                                                      "context"?,"body","status":"pending|posted|skipped"}]}] -> {"ok","live","set","total"}
+//                                                      body is the ONLY text posted on GitHub: it starts at the ask ("What do you
+//                                                      think about ...") plus its suggestion or code. The story for Eric (what the PR
+//                                                      adds, where the code comes in, the gap, diagrams) goes in "context", shown on
+//                                                      the board and never posted. A pending body with a context section ("What this
+//                                                      PR adds", "Where this ... comes in", "The gap", ...) is refused (exit 2).
+//                                                      post_comments on raise follow the same rule ("context"? per finding).
 //   ab review-status <repo>#<pr> <comment-id> <pending|posted|skipped> [--url <posted comment>] [--note "why"]
-//                                                      [--answer-to-question "text"] [--body "revised will-post text"]
+//                                                      [--answer-to-question "text"] [--body "revised will-post text"] [--context "text"]
+//                                                      --body follows the reviews rule above; --context replaces the board-only story.
 //                                                      Marks a drafted-review comment, or a finding on a per-comment ops
 //                                                      review card (pr201-ops-review and the like), as posted or not.
 //                                                      <comment-id> is the draft id (c1) or the finding number (1, #1, f1).
@@ -193,6 +201,7 @@ import { cardTicketLinkError, ticketLinkError } from "../src/ticket-links.ts";
 import { applyCodeFences, fenceBareCode } from "../src/code-fences.ts";
 import { isSlackDraft, normalizeSlack, slackDraftError } from "../src/slack-draft.ts";
 import { applyQuietSwap, quietSwapText } from "../src/quiet-swap.ts";
+import { contextInBodyError, splitBoardContext } from "../src/comment-context.ts";
 import { carryDeclined, declinedForPr, declinedOf } from "../src/declined.ts";
 import { healAnswers, settleDecision } from "../src/answered.ts";
 import { carryPendingBot, findingNumber, healNotes, markNotePending } from "../src/finding-notes.ts";
@@ -461,6 +470,8 @@ function postCommentsError(v) {
     if (c.note !== undefined && typeof c.note !== "string") return `post_comments[${i}].note must be a string`;
     if (c.answer_to_question !== undefined && (typeof c.answer_to_question !== "string" || isBlank(c.answer_to_question))) return `post_comments[${i}].answer_to_question must be a non-blank string when set`;
     if (c.revision_at !== undefined && (typeof c.revision_at !== "string" || Number.isNaN(Date.parse(c.revision_at)))) return `post_comments[${i}].revision_at must be an ISO timestamp when set`;
+    if (c.context !== undefined && typeof c.context !== "string") return `post_comments[${i}].context must be a string (the story for Eric, never posted)`;
+    if (c.status !== "posted" && c.status !== "skipped") { const e = contextInBodyError(c.body, `post_comments[${i}].body`); if (e) return e; }
   }
   return null;
 }
@@ -1332,7 +1343,7 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
     d.comments.forEach((c, m) => {
       const ct = at + ".comments[" + m + "]";
       if (!c || typeof c !== "object" || Array.isArray(c)) die(2, ct + " must be an object");
-      for (const k of Object.keys(c)) if (!["id", "severity", "title", "path", "line", "body", "status", "url", "note"].includes(k)) die(2, ct + " has unknown key " + k);
+      for (const k of Object.keys(c)) if (!["id", "severity", "title", "path", "line", "context", "body", "status", "url", "note"].includes(k)) die(2, ct + " has unknown key " + k);
       if (typeof c.id !== "string" || !/^[\w.-]{1,40}$/.test(c.id) || c.id === "pr") die(2, ct + ".id must be a short id like c1 (not \"pr\")");
       if (ids.has(c.id)) die(2, ct + ".id " + c.id + " is a duplicate"); ids.add(c.id);
       if (!REVIEW_SEVERITIES.includes(c.severity)) die(2, ct + ".severity must be one of " + REVIEW_SEVERITIES.join(", "));
@@ -1342,6 +1353,9 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
       if ("url" in c && !isHttp(c.url)) die(2, ct + ".url must start with http:// or https://");
       if ("note" in c && typeof c.note !== "string") die(2, ct + ".note must be a string");
       if (!REVIEW_STATUSES.includes(c.status)) die(2, ct + ".status must be one of " + REVIEW_STATUSES.join(", "));
+      if ("context" in c && typeof c.context !== "string") die(2, ct + ".context must be a string (the story for Eric, never posted)");
+      if (c.status === "pending") { const e = contextInBodyError(c.body, ct + ".body"); if (e) die(2, e); }
+      if (typeof c.context === "string") c.context = decodeEntities(c.context);
       // Bodies are raw Markdown: store `->`, never `-&gt;`.
       c.body = decodeEntities(c.body).replace(/^(\s*)```suggestions\b/gm, "$1```suggestion");
       if (typeof c.title === "string") c.title = decodeEntities(c.title);
@@ -1362,7 +1376,7 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   f.b.reviews = [...keep, ...list];
   if (ghEnabled() && !args.includes("--no-gh")) { unlock(); const got = ghCollect(f.b, { mine: false }); lock(); const g = load(); g.b.reviews = f.b.reviews; ghApply(g.b, got); Object.assign(f, g); }
   const u = save(f, f.b); const live = await waitServed((b) => b.updated_at === u);
-  log({ op: "reviews", count: list.length, replace, live });
+  log({ op: "reviews", count: list.length, prs: list.map((d) => d.repo + "#" + d.pr), replace, live });
   console.log(JSON.stringify({ ok: true, live, set: list.map((d) => d.repo + "#" + d.pr), total: f.b.reviews.length }));
 } else if (cmd === "gh-refresh") {
   // ab gh-refresh: the whole GitHub refresh (CI failures, change requests, Ready to approve, deleted comments).
@@ -1380,13 +1394,14 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   //   or   ab review-status <repo>#<pr> --done [--undone]
   // comment-id is a drafted-review id (c1) or a per-comment ops card finding number (1, #1, f1).
   const urlFlag = flag(args, "--url"), noteFlag = flag(args, "--note");
-  const answerQFlag = flag(args, "--answer-to-question"), bodyFlag = flag(args, "--body");
+  const answerQFlag = flag(args, "--answer-to-question"), bodyFlag = flag(args, "--body"), contextFlag = flag(args, "--context");
   if (urlFlag !== undefined && !isHttp(urlFlag)) die(2, "review-status: --url must start with http:// or https://");
   if (bodyFlag !== undefined && !nonBlank(bodyFlag)) die(2, "review-status: --body must be the revised Will post text");
+  if (bodyFlag !== undefined) { const e = contextInBodyError(bodyFlag, "review-status: --body"); if (e) die(2, e); }
   if (answerQFlag !== undefined && !nonBlank(answerQFlag)) die(2, "review-status: --answer-to-question must be the reply to show on the card");
   const done = args.includes("--done"), undone = args.includes("--undone"); const rest = args.filter((a) => a !== "--done" && a !== "--undone");
   const m = /^([\w.-]+)#(\d+)$/.exec(rest[0] ?? "");
-  const hasRewrite = answerQFlag !== undefined || bodyFlag !== undefined;
+  const hasRewrite = answerQFlag !== undefined || bodyFlag !== undefined || contextFlag !== undefined;
   const hasStatus = rest.length === 3 && REVIEW_STATUSES.includes(rest[2]);
   const rewriteOnly = rest.length === 2 && hasRewrite;
   if (!m || (!done && !undone && !hasStatus && !rewriteOnly)) die(2, "review-status: usage: ab review-status <repo>#<pr> <comment-id> <pending|posted|skipped> [--url <github link>] [--note \"why\"] [--answer-to-question \"text\"] [--body \"revised will-post text\"] | ab review-status <repo>#<pr> <comment-id> --answer-to-question \"text\" [--body \"text\"] | ab review-status <repo>#<pr> --done|--undone");
@@ -1406,6 +1421,7 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
         if (status !== undefined) { c.status = status; delete c.pending_bot; }
         // A rewrite answers his note: --body replaces the draft, and either flag takes it off QA's plate.
         if (bodyFlag !== undefined) c.body = quietSwapText(bodyFlag.trim());
+        if (contextFlag !== undefined) { if (contextFlag.trim()) c.context = contextFlag.trim(); else delete c.context; }
         if (answerQFlag !== undefined) c.answer_to_question = answerQFlag.trim();
         if (hasRewrite) { delete c.pending_bot; c.revision_at = new Date().toISOString(); }
         if (urlFlag !== undefined) c.url = urlFlag;
@@ -1423,13 +1439,14 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
     if (status === "posted" && !hit && findings.length && urlFlag === undefined) die(2, "review-status: posted needs --url <github comment or review link>");
     const out = [];
     for (const { card, c } of findings) {
-      if (status !== undefined || answerQFlag !== undefined || bodyFlag !== undefined) delete c.pending_bot;
+      if (status !== undefined || hasRewrite) delete c.pending_bot;
       if (status !== undefined) c.status = status;
       if (urlFlag !== undefined) c.posted_url = urlFlag;
       if (noteFlag !== undefined) { if (noteFlag.trim()) c.note = noteFlag.trim(); else delete c.note; }
       if (answerQFlag !== undefined) c.answer_to_question = answerQFlag.trim();
       if (bodyFlag !== undefined) c.body = quietSwapText(bodyFlag.trim());
-      if (answerQFlag !== undefined || bodyFlag !== undefined) c.revision_at = new Date().toISOString();
+      if (contextFlag !== undefined) { if (contextFlag.trim()) c.context = contextFlag.trim(); else delete c.context; }
+      if (hasRewrite) c.revision_at = new Date().toISOString();
       hit = true;
       out.push({ card: card.id, n: c.n ?? id, ...(c.status ? { status: c.status } : {}), ...(c.posted_url ? { posted_url: c.posted_url } : {}), ...(c.note ? { note: c.note } : {}), ...(c.answer_to_question ? { answer_to_question: c.answer_to_question } : {}) });
     }
@@ -1506,6 +1523,16 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   const u = save(f, f.b); const live = await waitServed((b) => b.updated_at === u);
   log({ op: "ask", id: a.id, key: a.item_key, kind: a.kind, settled });
   console.log(JSON.stringify({ ok: true, live, id: a.id, key: a.item_key, kind: a.kind, settled }));
+} else if (cmd === "split-context") {
+  // ab split-context [--dry-run]: moves a leading context story ("What this PR adds", "The gap", ...) out of every open
+  // drafted comment's body into its context field, so only the ask is posted. Unclear shapes are left. Safe to rerun.
+  // -> {"ok","moved":[ids],"dry_run"}
+  const dry = args.includes("--dry-run");
+  lock(); const f = load();
+  const moved = splitBoardContext(f.b);
+  if (moved.length && !dry) save(f, f.b);
+  log({ op: "split-context", count: moved.length, dry });
+  console.log(JSON.stringify({ ok: true, moved, dry_run: dry }));
 } else if (cmd === "heal-answers") {
   // ab heal-answers: closes every card he answered that the board never marked answered (an answer ask exists, the card
   // has no answer, and the answer came after the card's latest revision) and parks findings whose last word from him is a

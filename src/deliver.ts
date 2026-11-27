@@ -21,6 +21,10 @@ export function deliveryLogEntry(body: unknown): Json | null {
     if (!Number.isInteger(b.pr) || b.pr <= 0) return null;
     return { event: 'pr.attention', pr: b.pr, http, via, attempt, status, at };
   }
+  if (b.event === 'ask.rewake') {
+    if (!isId(b.item_key)) return null;
+    return { event: 'ask.rewake', item_key: b.item_key, http, via, attempt, status, at };
+  }
   if (b.event === 'item.message') {
     if (!isId(b.message_id) || !isId(b.item_id) || !isId(b.item_section)) return null;
     return { event: 'item.message', message_id: b.message_id, item_id: b.item_id, item_section: b.item_section, http, via, attempt, status, at };
@@ -39,6 +43,8 @@ export type DeliverOpts = {
   fetchImpl?: Fetch;
   timeoutMs?: number;
   now?: () => Date;
+  /** This bot may use Grok Bot's board webhook (AGENT_BOARD_WEBHOOK_URL in .env), the only hook Grok Bot has. */
+  allowDefaultFor?: 'Grok Bot';
 };
 
 /**
@@ -48,9 +54,10 @@ export type DeliverOpts = {
 export async function deliverToBot(db: DatabaseSync, payload: Json, opts: DeliverOpts = {}): Promise<'delivered' | 'failed'> {
   const at = (opts.now ?? (() => new Date()))().toISOString();
   const route = routeWebhook(db, payload, () => [], null, opts.envFile);
-  const hook = route.via === 'bot' && route.webhook ? route.webhook : null;
+  const ownDefault = route.via === 'default' && !!opts.allowDefaultFor && route.bot === opts.allowDefaultFor;
+  const hook = (route.via === 'bot' || ownDefault) && route.webhook ? route.webhook : null;
   const write = (http: number | null, status: 'delivered' | 'failed') => {
-    const entry = deliveryLogEntry({ event: payload.event, pr: payload.pr, http, via: hook ? 'direct' : null, attempt: 1, status, at });
+    const entry = deliveryLogEntry({ event: payload.event, pr: payload.pr, item_key: payload.item_key, http, via: hook ? 'direct' : null, attempt: 1, status, at });
     if (entry) db.prepare('INSERT INTO ui_delivery_log (json) VALUES (?)').run(JSON.stringify(entry));
   };
   if (!hook) {
