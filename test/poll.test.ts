@@ -27,3 +27,14 @@ test('GET /api/version returns a 64-char hash that stays put until content chang
   assert.match(b, VERSION_RE);
   assert.notEqual(b, a.version);
 });
+
+test('uiBuild names the main script from dist/index.html, or null when the UI is not built', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { uiBuild } = await import('../src/ui-routes.ts');
+  const dir = mkdtempSync(join(tmpdir(), 'ab-dist-'));
+  assert.equal(uiBuild(dir), null);
+  writeFileSync(join(dir, 'index.html'), '<script type="module" crossorigin src="/assets/index-AbC_12.js"></script>');
+  assert.equal(uiBuild(dir), '/assets/index-AbC_12.js');
+});

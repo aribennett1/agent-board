@@ -176,7 +176,7 @@ test('ab ask keeps who the answer was sent to (to_bot) and ignores an unknown na
 
 // QA drafts on a PR where GitHub does not ask for Eric's review: the server adds the row itself, from the stored drafts.
 const putBoard = (db: any, reviews: unknown[]) => db.prepare("INSERT INTO ui_doc (key, json, updated_at) VALUES ('board', ?, 'now') ON CONFLICT(key) DO UPDATE SET json = excluded.json").run(JSON.stringify({ decisions: [], glance: { waiting: [], tickets: [], others: [], mine: [] }, reviews }));
-const draft = (pr: number, statuses: string[], extra: Record<string, unknown> = {}) => ({ repo: 'rows-backend', pr, verdict: 'comment', comments: statuses.map((status, i) => ({ id: `c${i + 1}`, severity: 'medium', path: 'a.php', line: 1, body: 'x', status })), ...extra });
+const draft = (pr: number, statuses: string[], extra: Record<string, unknown> = {}) => ({ repo: 'rows-backend', pr, verdict: 'comment', comments: statuses.map((status, i) => ({ id: `c${i + 1}`, severity: 'medium', path: 'a.php', line: 1, context: 'Story for Eric.', body: 'x', status })), ...extra });
 const ghWithPrs = (others: any[], byNumber: Record<number, any>): Gh & { calls: string[][] } => {
   const base = fakeGh([], others);
   const f = (async (args: string[]) => {

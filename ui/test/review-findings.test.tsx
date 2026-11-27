@@ -459,6 +459,7 @@ describe("ab raise and lint require the per-finding review shape", () => {
               severity: "High",
               path: "app/Foo.php",
               line: 10,
+              context: "Story for Eric.",
               body: "Exact comment text for #1.",
             },
           ],

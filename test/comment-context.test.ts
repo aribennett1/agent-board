@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { open } from '../src/db.ts';
-import { contextInBodyError, postableBody, splitBoardContext, splitContext } from '../src/comment-context.ts';
+import { contextInBodyError, missingContext, postableBody, recoverBoardContext, splitAtAsk, splitBoardContext, splitContext } from '../src/comment-context.ts';
 import { slimPayload } from '../src/context.ts';
 
 // The #2004 draft Eric posted with the whole story on Nov 27 2026 (shortened code, same shape).
@@ -22,13 +22,13 @@ const ab = (dbPath: string, ...args: string[]) => {
 };
 const fresh = () => { const p = join(mkdtempSync(join(tmpdir(), 'ab-ctx-')), 'board.db'); open(p).close(); return p; };
 const boardOf = (dbPath: string) => JSON.parse((open(dbPath).prepare("SELECT json FROM ui_doc WHERE key = 'board'").get() as { json: string }).json);
-const review = (c: object) => JSON.stringify([{ repo: 'rows-backend', pr: 2004, verdict: 'One finding.', comments: [{ id: 'c1', severity: 'medium', path: 'tests/A.php', line: 10, status: 'pending', ...c }] }]);
+const review = (c: object) => JSON.stringify([{ repo: 'rows-backend', pr: 2004, verdict: 'One finding.', comments: [{ id: 'c1', severity: 'medium', path: 'tests/A.php', line: 10, status: 'pending', context: 'Story for Eric.', ...c }] }]);
 const card = (c: object) => JSON.stringify({
   id: 'qa-review-2004', title: 'Review of the email retry PR',
   context: 'QA found one thing to post on the pull request about how the retry test reads the queued job.',
   question: 'Which of these comments should be posted?', what_happens_after: 'The ones you post go to GitHub.',
   options: [], group: 'rows-backend#2004', card_ref: 'https://github.com/ROWSHR/rows-backend/pull/2004', priority: 'medium',
-  post_comments: [{ n: 1, label: '#1 reflection in tests', path: 'tests/A.php', line: 10, severity: 'medium', ...c }],
+  post_comments: [{ n: 1, label: '#1 reflection in tests', path: 'tests/A.php', line: 10, severity: 'medium', context: 'Story for Eric.', ...c }],
 });
 
 test('the #2004 body splits into the story and the ask; the ask is what gets posted', () => {
@@ -137,4 +137,45 @@ test('ab split-context migrates stored drafts that predate the rule', () => {
   assert.deepEqual(ab(db, 'split-context').out.moved, ['review:rows-backend#2004:c1']);
   assert.equal(boardOf(db).reviews[0].comments[0].body, ASK);
   assert.deepEqual(ab(db, 'split-context').out.moved, []);
+});
+
+test('an unposted draft with no context is refused by ab reviews and ab raise; posted ones are left alone', () => {
+  const db = fresh();
+  const r = ab(db, 'reviews', review({ body: ASK, context: '  ' }), '--no-gh');
+  assert.equal(r.code, 2);
+  assert.match(r.stderr, /needs a non-empty "context"/);
+  assert.equal(ab(db, 'reviews', review({ body: ASK, context: undefined, status: 'posted' }), '--no-gh').code, 0);
+  const c = ab(db, 'raise', '--bot', 'QA', card({ body: ASK, context: undefined }));
+  assert.equal(c.code, 2);
+  assert.match(c.stderr, /post_comments\[0\] needs a non-empty "context"/);
+});
+
+test('a plain observation in front of the ask becomes context only when there is no context yet', () => {
+  const s = splitAtAsk('The guard is skipped on a stale read.\n\nWhat do you think about refreshing first?')!;
+  assert.deepEqual(s, { context: 'The guard is skipped on a stale read.', body: 'What do you think about refreshing first?' });
+  assert.equal(splitAtAsk('What do you think about refreshing first?'), null);
+  assert.equal(splitAtAsk('`updateQuietly()`\n\n```suggestion\n$a->updateQuietly();\n```'), null);
+  const kept = { context: 'Already here.', body: 'Observation.\n\nWhat do you think?' };
+  assert.deepEqual(splitBoardContext({ reviews: [{ repo: 'r', pr: 1, comments: [kept] }] }), []);
+  const bare = { body: 'Observation.\n\nWhat do you think?' };
+  assert.deepEqual(splitBoardContext({ reviews: [{ repo: 'r', pr: 1, comments: [bare] }] }), ['review:r#1:0']);
+  assert.equal((bare as any).context, 'Observation.');
+});
+
+test('recoverBoardContext fills from the backup, then the card, then the card finding for the same comment', () => {
+  const now = {
+    reviews: [{ repo: 'rows-backend', pr: 2004, comments: [{ id: 'c1', status: 'pending', body: ASK }] }, { repo: 'rows-backend', pr: 1994, comments: [{ id: 'c3', status: 'pending', body: '`updateQuietly()`' }, { id: 'c9', status: 'pending', body: 'x' }] }],
+    decisions: [{ id: 'qa-1994-quiet', context: 'Card story.', card_ref: 'https://github.com/ROWSHR/rows-backend/pull/1994', post_comments: [{ n: 1, label: '#1 c3', body: '`updateQuietly()`' }] }],
+  };
+  const earlier = { reviews: [{ repo: 'rows-backend', pr: 2004, comments: [{ id: 'c1', body: FULL }] }] };
+  const got = recoverBoardContext(now, earlier);
+  assert.deepEqual(got, [
+    { id: 'qa-1994-quiet:1', from: 'card' },
+    { id: 'review:rows-backend#2004:c1', from: 'backup' },
+    { id: 'review:rows-backend#1994:c3', from: 'card qa-1994-quiet' },
+  ]);
+  assert.ok((now.reviews[0].comments[0] as any).context.startsWith('**What this PR adds.**'));
+  assert.equal((now.reviews[1].comments[0] as any).context, 'Card story.');
+  assert.deepEqual(missingContext(now), ['review:rows-backend#1994:c9']);
+  assert.deepEqual(recoverBoardContext(now, earlier), []);
 });

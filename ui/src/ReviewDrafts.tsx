@@ -156,12 +156,14 @@ function CommentCard({
         </div>
       ) : (
         <>
-          {comment.context && (
+          {comment.context?.trim() ? (
             <div className="comment-context-block">
               <span className="comment-context-label">For you, not posted</span>
               <Markdown text={comment.context} className="md review-context" />
             </div>
-          )}
+          ) : status === "pending" ? (
+            <p className="comment-context-missing" role="status">No context from the bot</p>
+          ) : null}
           <div className="will-post-block">
             <span className="will-post-label">Will post</span>
             <Markdown text={body} className="md review-body" />

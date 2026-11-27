@@ -67,8 +67,8 @@ test('ab reviews stores a quiet-swap comment trimmed and leaves the others alone
   open(dbPath).close();
   const review = {
     repo: 'app', pr: 7, verdict: '1 low', comments: [
-      { id: 'c1', severity: 'low', title: 'A test uses `update()` on `EmployeePosition`', path: 'tests/a.php', line: 833, body: LONG, status: 'pending' },
-      { id: 'c2', severity: 'low', title: 'Keep the title', path: 'app/b.php', line: 4, body: 'This misses a null check. What do you think about guarding it?', status: 'pending' },
+      { id: 'c1', severity: 'low', title: 'A test uses `update()` on `EmployeePosition`', path: 'tests/a.php', line: 833, context: 'Story for Eric.', body: LONG, status: 'pending' },
+      { id: 'c2', severity: 'low', title: 'Keep the title', path: 'app/b.php', line: 4, context: 'Story for Eric.', body: 'This misses a null check. What do you think about guarding it?', status: 'pending' },
     ],
   };
   abRun(dbPath, JSON.stringify([review]), 'reviews', '-');

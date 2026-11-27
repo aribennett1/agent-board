@@ -10,8 +10,8 @@ import { carryDeclined, declinedOf, matchesDeclined, suggestionOf } from '../src
 
 const PATH = 'app/Http/Resources/PositionsAndPay/PayrollDetailsOptionsResource.php';
 const BODY = 'The ticket wants Auto Pay to default by pay type.\n\n```suggestion\n$data[\'auto_pay_default\'] = $isSalaried;\n```';
-const skipped = { id: 'c1', severity: 'high', title: 'The Hourly = No / Salaried = Yes default is not built', path: PATH, line: 141, body: BODY, status: 'skipped', note: "Eric turned this down earlier: don't denormalize fields the frontend can derive" };
-const fresh = (over: Record<string, unknown> = {}): Record<string, any> => ({ id: 'c7', severity: 'high', path: PATH, line: 141, title: 'Something else', body: 'Different words entirely about naming.', status: 'pending', ...over });
+const skipped = { id: 'c1', severity: 'high', context: 'Story for Eric.', title: 'The Hourly = No / Salaried = Yes default is not built', path: PATH, line: 141, body: BODY, status: 'skipped', note: "Eric turned this down earlier: don't denormalize fields the frontend can derive" };
+const fresh = (over: Record<string, unknown> = {}): Record<string, any> => ({ id: 'c7', severity: 'high', path: PATH, line: 141, title: 'Something else', context: 'Story for Eric.', body: 'Different words entirely about naming.', status: 'pending', ...over });
 
 test('a new finding with the same title on the same file is filed as skipped with his earlier note', () => {
   const known = declinedOf({ comments: [skipped] });

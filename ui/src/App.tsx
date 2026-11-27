@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { board as bundledBoard } from "./data/board";
+import { useStaleBundle } from "./staleBundle";
 import type { Board, Decision, ItemDetail, MyPR, Priority, ReviewDraft } from "./data/types";
 import { DecisionCard, type ClarifyState, type NotRelevantState } from "./DecisionCard";
 import { CardSvg } from "./DecisionCard";
@@ -161,6 +162,7 @@ function approvalChipOf(e: Entry, st: { needs: boolean; reason: string }, detail
 export default function App({ view, onSelect, project, projectLabel, focus, onFocus }: AppProps = {}) {
   const sidebar = useSidebarWidth();
   const board = useLiveBoard(bundledBoard);
+  const staleBundle = useStaleBundle();
   setTicketSummaries(board.ticket_summaries);
   // The live board says whether the webhook is on; the page-load value only covers the first paint.
   const webhookConfigured = board.webhook_configured ?? WEBHOOK_CONFIGURED;
@@ -1098,6 +1100,12 @@ export default function App({ view, onSelect, project, projectLabel, focus, onFo
 
   return (
     <div className={sidebar.dragging ? "layout is-resizing" : "layout"} style={{ "--sidebar-width": `${sidebar.width}px` } as CSSProperties}>
+      {staleBundle && (
+        <div className="stale-bundle" role="status">
+          The board was updated.{" "}
+          <button type="button" className="btn small" onClick={() => window.location.reload()}>Reload</button>
+        </div>
+      )}
       <div className="sidenav-shell">
       <nav className="sidenav" aria-label="Views">
         <div className="sidenav-brand">

@@ -16,8 +16,8 @@ const ab = (dbPath: string, ...args: string[]) => {
 };
 const boardOf = (dbPath: string) => JSON.parse((open(dbPath).prepare("SELECT json FROM ui_doc WHERE key = 'board'").get() as { json: string }).json);
 const card = (comments: object[] = [
-  { n: 1, label: '#1 reflection in tests', path: 'tests/A.php', line: 10, severity: 'low', body: 'Use the public method.' },
-  { n: 2, label: '#2 naming', path: 'tests/B.php', line: 20, severity: 'low', body: 'Rename it.' },
+  { n: 1, label: '#1 reflection in tests', path: 'tests/A.php', line: 10, severity: 'low', context: 'Story for Eric.', body: 'Use the public method.' },
+  { n: 2, label: '#2 naming', path: 'tests/B.php', line: 20, severity: 'low', context: 'Story for Eric.', body: 'Rename it.' },
 ]) => ({
   id: 'qa-review-1986', title: 'Review of PR 1986',
   context: 'QA found two things to post on the pull request about the logging handler and its tests.',
@@ -92,8 +92,8 @@ test('re-raising the card: an unchanged finding keeps the pending note, a rewrit
   ab(db, 'ask', JSON.stringify(note(1, 'soften this')));
   ab(db, 'ask', JSON.stringify(note(2, 'say it differently')));
   const same = ab(db, 'raise', '--bot', 'QA', JSON.stringify(card([
-    { n: 1, label: '#1 reflection in tests', path: 'tests/A.php', line: 10, severity: 'low', body: 'Use the public method.' },
-    { n: 2, label: '#2 naming', path: 'tests/B.php', line: 20, severity: 'low', body: 'Rename it to something clearer.' },
+    { n: 1, label: '#1 reflection in tests', path: 'tests/A.php', line: 10, severity: 'low', context: 'Story for Eric.', body: 'Use the public method.' },
+    { n: 2, label: '#2 naming', path: 'tests/B.php', line: 20, severity: 'low', context: 'Story for Eric.', body: 'Rename it to something clearer.' },
   ])));
   assert.equal(same.code, 0, same.stderr);
   assert.equal(finding(db, 1).pending_bot.note, 'soften this');
@@ -104,14 +104,14 @@ test('re-raising the card: an unchanged finding keeps the pending note, a rewrit
 
 test('a bot cannot set pending_bot itself through a raise', () => {
   const db = fresh();
-  const r = ab(db, 'raise', '--bot', 'QA', JSON.stringify(card([{ n: 1, label: '#1 x', path: 'tests/A.php', line: 10, severity: 'low', body: 'Use the public method.', pending_bot: { at: 'x', note: 'fake' } }])));
+  const r = ab(db, 'raise', '--bot', 'QA', JSON.stringify(card([{ n: 1, label: '#1 x', path: 'tests/A.php', line: 10, severity: 'low', context: 'Story for Eric.', body: 'Use the public method.', pending_bot: { at: 'x', note: 'fake' } }])));
   assert.equal(r.code, 0, r.stderr);
   assert.equal(finding(db, 1).pending_bot, undefined);
 });
 
 test('notes on a drafted review comment park it, and a rewritten comment from ab reviews clears it', () => {
   const dbPath = join(mkdtempSync(join(tmpdir(), 'ab-notes-')), 'board.db'); open(dbPath).close();
-  const draft = (body: string) => JSON.stringify([{ repo: 'rows-backend', pr: 1990, verdict: 'one low to post', comments: [{ id: 'c1', severity: 'low', path: 'app/A.php', line: 5, body, status: 'pending' }] }]);
+  const draft = (body: string) => JSON.stringify([{ repo: 'rows-backend', pr: 1990, verdict: 'one low to post', comments: [{ id: 'c1', severity: 'low', path: 'app/A.php', line: 5, context: 'Story for Eric.', body, status: 'pending' }] }]);
   assert.equal(ab(dbPath, 'reviews', draft('Original text.'), '--no-gh').code, 0);
   const p = { event: 'review.answer', decision_id: 'review:rows-backend#1990:c1', repo: 'rows-backend', pr: 1990, comment_id: 'c1', action: 'note', text: 'shorter please', answered_at: later() };
   ab(dbPath, 'ask', JSON.stringify(p));
@@ -177,8 +177,8 @@ test('heal-answers parks open findings whose last word from him is a note, and l
 test('heal-answers does not park a drafted comment the bot already answered on that PR after his note (rows-backend#1994 c3)', () => {
   const dbPath = join(mkdtempSync(join(tmpdir(), 'ab-notes-')), 'board.db'); open(dbPath).close();
   const draft = JSON.stringify([{ repo: 'rows-backend', pr: 1994, verdict: 'v', comments: [
-    { id: 'c3', severity: 'low', path: 'tests/T.php', line: 833, body: '`updateQuietly()`', status: 'pending' },
-    { id: 'c4', severity: 'low', path: 'tests/U.php', line: 9, body: 'Other.', status: 'pending' },
+    { id: 'c3', severity: 'low', path: 'tests/T.php', line: 833, context: 'Story for Eric.', body: '`updateQuietly()`', status: 'pending' },
+    { id: 'c4', severity: 'low', path: 'tests/U.php', line: 9, context: 'Story for Eric.', body: 'Other.', status: 'pending' },
   ] }]);
   assert.equal(ab(dbPath, 'reviews', draft, '--no-gh').code, 0);
   const board = boardOf(dbPath);
@@ -197,7 +197,7 @@ test('heal-answers does not park a drafted comment the bot already answered on t
 
 test('ab review-status --body on a drafted review comment rewrites it and clears his parked note', () => {
   const dbPath = join(mkdtempSync(join(tmpdir(), 'ab-notes-')), 'board.db'); open(dbPath).close();
-  const draft = JSON.stringify([{ repo: 'rows-backend', pr: 1990, verdict: 'v', comments: [{ id: 'c1', severity: 'low', path: 'app/A.php', line: 5, body: 'Long text.', status: 'pending' }] }]);
+  const draft = JSON.stringify([{ repo: 'rows-backend', pr: 1990, verdict: 'v', comments: [{ id: 'c1', severity: 'low', path: 'app/A.php', line: 5, context: 'Story for Eric.', body: 'Long text.', status: 'pending' }] }]);
   assert.equal(ab(dbPath, 'reviews', draft, '--no-gh').code, 0);
   const p = { event: 'review.answer', decision_id: 'review:rows-backend#1990:c1', repo: 'rows-backend', pr: 1990, comment_id: 'c1', action: 'note', text: 'shorter please', answered_at: later() };
   ab(dbPath, 'ask', JSON.stringify(p));

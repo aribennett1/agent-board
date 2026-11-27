@@ -33,3 +33,14 @@ describe("drafted comment context", () => {
     expect(document.querySelector(".will-post-block")!.textContent).not.toMatch(/CARD-STORY/);
   });
 });
+
+describe("missing context", () => {
+  it("says No context from the bot on an open comment or finding without one, and not on a posted one", () => {
+    const bare = { ...draft, comments: [{ ...draft.comments[0], context: undefined }, { id: "c2", severity: "low", path: "a.php", line: 1, body: "POSTED", status: "posted" }] } as ReviewDraft;
+    render(<ReviewDrafts draft={bare} locals={{}} onReview={vi.fn(async () => true)} />);
+    expect(screen.getAllByText("No context from the bot")).toHaveLength(1);
+    cleanup();
+    render(<FindingDraft cardId="card-1" finding={{ n: 1, label: "#1 Foo", path: "app/A.php", line: 4, body: "CARD-ASK" }} onAnswer={vi.fn(async () => true)} />);
+    expect(screen.getByText("No context from the bot")).toBeTruthy();
+  });
+});

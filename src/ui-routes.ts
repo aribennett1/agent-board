@@ -166,6 +166,14 @@ function markDerived(db: DatabaseSync, id: string, col: 'cleared_at' | 'answered
   db.prepare(`INSERT INTO ui_derived_state (decision_id, ${col}) VALUES (?, ?) ON CONFLICT(decision_id) DO UPDATE SET ${col} = excluded.${col}`).run(id, value);
 }
 
+/** The built UI's main script path (/assets/index-<hash>.js) from dist/index.html, or null when the UI is not built.
+ * An open tab compares it with the script it loaded, so a tab left open across a deploy knows it runs old code. */
+export function uiBuild(distDir = join(ROOT, 'ui', 'dist')): string | null {
+  const file = join(distDir, 'index.html');
+  if (!existsSync(file)) return null;
+  return /\/assets\/[\w.-]+\.js/.exec(readFileSync(file, 'utf8'))?.[0] ?? null;
+}
+
 export function mountUi(app: Hono, db: DatabaseSync, clock: Clock, o: UiOptions = {}) {
   const fetchImpl = o.fetchImpl ?? (fetch as unknown as NonNullable<UiOptions['fetchImpl']>);
   const distDir = o.distDir ?? join(ROOT, 'ui', 'dist');

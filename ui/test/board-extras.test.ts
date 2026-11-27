@@ -28,7 +28,7 @@ const draft = {
   repo: "app",
   pr: 211,
   verdict: "Looks good",
-  comments: [{ id: "c1", severity: "medium", title: "Tag race", path: "a.yaml", line: 10, body: "Body", status: "pending" }],
+  comments: [{ id: "c1", severity: "medium", title: "Tag race", path: "a.yaml", line: 10, context: "Story for Eric.", body: "Body", status: "pending" }],
 };
 
 describe("ab board extras", () => {

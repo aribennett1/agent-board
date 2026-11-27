@@ -28,7 +28,7 @@ vi.mock("../src/data/board", () => ({
         repo: "app",
         pr: 210,
         verdict: "Comment",
-        comments: [{ id: "c1", severity: "low", title: "Hoist -&gt; loop", path: "a.php", line: 66, body: ENCODED, status: "pending" }],
+        comments: [{ id: "c1", severity: "low", title: "Hoist -&gt; loop", path: "a.php", line: 66, context: "Story for Eric.", body: ENCODED, status: "pending" }],
       },
     ],
   } satisfies Board,
@@ -109,7 +109,7 @@ describe("review comment entities", () => {
     const Z = "/* BOARD-JSON-END */";
     writeFileSync(file, `export const board = ${A}\n${JSON.stringify({ updated_at: "2026-11-10T09:00:00.000Z", decisions: [], glance: { waiting: [], tickets: [], others: [] } })}\n${Z};\n`);
     try {
-      const draft = { repo: "app", pr: 210, verdict: "Comment", comments: [{ id: "c1", severity: "low", title: "a -&gt; b", path: "a.php", line: 66, body: ENCODED, status: "pending" }] };
+      const draft = { repo: "app", pr: 210, verdict: "Comment", comments: [{ id: "c1", severity: "low", title: "a -&gt; b", path: "a.php", line: 66, context: "Story for Eric.", body: ENCODED, status: "pending" }] };
       const r = spawnSync("node", [join(root, "bin/ab.mjs"), "reviews"], { input: JSON.stringify([draft]), encoding: "utf8", env: { ...process.env, AB_FILE: file, AB_NO_SERVER: "1" } });
       expect(r.status).toBe(0);
       const s = readFileSync(file, "utf8");

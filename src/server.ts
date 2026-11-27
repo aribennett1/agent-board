@@ -11,7 +11,7 @@ import { boardVersion } from './version.ts';
 import { startFeedTimer } from './feed.ts';
 import { makeEngineerAttentionWake } from './attention.ts';
 import { makeRewakeSend, startRewakeTimer } from './rewake.ts';
-import { mountUi, type UiOptions } from './ui-routes.ts';
+import { mountUi, uiBuild, type UiOptions } from './ui-routes.ts';
 
 // shortcut: no auth here; run the board behind an auth proxy (e.g. Cloudflare Access) and never expose it directly. Linear signatures are not verified yet; add before exposing.
 
@@ -59,7 +59,7 @@ export function createApp(db: DatabaseSync, clock: Clock, opts: AppOptions = {})
   app.use('/__ab/*', sameOrigin);
 
   app.get('/api/config', (c) => c.json({ assistantName: opts.assistantName ?? 'your assistant' }));
-  app.get('/api/version', (c) => c.json({ version: boardVersion(db, Boolean(opts.ui?.webhook)) }, 200, { 'Cache-Control': 'no-store' }));
+  app.get('/api/version', (c) => c.json({ version: boardVersion(db, Boolean(opts.ui?.webhook)), ui: uiBuild(opts.ui?.distDir) }, 200, { 'Cache-Control': 'no-store' }));
 
 
   function readBody(raw: string): Json | null {

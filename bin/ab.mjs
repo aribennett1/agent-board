@@ -81,7 +81,8 @@
 //   ab answer <id> --custom "text" --by chat|app [--at ISO]
 //   ab answer <id> --action send --text "final text" --by chat|app [--at ISO]
 //   ab answer <id> --action decline --by chat|app [--at ISO]
-//   ab split-context [--dry-run]                         moves a leading context story out of open drafted comment bodies into context
+//   ab split-context [--dry-run] [--backup <db>]         moves a leading context story out of open drafted comment bodies into context,
+//                                                        recovers missing context (backup, card, matching card finding) and lists drafts still missing it
 //   ab heal-answers                                      closes cards he answered that the board never marked answered
 //   ab clear <id> --reason "why"                    (tombstoned: raise refuses it later) -> {"ok","status":"cleared","id"}
 //                                                      the tombstone line in .ab-cleared.jsonl is {id, reason, at, card}: card is
@@ -111,7 +112,7 @@
 //                                                      think about ...") plus its suggestion or code. The story for Eric (what the PR
 //                                                      adds, where the code comes in, the gap, diagrams) goes in "context", shown on
 //                                                      the board and never posted. A pending body with a context section ("What this
-//                                                      PR adds", "Where this ... comes in", "The gap", ...) is refused (exit 2).
+//                                                      PR adds", "Where this ... comes in", "The gap", ...) or with no context is refused (exit 2).
 //                                                      post_comments on raise follow the same rule ("context"? per finding).
 //   ab review-status <repo>#<pr> <comment-id> <pending|posted|skipped> [--url <posted comment>] [--note "why"]
 //                                                      [--answer-to-question "text"] [--body "revised will-post text"] [--context "text"]
@@ -201,7 +202,7 @@ import { cardTicketLinkError, ticketLinkError } from "../src/ticket-links.ts";
 import { applyCodeFences, fenceBareCode } from "../src/code-fences.ts";
 import { isSlackDraft, normalizeSlack, slackDraftError } from "../src/slack-draft.ts";
 import { applyQuietSwap, quietSwapText } from "../src/quiet-swap.ts";
-import { contextInBodyError, splitBoardContext } from "../src/comment-context.ts";
+import { contextInBodyError, missingContext, missingContextError, recoverBoardContext, splitBoardContext } from "../src/comment-context.ts";
 import { carryDeclined, declinedForPr, declinedOf } from "../src/declined.ts";
 import { healAnswers, settleDecision } from "../src/answered.ts";
 import { carryPendingBot, findingNumber, healNotes, markNotePending } from "../src/finding-notes.ts";
@@ -1157,6 +1158,8 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   }
   const problems = storedProblems(d);
   if (problems.length) die(2, problems.join("\nab: "));
+  // New and re-raised findings must carry the story Eric reads before deciding (never posted).
+  for (const [i, c] of (Array.isArray(d.post_comments) ? d.post_comments : []).entries()) { const e = missingContextError(c, `post_comments[${i}]`); if (e) die(2, e); }
   for (const c of Array.isArray(d.post_comments) ? d.post_comments : []) applyQuietSwap(c);
   if (typeof d.post_text === "string") d.post_text = quietSwapText(d.post_text);
   for (const o of d.options) if (typeof o.post_text === "string") o.post_text = quietSwapText(o.post_text);
@@ -1354,7 +1357,7 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
       if ("note" in c && typeof c.note !== "string") die(2, ct + ".note must be a string");
       if (!REVIEW_STATUSES.includes(c.status)) die(2, ct + ".status must be one of " + REVIEW_STATUSES.join(", "));
       if ("context" in c && typeof c.context !== "string") die(2, ct + ".context must be a string (the story for Eric, never posted)");
-      if (c.status === "pending") { const e = contextInBodyError(c.body, ct + ".body"); if (e) die(2, e); }
+      if (c.status === "pending") { const e = contextInBodyError(c.body, ct + ".body") ?? missingContextError(c, ct); if (e) die(2, e); }
       if (typeof c.context === "string") c.context = decodeEntities(c.context);
       // Bodies are raw Markdown: store `->`, never `-&gt;`.
       c.body = decodeEntities(c.body).replace(/^(\s*)```suggestions\b/gm, "$1```suggestion");
@@ -1527,12 +1530,24 @@ if (cmd === "raise" || cmd === "assistant" || cmd === "slack-draft") {
   // ab split-context [--dry-run]: moves a leading context story ("What this PR adds", "The gap", ...) out of every open
   // drafted comment's body into its context field, so only the ask is posted. Unclear shapes are left. Safe to rerun.
   // -> {"ok","moved":[ids],"dry_run"}
-  const dry = args.includes("--dry-run");
+  // --backup <db>: an earlier board DB (the pre-split backup) to recover a comment's story from. Then a finding with no
+  // context takes its card's context, and a Reviews-tab comment takes the context of the card finding for the same comment.
+  // missing lists open drafts that still have none (the board shows "No context from the bot"; the bot must re-raise).
+  const dry = args.includes("--dry-run"); const backup = flag(args, "--backup");
+  let earlier;
+  if (backup !== undefined) {
+    if (!fs.existsSync(backup)) die(2, "split-context: --backup file not found");
+    const { DatabaseSync } = await import("node:sqlite");
+    const bdb = new DatabaseSync(backup, { readOnly: true });
+    earlier = JSON.parse(bdb.prepare("SELECT json FROM ui_doc WHERE key = 'board'").get()?.json ?? "{}"); bdb.close();
+  }
   lock(); const f = load();
   const moved = splitBoardContext(f.b);
-  if (moved.length && !dry) save(f, f.b);
-  log({ op: "split-context", count: moved.length, dry });
-  console.log(JSON.stringify({ ok: true, moved, dry_run: dry }));
+  const recovered = recoverBoardContext(f.b, earlier);
+  if ((moved.length || recovered.length) && !dry) save(f, f.b);
+  const missing = missingContext(f.b);
+  log({ op: "split-context", count: moved.length, recovered: recovered.length, missing: missing.length, dry });
+  console.log(JSON.stringify({ ok: true, moved, recovered, missing, dry_run: dry }));
 } else if (cmd === "heal-answers") {
   // ab heal-answers: closes every card he answered that the board never marked answered (an answer ask exists, the card
   // has no answer, and the answer came after the card's latest revision) and parks findings whose last word from him is a
