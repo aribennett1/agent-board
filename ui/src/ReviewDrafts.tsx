@@ -155,7 +155,18 @@ function CommentCard({
           <MicButton field={editField} value={text} onChange={setText} />
         </div>
       ) : (
-        <Markdown text={body} className="md review-body" />
+        <>
+          {comment.context && (
+            <div className="comment-context-block">
+              <span className="comment-context-label">For you, not posted</span>
+              <Markdown text={comment.context} className="md review-context" />
+            </div>
+          )}
+          <div className="will-post-block">
+            <span className="will-post-label">Will post</span>
+            <Markdown text={body} className="md review-body" />
+          </div>
+        </>
       )}
       {status === "pending" && !waiting && (
         <div className="review-actions">

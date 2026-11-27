@@ -155,6 +155,12 @@ export function FindingDraft({
       ) : (
         <FindingStatusLine status={finding.status} postedUrl={finding.posted_url} note={finding.note} />
       )}
+      {finding.context && (
+        <div className="comment-context-block">
+          <span className="comment-context-label">For you, not posted</span>
+          <Markdown text={finding.context} className="md" />
+        </div>
+      )}
       <div className="will-post-block">
         <span className="will-post-label">Will post</span>
         <div className="post-text-box">

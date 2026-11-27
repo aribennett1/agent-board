@@ -3022,6 +3022,9 @@ mark { background: #fff1a8; padding: 0 2px; border-radius: 3px; }
 .post-comment-summary { margin: 2px 0 4px; font-size: 0.92rem; color: var(--muted, #555); }
 .will-post-block { display: flex; flex-direction: column; gap: 4px; }
 .will-post-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent, #2457a7); }
+.comment-context-block { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 8px; padding: 8px 10px; border-left: 3px solid var(--border, #d0d7de); background: var(--surface-muted, rgba(127,127,127,0.06)); border-radius: 4px; }
+.comment-context-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted, #666); }
+.finding-answered .comment-context-block { display: none; }
 .finding-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
 .finding-you-said { margin: 8px 0 0; font-size: 0.95rem; }
 .finding-answered { opacity: 0.62; }

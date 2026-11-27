@@ -37,6 +37,9 @@ export type PostCommentDraft = {
   line?: number;
   url?: string;
   summary?: string;
+  // The story for Eric (what the PR adds, the gap, diagrams). Shown on the board, never posted.
+  context?: string;
+  // The only text posted on GitHub: the ask and its suggestion or code.
   body: string;
   // Set by ab review-status once the comment has been posted, or if it could not be posted.
   status?: "pending" | "posted" | "skipped";
@@ -217,6 +220,9 @@ export type ReviewComment = {
   title?: string;
   path: string;
   line: number | null;
+  // The story for Eric (what the PR adds, the gap, diagrams). Shown on the board, never posted.
+  context?: string;
+  // The only text posted on GitHub: the ask and its suggestion or code.
   body: string;
   status: ReviewCommentStatus;
   // The posted comment on GitHub, once it is posted.

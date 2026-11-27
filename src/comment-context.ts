@@ -6,11 +6,13 @@ const FENCE = /^[ \t]*(```|~~~)/;
 // Labels that only ever open a context story, bold or plain: "**What this PR adds.**", "Where this test comes in:".
 const STORY = String.raw`what this pr (?:adds|does|changes|builds|is for)|where (?:this|the) [^\n]{1,60}? comes? in|the gap(?=[ \t]*[.:*_])`;
 // Labels that are context only as a bold or heading label: "**The feature today.**", "### How retry works".
-const LABELED = String.raw`the feature today|today|how (?:it|this|[^\n*]{1,40}?) works|what the ticket (?:asks|calls for)(?: for)?|the ticket|how this pr does it|context|background`;
+const LABELED = String.raw`the feature today|today|how (?:it|this|[^\n*]{1,40}?) works|what the ticket (?:asks|calls for)(?: for)?|the ticket|how this pr does it|what this comment is about|the ask|the question|context|background`;
 const STORY_LEAD = new RegExp(String.raw`^(?:#{1,6}[ \t]+|\*\*|__)?(${STORY})\b`, 'i');
 const LABEL_LEAD = new RegExp(String.raw`^(?:#{1,6}[ \t]+(${LABELED})\b|(?:\*\*|__)(${LABELED})[.:]?(?:\*\*|__))`, 'i');
+// A board-only label in front of the ask ("**The ask**", "**The question:**"); it is cut, the ask after it is kept.
+const ASK_LABEL = /^(?:\*\*|__)(?:the )?(?:ask|question)[.:]?(?:\*\*|__)[.:]?[ \t]*\n?/i;
 // Where the posted comment starts: the ask.
-const ASK_LEAD = /^(?:\*\*|__)?what do you think\b/i;
+const ASK_LEAD = /^(?:\*\*|__)?(?:what do you think|what about|how about|can you|could you|can we|could we|should we|would you)\b/i;
 
 type Para = { start: number; text: string };
 
@@ -57,13 +59,13 @@ export function contextInBodyError(body: unknown, field = 'body'): string | null
   return null;
 }
 
-/** Splits a body that starts with a context story and then asks: {context, body}, or null when the pattern is not clear. */
+/** Splits a body whose story (at least one context label) comes before the ask: {context, body}, or null when the pattern is not clear. */
 export function splitContext(body: string): { context: string; body: string } | null {
   const paras = paragraphs(body);
-  if (!paras.length || !contextLabel(paras[0].text)) return null;
-  const ask = paras.find((p) => ASK_LEAD.test(p.text));
-  if (!ask) return null;
-  const rest = body.slice(ask.start);
+  const at = paras.findIndex((p) => ASK_LEAD.test(p.text.replace(ASK_LABEL, '')));
+  if (at < 0 || !paras.slice(0, at).some((p) => contextLabel(p.text))) return null;
+  const ask = paras[at];
+  const rest = body.slice(ask.start).replace(/^[ \t]+/, '').replace(ASK_LABEL, '');
   // A context label after the ask means the shape is mixed; leave it for a person.
   if (contextInBodyError(rest)) return null;
   const context = body.slice(0, ask.start).trim();

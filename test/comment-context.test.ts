@@ -53,6 +53,13 @@ test('a clean ask passes, including "the gap" in a sentence and labels inside co
   assert.equal(contextInBodyError('Today this returns 422. What do you think about 409?'), null);
 });
 
+test('a story under a plain lead-in, an "**The ask**" label and a "Can you" ask still split cleanly', () => {
+  const s = splitContext('Some context first.\n\n**The gap**\nNothing stops it.\n\n**The ask**\nCan you please ask AI to try the testing skill?\n')!;
+  assert.equal(s.body, 'Can you please ask AI to try the testing skill?');
+  assert.equal(s.context, 'Some context first.\n\n**The gap**\nNothing stops it.');
+  assert.match(contextInBodyError('**The question**\nWhat do you think about 409?') ?? '', /The question/);
+});
+
 test('no split when there is no ask, no leading story, or a story after the ask', () => {
   assert.equal(splitContext('**The gap.** Nothing stops it.'), null);
   assert.equal(splitContext(ASK), null);
