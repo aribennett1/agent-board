@@ -5,7 +5,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { addTask } from '../src/board.ts';
-import { DEFAULT_CHECKS, devMerge, type Check } from '../src/dev-merge.ts';
+import { DEFAULT_CHECKS, devMerge, stackOrder, type Check } from '../src/dev-merge.ts';
 import { env } from './helpers.ts';
 
 // Fixture commits/merges need an identity; never touch the user's git config.
@@ -31,8 +31,8 @@ function fixture() {
   const work = join(dir, 'work');
   git(dir, 'init', '-q', '-b', 'dev', work);
   commit(work, 'shared.txt', 'base\n');
-  const branch = (name: string, file: string, body: string) => {
-    git(work, 'checkout', '-q', '-b', name, 'dev');
+  const branch = (name: string, file: string, body: string, from = 'dev') => {
+    git(work, 'checkout', '-q', '-b', name, from);
     commit(work, file, body);
     git(work, 'checkout', '-q', 'dev');
   };
@@ -40,6 +40,12 @@ function fixture() {
   branch('conflict', 'shared.txt', 'branch side\n');
   branch('lint-bad', 'lint-bad', 'x\n');
   branch('test-bad', 'test-bad', 'x\n');
+  // Stacks: dev <- stack-a <- stack-b <- stack-c, and dev <- cstack-a (conflicts with dev) <- cstack-b
+  branch('stack-a', 'a.txt', 'a\n');
+  branch('stack-b', 'b.txt', 'b\n', 'stack-a');
+  branch('stack-c', 'c.txt', 'c\n', 'stack-b');
+  branch('cstack-a', 'shared.txt', 'cstack side\n');
+  branch('cstack-b', 'cb.txt', 'cb\n', 'cstack-a');
   commit(work, 'shared.txt', 'dev side\n'); // dev moves on
   branch('current', 'current.txt', 'already has dev\n');
   git(dir, 'clone', '-q', '--bare', work, join(dir, 'origin.git'));
@@ -72,7 +78,7 @@ function fixture() {
     /** branches the fake push was called for (cwd basename = worktree name) */
     pushed: () => read(log).filter((l) => l.startsWith('push ')).map((l) => l.split(' ')[1].split('/').at(-1)!),
     ran: () => read(ran),
-    merge: (branches: string[], extra: { pushCmd?: string; stampCmd?: string; hookVersion?: (root: string) => string | null; skillsHookRoot?: string; sdmLog?: string; installCmd?: string } = {}) =>
+    merge: (branches: string[], extra: { bases?: Record<string, string>; pushCmd?: string; stampCmd?: string; hookVersion?: (root: string) => string | null; skillsHookRoot?: string; sdmLog?: string; installCmd?: string } = {}) =>
       devMerge(e.db, { ...e.run, branches, repo, worktreeRoot: join(dir, 'wt'), checks, hooksDir, installCmd, base: 'dev', ...extra }),
     notes: () => e.db.prepare(`SELECT author, kind, body FROM notes WHERE task_id = 'dev-merge' AND kind = 'info' ORDER BY id`).all() as { author: string; body: string }[],
   };
@@ -360,4 +366,49 @@ test('scheduled-dev-merge push_failed → push_failed, reason in the note, merge
   assert.deepEqual(results[0].sdm, { result: 'push_failed', reason: 'git push exit 1' });
   assert.equal(git(f.repo, 'rev-parse', 'clean'), tip);
   assert.match(f.notes()[0].body, /result: push_failed\nreason: git push exit 1/);
+});
+
+test('stack order is root to leaf whatever order gh lists the PRs in', () => {
+  const bases: Record<string, string> = { c: 'b', solo: 'dev', b: 'a', a: 'dev', x: 'someone-elses-branch' };
+  assert.deepEqual(stackOrder(['c', 'solo', 'b', 'a', 'x'], (b) => bases[b]).map((r) => [r.branch, r.base, r.parent ?? null, r.depth]), [
+    ['solo', 'dev', null, 0], ['a', 'dev', null, 0], ['b', 'a', 'a', 1], ['c', 'b', 'b', 2], ['x', 'someone-elses-branch', null, 0],
+  ]);
+});
+
+test('stacked PRs: dev into A, then A into B, then B into C; each merges its own base, never dev', () => {
+  const f = fixture();
+  const bases = { 'stack-c': 'stack-b', 'stack-b': 'stack-a', 'stack-a': 'dev' };
+  // Model a real push: the bare origin takes the worktree branch, so the child's fresh fetch sees the new parent tip.
+  const pushCmd = `b=$(git symbolic-ref --short HEAD) && git --git-dir='${join(f.dir, 'origin.git')}' fetch -q '${f.repo}' "+refs/heads/$b:refs/heads/$b" && echo "$b" >> '${join(f.dir, 'real-push.txt')}'`;
+  const { results } = f.merge(['stack-c', 'stack-b', 'stack-a'], { bases, pushCmd });
+  assert.deepEqual(results.map((r) => [r.branch, r.base, r.status]), [
+    ['stack-a', 'dev', 'pushed'], ['stack-b', 'stack-a', 'pushed'], ['stack-c', 'stack-b', 'pushed'],
+  ]);
+  // Each merge commit's second parent is the branch's own base, not dev.
+  assert.equal(git(f.repo, 'rev-parse', 'stack-a^2'), git(f.repo, 'rev-parse', 'origin/dev'));
+  assert.equal(git(f.repo, 'rev-parse', 'stack-b^2'), git(f.repo, 'rev-parse', 'origin/stack-a'));
+  assert.equal(git(f.repo, 'rev-parse', 'stack-c^2'), git(f.repo, 'rev-parse', 'origin/stack-b'));
+  assert.deepEqual(readFileSync(join(f.dir, 'real-push.txt'), 'utf8').trim().split('\n'), ['stack-a', 'stack-b', 'stack-c']);
+  // C carries A's dev merge through B.
+  assert.equal(git(f.repo, 'merge-base', '--is-ancestor', 'origin/dev', 'stack-c'), '');
+});
+
+test('stacked PRs: a conflict at the root stops the chain, every branch below is left untouched', () => {
+  const f = fixture();
+  const tip = git(f.repo, 'rev-parse', 'origin/cstack-b');
+  const { results } = f.merge(['cstack-b', 'cstack-a'], { bases: { 'cstack-b': 'cstack-a', 'cstack-a': 'dev' } });
+  assert.deepEqual(results.map((r) => [r.branch, r.status]), [['cstack-a', 'conflict'], ['cstack-b', 'skipped']]);
+  assert.match(results[1].output!, /parent cstack-a was not updated \(conflict\)/);
+  assert.ok(!existsSync(join(f.dir, 'wt', 'cstack-b')));
+  assert.equal(git(f.repo, 'branch', '--list', 'cstack-b'), ''); // never checked out
+  assert.equal(git(f.repo, 'rev-parse', 'origin/cstack-b'), tip);
+  assert.deepEqual(f.pushed(), []);
+  assert.match(f.notes().map((n) => n.body).join('\n'), /cstack-b: parent cstack-a was not updated \(conflict\), skipped/);
+});
+
+test('{base} in a check or push command is the branch\'s own PR base', () => {
+  const f = fixture();
+  const out = join(f.dir, 'bases.txt');
+  f.merge(['stack-a', 'stack-b'], { bases: { 'stack-b': 'stack-a', 'stack-a': 'dev' }, pushCmd: `b=$(git symbolic-ref --short HEAD) && git --git-dir='${join(f.dir, 'origin.git')}' fetch -q '${f.repo}' "+refs/heads/$b:refs/heads/$b" && echo "origin/{base}" >> '${out}'` });
+  assert.deepEqual(readFileSync(out, 'utf8').trim().split('\n'), ['origin/dev', 'origin/stack-a']);
 });

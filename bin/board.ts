@@ -4,7 +4,7 @@ import { open } from '../src/db.ts';
 import { loadDbPath, resolveAuthor } from '../src/config.ts';
 import { addNote, addTask, checkin, printSender, runDrift, runTick, runWake, setState, type DriftRow } from '../src/board.ts';
 import { weeklyReport } from '../src/report.ts';
-import { devMerge, type Check } from '../src/dev-merge.ts';
+import { devMerge, stackOrder, type Check } from '../src/dev-merge.ts';
 
 const USAGE = `usage: board <command>
   checkin <task> --bot <id>
@@ -16,11 +16,13 @@ const USAGE = `usage: board <command>
   drift <json file>
   report [--since ISO]
   dev-merge --repo <path> [--base <branch>] [--gh-author <login>] [--worktree-root <dir>] [--check name=cmd]... 
-            [--install-cmd <cmd>] [--stamp-cmd <cmd>] [--push-cmd <cmd>]
+            [--install-cmd <cmd>] [--stamp-cmd <cmd>] [--push-cmd <cmd>] [--dry-run]
+            each open PR merges origin/<its base>, stacks root to leaf; {base} in a command is that base;
+            --dry-run prints the order and merge source only
 env: AGENT_BOARD_DB (default ./agent-board.db), AGENT_BOT (default for --bot),
      AGENT_BOARD_BASE (default main), AGENT_BOARD_GH_AUTHOR (default @me), AGENT_BOARD_HOOKS_INSTALL`;
 
-const BOOL = new Set(['new-cycle']);
+const BOOL = new Set(['new-cycle', 'dry-run']);
 const pos: string[] = [];
 const flags: Record<string, string> = {};
 const checks: Check[] = [];
@@ -106,11 +108,20 @@ try {
     case 'dev-merge': {
       const repo = need(flags.repo, '--repo');
       // read-only; stdout only so gh warnings never become branch names
-      const gh = spawnSync('gh', ['pr', 'list', '--author', flags['gh-author'] ?? process.env.AGENT_BOARD_GH_AUTHOR ?? '@me', '--state', 'open', '--json', 'headRefName', '--jq', '.[].headRefName'], { cwd: repo, encoding: 'utf8' });
+      const gh = spawnSync('gh', ['pr', 'list', '--author', flags['gh-author'] ?? process.env.AGENT_BOARD_GH_AUTHOR ?? '@me', '--state', 'open', '--limit', '500', '--json', 'headRefName,baseRefName'], { cwd: repo, encoding: 'utf8' });
       if (gh.status !== 0) throw new Error(`gh pr list: ${gh.stderr}${gh.error?.message ?? ''}`);
-      const branches = gh.stdout.split('\n').map((b) => b.trim()).filter(Boolean);
+      // Each PR merges its own base (dev for a root PR, the parent branch for a stacked one).
+      const prs = (JSON.parse(gh.stdout) as { headRefName: string; baseRefName: string }[]).filter((p) => p.headRefName && p.baseRefName);
+      const branches = prs.map((p) => p.headRefName);
+      const bases = Object.fromEntries(prs.map((p) => [p.headRefName, p.baseRefName]));
+      if (flags['dry-run']) {
+        // Read-only: no fetch, merge, check, or push. Stack order, root to leaf.
+        console.log('order\tbranch\tbase\tmerges');
+        stackOrder(branches, (b) => bases[b]).forEach((r, i) => console.log(`${i + 1}\t${'  '.repeat(r.depth)}${r.branch}\t${r.base}\torigin/${r.base}${r.parent ? ` (after ${r.parent}; skipped if it is not updated)` : ''}`));
+        break;
+      }
       const { results, wake } = devMerge(db, {
-        ...run, branches, repo, base: flags.base ?? process.env.AGENT_BOARD_BASE, worktreeRoot: flags['worktree-root'], checks: checks.length ? checks : undefined, 
+        ...run, branches, bases, repo, base: flags.base ?? process.env.AGENT_BOARD_BASE, worktreeRoot: flags['worktree-root'], checks: checks.length ? checks : undefined, 
         installCmd: flags['install-cmd'] ?? process.env.AGENT_BOARD_HOOKS_INSTALL, stampCmd: flags['stamp-cmd'], pushCmd: flags['push-cmd'],
       });
       for (const r of results) {
