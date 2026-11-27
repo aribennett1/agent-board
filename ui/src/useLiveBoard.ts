@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useSyncExternalStore } from "react";
+import { afterLiveUpdate, beforeLiveUpdate, installInteractionTracker } from "./scrollAnchor";
 import { isBoard } from "./data/parse";
 import type { Board, Project } from "./data/types";
 import { createPoller as createLivePoller, type Poller as LivePoller } from "./useLiveRefresh";
@@ -50,6 +51,8 @@ function startFeed() {
   if (!poller) {
     poller = createPoller({
       apply: (next) => {
+        // Note what is on screen so the layout effect in useLiveBoard can hold it still once React commits.
+        if (typeof document !== "undefined") beforeLiveUpdate(document);
         feed = next;
         for (const fn of listeners) fn();
       },
@@ -82,13 +85,11 @@ function useFeed(): Feed | null {
 // The board as the server has it now. Starts from `initial` until the first poll lands.
 export function useLiveBoard(initial: Board): Board {
   const f = useFeed();
-  const y = useRef(0);
-  // Keep the scroll position across a swap even if layout shifts.
+  useEffect(() => (typeof window === "undefined" ? undefined : installInteractionTracker(window)), []);
+  // After a live update commits and before paint, put the item he was reading back where it was on screen.
   useLayoutEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.scrollY !== y.current && y.current > 0) window.scrollTo?.(0, y.current);
+    if (typeof document !== "undefined") afterLiveUpdate(document);
   });
-  if (typeof window !== "undefined") y.current = window.scrollY;
   return f?.board ?? initial;
 }
 
@@ -104,6 +105,7 @@ export function useLiveProject(): Project | null {
 
 /** Test hook: swap a board in as if a poll had fetched it. */
 export function pushBoard(board: Board, project: Project | null = feed?.project ?? null) {
+  if (typeof document !== "undefined") beforeLiveUpdate(document);
   feed = { board, project };
   for (const fn of listeners) fn();
 }

@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
+import { scrollingNow } from "./scrollAnchor";
 
 // Live refresh: poll a small version endpoint every 10 seconds and when the tab becomes visible. Same hash: nothing
 // happens. New hash: load the data and swap it in with no page reload, so React changes only what changed. Checks never
-// overlap (busy), wait while a person is typing or the mic is on, keep scroll, and stop on teardown.
+// overlap (busy), wait while a person is typing, scrolling or the mic is on, and stop on teardown. Keeping the view still
+// across the swap is the caller's job (see scrollAnchor.ts).
 
 export const VERSION_PATH = "/api/version";
 export const POLL_MS = 10_000;
@@ -45,7 +47,7 @@ export type PollerOptions<T> = {
 
 export function createPoller<T>(opts: PollerOptions<T>): Poller<T> {
   const fetchImpl = opts.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
-  const isIdle = opts.isIdle ?? (() => !userBusy());
+  const isIdle = opts.isIdle ?? (() => !userBusy() && !scrollingNow());
   const wait = opts.wait ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const doc = opts.doc ?? document;
   const state: Poller<T>["state"] = { version: undefined, busy: false, dead: false, checks: 0, loads: 0 };
@@ -67,9 +69,7 @@ export function createPoller<T>(opts: PollerOptions<T>): Poller<T> {
       if (data == null || state.dead) return;
       await idle();
       if (state.dead) return;
-      const y = typeof window !== "undefined" ? window.scrollY : 0;
       opts.apply(data);
-      if (typeof window !== "undefined" && window.scrollY !== y) window.scrollTo?.(0, y);
       state.version = info.version;
     } catch (e) {
       if (!state.dead) console.warn("Board update postponed", e);
